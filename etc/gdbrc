@@ -1,0 +1,4 @@
+target remote :1234
+set scheduler-locking on
+layout src
+layout regs
