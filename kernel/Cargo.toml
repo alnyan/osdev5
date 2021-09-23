@@ -5,8 +5,16 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "kernel"
+test = false
+
+[dependencies]
+cfg-if = "1.x.x"
+
 [target.'cfg(target_arch = "aarch64")'.dependencies]
 cortex-a = { version = "6.x.x" }
 
 [features]
 mach_qemu = []
+default = ["mach_qemu"]

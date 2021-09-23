@@ -3,24 +3,15 @@
 #![no_std]
 #![no_main]
 
-use core::panic::PanicInfo;
+#[macro_use]
+extern crate cfg_if;
+
+#[macro_use]
+pub mod debug;
+pub mod arch;
+pub mod mem;
 
 #[panic_handler]
-fn panic_handler(_pi: &PanicInfo) -> ! {
+fn panic_handler(_pi: &core::panic::PanicInfo) -> ! {
     loop {}
 }
-
-global_asm!(r#"
-.section .text._entry
-.global _entry
-_entry:
-    mrs x1, mpidr_el1
-    and x1, x1, #3
-    beq 2f
-1:
-    wfe
-    b 1b
-
-2:
-    b .
-"#);

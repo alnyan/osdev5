@@ -1,6 +1,6 @@
 ENTRY(_entry);
 
-KERNEL_OFFSET = 0xFFFFFF8000000000;
+KERNEL_OFFSET = 0; /* 0xFFFFFF8000000000; */
 
 SECTIONS {
     . = 0x40080000 + KERNEL_OFFSET;
@@ -8,7 +8,7 @@ SECTIONS {
     PROVIDE(__kernel_start = .);
 
     .text : AT(. - KERNEL_OFFSET) {
-        *(.text.boot)
+        *(.text._entry)
         *(.text*)
     }
 
@@ -24,11 +24,11 @@ SECTIONS {
 
     . = ALIGN(4K);
     .bss : AT(. - KERNEL_OFFSET) {
-        PROVIDE(__bss_start_phys = . - KERNEL_OFFSET);
+        PROVIDE(__bss_start = .);
         *(COMMON)
         *(.bss*)
         . = ALIGN(4K);
-        PROVIDE(__bss_end_phys = . - KERNEL_OFFSET);
+        PROVIDE(__bss_end = .);
     }
 
     PROVIDE(__kernel_end = .);
