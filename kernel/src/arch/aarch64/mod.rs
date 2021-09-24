@@ -1,6 +1,7 @@
 //! aarch64 architecture implementation
 
 pub mod boot;
+pub mod timer;
 
 cfg_if! {
     if #[cfg(feature = "mach_qemu")] {
