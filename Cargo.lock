@@ -32,8 +32,11 @@ version = "0.1.0"
 name = "kernel"
 version = "0.1.0"
 dependencies = [
+ "address",
  "cfg-if",
  "cortex-a",
+ "error",
+ "tock-registers",
 ]
 
 [[package]]

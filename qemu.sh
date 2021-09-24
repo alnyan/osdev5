@@ -33,4 +33,4 @@ case $ARCH in
         ;;
 esac
 
-qemu-system-${ARCH} ${QEMU_OPTS} $@
+${QEMU_PREFIX}qemu-system-${ARCH} ${QEMU_OPTS} $@

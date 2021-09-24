@@ -1,13 +1,18 @@
+use crate::dev::serial::SerialDevice;
+use crate::sync::Spin;
 use core::fmt;
 
-struct Output;
+struct SerialOutput<T: 'static + SerialDevice> {
+    inner: &'static Spin<T>,
+}
 
-impl fmt::Write for Output {
+impl<T: SerialDevice> fmt::Write for SerialOutput<T> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
+        let mut lock = self.inner.lock();
         for &byte in s.as_bytes() {
-            // XXX
             unsafe {
-                core::ptr::write_volatile(0x09000000 as *mut u32, byte as u32);
+                // TODO check for errors
+                drop(lock.send(byte));
             }
         }
         Ok(())
@@ -25,6 +30,8 @@ macro_rules! debugln {
 }
 
 pub fn _debug(args: fmt::Arguments) {
+    use crate::arch::machine;
     use fmt::Write;
-    drop(Output {}.write_fmt(args));
+
+    drop(SerialOutput { inner: machine::console() }.write_fmt(args));
 }
