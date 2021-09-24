@@ -4,7 +4,7 @@
 fn __aa64_bsp_main() {
     debugln!("Test");
     use crate::arch::machine;
-    use crate::dev::{Device, timer::TimestampSource, serial::SerialDevice};
+    use crate::dev::{serial::SerialDevice, timer::TimestampSource, Device};
 
     unsafe {
         machine::console().lock().enable().unwrap();

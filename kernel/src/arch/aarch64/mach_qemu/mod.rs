@@ -1,8 +1,8 @@
 //! QEMU virt machine
 
+use crate::arch::aarch64::timer::GenericTimer;
 use crate::dev::serial::{pl011::Pl011, SerialDevice};
 use crate::dev::timer::TimestampSource;
-use crate::arch::aarch64::timer::GenericTimer;
 use crate::sync::Spin;
 
 const UART0_BASE: usize = 0x09000000;

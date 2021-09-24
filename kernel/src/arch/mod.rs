@@ -19,8 +19,8 @@ cfg_if! {
 }
 
 // TODO move to mod io
-use core::ops::Deref;
 use core::marker::PhantomData;
+use core::ops::Deref;
 
 /// Wrapper for setting up memory-mapped registers and IO
 pub struct MemoryIo<T> {
@@ -37,7 +37,7 @@ impl<T> MemoryIo<T> {
     pub const unsafe fn new(base: usize) -> Self {
         Self {
             base,
-            _pd: PhantomData
+            _pd: PhantomData,
         }
     }
 }

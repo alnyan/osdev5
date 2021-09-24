@@ -9,7 +9,6 @@
 )]
 #![no_std]
 #![no_main]
-
 #![deny(missing_docs)]
 
 #[macro_use]

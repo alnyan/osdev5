@@ -41,5 +41,9 @@ pub fn _debug(args: fmt::Arguments) {
     use crate::arch::machine;
     use fmt::Write;
 
-    SerialOutput { inner: machine::console() }.write_fmt(args).ok();
+    SerialOutput {
+        inner: machine::console(),
+    }
+    .write_fmt(args)
+    .ok();
 }

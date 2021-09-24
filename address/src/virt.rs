@@ -231,10 +231,7 @@ mod tests {
     #[test]
     fn test_trivial_convert() {
         let v0 = VirtualAddress::<S0>::from(0x8123usize);
-        assert_eq!(
-            PhysicalAddress::from(v0),
-            PhysicalAddress::from(0x123usize)
-        );
+        assert_eq!(PhysicalAddress::from(v0), PhysicalAddress::from(0x123usize));
     }
 
     #[test]
