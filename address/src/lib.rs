@@ -6,13 +6,13 @@
     const_trait_impl,
     const_panic
 )]
-// #![warn(missing_docs)]
 
 #[cfg(test)]
 #[macro_use]
 extern crate std;
 
 pub mod virt;
+#[deny(missing_docs)]
 pub mod phys;
 
 trait Address {}

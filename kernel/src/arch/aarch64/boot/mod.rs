@@ -1,4 +1,4 @@
-use cortex_a::asm;
+//! aarch64 common boot logic
 
 #[no_mangle]
 fn __aa64_bsp_main() {
@@ -11,7 +11,7 @@ fn __aa64_bsp_main() {
     }
 
     loop {
-        let ch = unsafe { machine::console().lock().recv(true).unwrap() };
+        let ch = machine::console().lock().recv(true).unwrap();
         debugln!("{:#04x} = '{}'!", ch, ch as char);
     }
 }

@@ -18,18 +18,39 @@ if [ "$PROFILE" = "release" ]; then
     CARGO_OPTS="$CARGO_OPTS --release"
 fi
 
-cd kernel
-cargo build ${CARGO_OPTS}
-cd ..
-
-case $ARCH in
-    aarch64)
-        ${LLVM_BIN}/llvm-objcopy -O binary ${OUT_DIR}/kernel ${OUT_DIR}/kernel.bin
+case $1 in
+    ""|build)
+        CARGO_CMD=build
         ;;
-    x86_64)
-        mkdir -p ${OUT_DIR}/cdrom/boot/grub
-        cp etc/x86_64-none.grub ${OUT_DIR}/cdrom/boot/grub/grub.cfg
-        cp ${OUT_DIR}/kernel ${OUT_DIR}/cdrom/boot/kernel.elf
-        grub-mkrescue -o ${OUT_DIR}/cdrom.iso ${OUT_DIR}/cdrom
+    clean)
+        CARGO_CMD=clean
+        ;;
+    clippy)
+        CARGO_CMD=clippy
+        ;;
+    doc)
+        shift
+        if [ x$1 = xopen ]; then
+            CARGO_OPTS="$CARGO_OPTS --open"
+        fi
+        CARGO_CMD=doc
         ;;
 esac
+
+cd kernel
+cargo ${CARGO_CMD} ${CARGO_OPTS}
+cd ..
+
+if [ ${CARGO_CMD} = "build" ]; then
+    case $ARCH in
+        aarch64)
+            ${LLVM_BIN}/llvm-objcopy -O binary ${OUT_DIR}/kernel ${OUT_DIR}/kernel.bin
+            ;;
+        x86_64)
+            mkdir -p ${OUT_DIR}/cdrom/boot/grub
+            cp etc/x86_64-none.grub ${OUT_DIR}/cdrom/boot/grub/grub.cfg
+            cp ${OUT_DIR}/kernel ${OUT_DIR}/cdrom/boot/kernel.elf
+            grub-mkrescue -o ${OUT_DIR}/cdrom.iso ${OUT_DIR}/cdrom
+            ;;
+    esac
+fi

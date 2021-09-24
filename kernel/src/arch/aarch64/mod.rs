@@ -1,3 +1,5 @@
+//! aarch64 architecture implementation
+
 pub mod boot;
 
 cfg_if! {

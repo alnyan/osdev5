@@ -8,6 +8,7 @@
 #![no_std]
 #![no_main]
 
+
 #[macro_use]
 extern crate cfg_if;
 
@@ -16,6 +17,7 @@ pub mod debug;
 pub mod arch;
 pub mod dev;
 pub mod mem;
+#[deny(missing_docs)]
 pub mod sync;
 
 #[panic_handler]

@@ -1,8 +1,11 @@
+//! QEMU virt machine
+
 use crate::dev::serial::{pl011::Pl011, SerialDevice};
 use crate::sync::Spin;
 
-pub const UART0_BASE: usize = 0x09000000;
+const UART0_BASE: usize = 0x09000000;
 
+/// Returns primary console for this machine
 #[inline]
 pub fn console() -> &'static Spin<impl SerialDevice> {
     &UART0

@@ -1,9 +1,17 @@
+//! Module for serial device drivers
+
 use crate::dev::Device;
 use error::Errno;
 
 pub mod pl011;
 
+/// Generic interface for serial devices
 pub trait SerialDevice: Device {
-    unsafe fn send(&mut self, byte: u8) -> Result<(), Errno>;
-    unsafe fn recv(&mut self, blocking: bool) -> Result<u8, Errno>;
+    /// Transmits (blocking) a byte through the serial device
+    fn send(&mut self, byte: u8) -> Result<(), Errno>;
+    /// Receives a byte through the serial interface.
+    ///
+    /// If `blocking` is `false` and there's no data in device's queue,
+    /// will return [Errno::WouldBlock].
+    fn recv(&mut self, blocking: bool) -> Result<u8, Errno>;
 }
