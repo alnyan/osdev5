@@ -1,8 +1,12 @@
 //! aarch64 common boot logic
+use crate::arch::aarch64::asm::CPACR_EL1;
+use tock_registers::interfaces::Writeable;
 
 #[no_mangle]
 fn __aa64_bsp_main() {
-    debugln!("Test");
+    // Disable FP instruction trapping
+    CPACR_EL1.write(CPACR_EL1::FPEN::TrapNone);
+
     use crate::arch::machine;
     use crate::dev::{serial::SerialDevice, timer::TimestampSource, Device};
 

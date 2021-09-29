@@ -1,5 +1,6 @@
 //! osdve5 crate (lol)
 #![feature(
+    asm,
     global_asm,
     const_for,
     const_mut_refs,
