@@ -25,7 +25,7 @@ $(error TODO)
 else
 ifeq ($(MACH),qemu)
 QEMU_OPTS+=-kernel $(O)/kernel.bin \
-		   -M virt,virtualization=on \
+		   -M virt,virtualization=off \
 		   -cpu cortex-a72 \
 		   -m 512 \
 		   -serial chardev:serial0
@@ -45,8 +45,8 @@ endif
 clean:
 	cargo clean
 
-qemu:
+qemu: all
 	qemu-system-$(ARCH) $(QEMU_OPTS)
 
-gdb:
+gdb: all
 	$(GDB) -x etc/gdbrc $(O)/kernel

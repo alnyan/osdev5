@@ -6,6 +6,7 @@
     const_mut_refs,
     const_raw_ptr_deref,
     const_fn_fn_ptr_basics,
+    const_panic,
     panic_info_message
 )]
 #![no_std]

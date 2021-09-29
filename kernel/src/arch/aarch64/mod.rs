@@ -3,6 +3,7 @@
 pub mod boot;
 pub mod timer;
 pub mod asm;
+pub mod exception;
 
 cfg_if! {
     if #[cfg(feature = "mach_qemu")] {
