@@ -1,3 +1,5 @@
+// vi:ft=a64asm.asm:
+
 .macro ADR_REL reg, sym
     adrp \reg, \sym
     add \reg, \reg, #:lo12:\sym

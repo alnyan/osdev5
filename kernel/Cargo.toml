@@ -20,4 +20,4 @@ cortex-a = { version = "6.x.x" }
 
 [features]
 mach_qemu = []
-default = ["mach_qemu"]
+mach_orangepi3 = []

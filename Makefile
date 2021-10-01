@@ -6,6 +6,7 @@ GDB?=gdb-multiarch
 
 LLVM_BASE=$(shell llvm-config --bindir)
 OBJCOPY=$(LLVM_BASE)/llvm-objcopy
+MKIMAGE?=mkimage
 
 PROFILE?=debug
 O=target/$(ARCH)-$(MACH)/$(PROFILE)
@@ -30,6 +31,12 @@ QEMU_OPTS+=-kernel $(O)/kernel.bin \
 		   -m 512 \
 		   -serial chardev:serial0
 endif
+ifeq ($(MACH),rpi3b)
+QEMU_OPTS+=-kernel $(O)/kernel.bin \
+		   -M raspi3b \
+		   -serial null \
+		   -serial chardev:serial0
+endif
 endif
 
 .PHONY: address error etc kernel src
@@ -40,6 +47,10 @@ kernel:
 	cd kernel && cargo build $(CARGO_BUILD_OPTS)
 ifeq ($(ARCH),aarch64)
 	$(OBJCOPY) -O binary $(O)/kernel $(O)/kernel.bin
+endif
+ifeq ($(MACH),orangepi3)
+	$(LLVM_BASE)/llvm-strip $(O)/kernel
+	$(LLVM_BASE)/llvm-size $(O)/kernel
 endif
 
 clean:
