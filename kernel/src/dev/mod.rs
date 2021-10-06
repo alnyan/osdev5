@@ -5,6 +5,7 @@ use error::Errno;
 // Device classes
 pub mod serial;
 pub mod timer;
+pub mod gpio;
 
 /// Generic device trait
 pub trait Device {

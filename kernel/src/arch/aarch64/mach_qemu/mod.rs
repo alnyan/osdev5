@@ -1,11 +1,20 @@
 //! QEMU virt machine
 
 use crate::arch::aarch64::timer::GenericTimer;
-use crate::dev::serial::{pl011::Pl011, SerialDevice};
+use crate::dev::{Device, serial::{pl011::Pl011, SerialDevice}};
 use crate::dev::timer::TimestampSource;
 use crate::sync::Spin;
+use error::Errno;
 
 const UART0_BASE: usize = 0x09000000;
+
+#[allow(missing_docs)]
+pub fn init_board() -> Result<(), Errno> {
+    unsafe {
+        UART0.lock().enable()?;
+    }
+    Ok(())
+}
 
 /// Returns primary console for this machine
 #[inline]

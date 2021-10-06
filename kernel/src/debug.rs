@@ -15,6 +15,9 @@ impl<T: SerialDevice> fmt::Write for SerialOutput<T> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let mut lock = self.inner.lock();
         for &byte in s.as_bytes() {
+            if byte == b'\n' {
+                lock.send(b'\r').ok();
+            }
             // TODO check for errors
             lock.send(byte).ok();
         }

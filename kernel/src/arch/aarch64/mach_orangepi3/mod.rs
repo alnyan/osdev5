@@ -1,51 +1,35 @@
-//! QEMU virt machine
+//! Xunlong Orange Pi 3, with Allwinner H6 SoC
 
 use crate::arch::aarch64::timer::GenericTimer;
-use crate::dev::{Device, serial::SerialDevice};
-use crate::dev::timer::TimestampSource;
+use crate::dev::{
+    gpio::{GpioDevice, PinConfig},
+    serial::SerialDevice,
+    timer::TimestampSource,
+    Device,
+};
 use crate::sync::Spin;
 use error::Errno;
 
-fn delay(mut p: usize) {
-    while p != 0 {
-        cortex_a::asm::nop();
-        p -= 1;
-    }
-}
+mod gpio;
+mod uart;
 
-struct Uart {
-    base: usize
-}
+use gpio::Gpio;
+use uart::Uart;
 
-impl Device for Uart {
-    fn name() -> &'static str {
-        "Allwinner H6 UART"
-    }
+#[allow(missing_docs)]
+pub fn init_board() -> Result<(), Errno> {
+    unsafe {
+        let mut gpioh = GPIOH.lock();
+        gpioh.set_pin_config(0, &PinConfig::alt(gpio::PH0_UART0_TX))?;
+        gpioh.set_pin_config(1, &PinConfig::alt(gpio::PH1_UART0_RX))?;
 
-    unsafe fn enable(&mut self) -> Result<(), Errno> {
-        todo!()
+        UART0.lock().enable()?;
     }
-}
-
-impl SerialDevice for Uart {
-    fn send(&mut self, byte: u8) -> Result<(), Errno> {
-        unsafe {
-            if byte == b'\n' {
-                core::ptr::write_volatile(self.base as *mut u32, 13u32);
-                delay(10000);
-            }
-            core::ptr::write_volatile(self.base as *mut u32, byte as u32);
-            delay(10000);
-        }
-        Ok(())
-    }
-
-    fn recv(&mut self, blocking: bool) -> Result<u8, Errno> {
-        todo!()
-    }
+    Ok(())
 }
 
 const UART0_BASE: usize = 0x05000000;
+const PIO_BASE: usize = 0x0300B000;
 
 /// Returns primary console for this machine
 #[inline]
@@ -53,10 +37,14 @@ pub fn console() -> &'static Spin<impl SerialDevice> {
     &UART0
 }
 
-///// Returns the timer used as CPU-local periodic IRQ source
-//#[inline]
-//pub fn local_timer() -> &'static Spin<impl TimestampSource> {
-//    &LOCAL_TIMER
-//}
+/// Returns the timer used as CPU-local periodic IRQ source
+#[inline]
+pub fn local_timer() -> &'static Spin<impl TimestampSource> {
+    &LOCAL_TIMER
+}
 
-static UART0: Spin<Uart> = Spin::new(Uart { base: UART0_BASE });
+static UART0: Spin<Uart> = Spin::new(unsafe { Uart::new(UART0_BASE) });
+static LOCAL_TIMER: Spin<GenericTimer> = Spin::new(GenericTimer {});
+#[allow(dead_code)]
+static GPIOD: Spin<Gpio> = Spin::new(unsafe { Gpio::new(PIO_BASE + 0x24 * 3) });
+static GPIOH: Spin<Gpio> = Spin::new(unsafe { Gpio::new(PIO_BASE + 0x24 * 7) });

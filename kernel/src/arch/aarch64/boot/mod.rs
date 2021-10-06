@@ -1,10 +1,10 @@
 //! aarch64 common boot logic
 
-use crate::arch::aarch64::asm::{CPACR_EL1};
-use cortex_a::registers::{VBAR_EL1, SCTLR_EL1};
-use tock_registers::interfaces::{Writeable, ReadWriteable};
-
+use crate::arch::{aarch64::asm::CPACR_EL1, machine};
+use crate::dev::{Device, serial::SerialDevice, timer::TimestampSource};
 use cortex_a::asm::barrier::{self, dsb, isb};
+use cortex_a::registers::{SCTLR_EL1, VBAR_EL1};
+use tock_registers::interfaces::{ReadWriteable, Writeable};
 
 #[no_mangle]
 fn __aa64_bsp_main() {
@@ -21,44 +21,25 @@ fn __aa64_bsp_main() {
         dsb(barrier::SY);
         isb(barrier::SY);
 
-        SCTLR_EL1.modify(SCTLR_EL1::I::SET +
-                         SCTLR_EL1::SA::SET +
-                         SCTLR_EL1::C::SET +
-                         SCTLR_EL1::A::SET);
+        SCTLR_EL1
+            .modify(SCTLR_EL1::I::SET + SCTLR_EL1::SA::SET + SCTLR_EL1::C::SET + SCTLR_EL1::A::SET);
 
         dsb(barrier::SY);
         isb(barrier::SY);
     }
 
-    debugln!("Test");
+    machine::init_board().unwrap();
 
-    let mut el: u64;
-    let mut sctlr_el1: u64;
     unsafe {
-        asm!("mrs {}, currentel", out(reg) el);
-        asm!("mrs {}, sctlr_el1", out(reg) sctlr_el1);
+        machine::local_timer().lock().enable().unwrap();
     }
-    el >>= 2;
-    el &= 0x3;
 
-    debugln!("Current EL = {}", el);
-    debugln!("SCTLR_EL1 = {:#x}", sctlr_el1);
-
-    //use crate::arch::machine;
-    //use crate::dev::{serial::SerialDevice, timer::TimestampSource, Device};
-
-    //unsafe {
-        //machine::console().lock().enable().unwrap();
-        //machine::local_timer().lock().enable().unwrap();
-    //}
-
-    //let base = machine::local_timer().lock().timestamp().unwrap();
+    let base = machine::local_timer().lock().timestamp().unwrap();
 
     loop {
-        cortex_a::asm::wfe();
-        //let count = machine::local_timer().lock().timestamp().unwrap();
-        //let ch = machine::console().lock().recv(true).unwrap();
-        //debugln!("[{:?}] {:#04x} = '{}'!", count - base, ch, ch as char);
+        let count = machine::local_timer().lock().timestamp().unwrap();
+        let ch = machine::console().lock().recv(true).unwrap();
+        debugln!("[{:?}] {:#04x} = '{}'!", count - base, ch, ch as char);
     }
 }
 

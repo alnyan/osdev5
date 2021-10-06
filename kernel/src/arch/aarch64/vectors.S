@@ -1,6 +1,6 @@
 .section .text
 .global aa64_el1_vectors
-.p2align 8
+.p2align 12
 aa64_el1_vectors:
 .el1_sp_el0_sync:
     b .
