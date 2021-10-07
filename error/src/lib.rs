@@ -7,4 +7,5 @@ pub enum Errno {
     NotADirectory,
     OutOfMemory,
     WouldBlock,
+    AlreadyExists,
 }

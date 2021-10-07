@@ -1,9 +1,13 @@
 //! aarch64 architecture implementation
 
-pub mod boot;
-pub mod timer;
+use cortex_a::registers::DAIF;
+use tock_registers::interfaces::{Readable, Writeable};
+
 pub mod asm;
+pub mod boot;
 pub mod exception;
+pub mod irq;
+pub mod timer;
 
 cfg_if! {
     if #[cfg(feature = "mach_qemu")] {
@@ -15,4 +19,18 @@ cfg_if! {
 
         pub use mach_orangepi3 as machine;
     }
+}
+
+/// Masks IRQs and returns previous IRQ mask state
+#[inline(always)]
+pub unsafe fn irq_mask_save() -> u64 {
+    let state = DAIF.get();
+    asm!("msr daifset, {bits}", bits = const 2, options(nomem, nostack, preserves_flags));
+    state
+}
+
+/// Restores IRQ mask state
+#[inline(always)]
+pub unsafe fn irq_restore(state: u64) {
+    DAIF.set(state);
 }

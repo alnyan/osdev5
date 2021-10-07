@@ -1,8 +1,16 @@
-use crate::arch::MemoryIo;
-use crate::dev::{serial::SerialDevice, Device};
+use crate::arch::{
+    machine::{self, IrqNumber},
+    MemoryIo,
+};
+use crate::sync::IrqSafeNullLock;
+use crate::dev::{
+    irq::{IntController, IntSource},
+    serial::SerialDevice,
+    Device,
+};
 use error::Errno;
+use tock_registers::interfaces::{Readable, Writeable, ReadWriteable};
 use tock_registers::registers::{Aliased, ReadOnly, ReadWrite};
-use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::{register_bitfields, register_structs};
 
 register_bitfields! [
@@ -66,41 +74,62 @@ register_structs! {
 }
 
 pub(super) struct Uart {
-    regs: MemoryIo<Regs>,
+    regs: IrqSafeNullLock<MemoryIo<Regs>>,
+    irq: IrqNumber
 }
 
 impl Device for Uart {
-    fn name() -> &'static str {
+    fn name(&self) -> &'static str {
         "Allwinner H6 UART"
     }
 
-    unsafe fn enable(&mut self) -> Result<(), Errno> {
+    unsafe fn enable(&self) -> Result<(), Errno> {
         // TODO
         Ok(())
     }
 }
 
 impl SerialDevice for Uart {
-    fn send(&mut self, byte: u8) -> Result<(), Errno> {
-        while !self.regs.LSR.matches_all(LSR::THRE::SET) {
+    fn send(&self, byte: u8) -> Result<(), Errno> {
+        let regs = self.regs.lock();
+        while !regs.LSR.matches_all(LSR::THRE::SET) {
             cortex_a::asm::nop();
         }
-        self.regs.DR_DLL.set(byte as u32);
+        regs.DR_DLL.set(byte as u32);
         Ok(())
     }
 
-    fn recv(&mut self, _blocking: bool) -> Result<u8, Errno> {
-        while !self.regs.LSR.matches_all(LSR::DR::SET) {
+    fn recv(&self, _blocking: bool) -> Result<u8, Errno> {
+        let regs = self.regs.lock();
+        while !regs.LSR.matches_all(LSR::DR::SET) {
             cortex_a::asm::nop();
         }
-        Ok(self.regs.DR_DLL.get() as u8)
+        Ok(regs.DR_DLL.get() as u8)
+    }
+}
+
+impl IntSource for Uart {
+    fn handle_irq(&self) -> Result<(), Errno> {
+        let regs = self.regs.lock();
+        let byte = regs.DR_DLL.get();
+        debugln!("irq byte = {:#04x}!", byte);
+        Ok(())
+    }
+
+    fn init_irqs(&'static self) -> Result<(), Errno> {
+        machine::intc().register_handler(self.irq, self)?;
+        self.regs.lock().IER_DLH.modify(IER::ERBFI::SET);
+        machine::intc().enable_irq(self.irq)?;
+
+        Ok(())
     }
 }
 
 impl Uart {
-    pub const unsafe fn new(base: usize) -> Self {
+    pub const unsafe fn new(base: usize, irq: IrqNumber) -> Self {
         Self {
-            regs: MemoryIo::new(base),
+            regs: IrqSafeNullLock::new(MemoryIo::new(base)),
+            irq
         }
     }
 }

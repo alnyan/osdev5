@@ -1,5 +1,8 @@
 //! AArch64 exception handling
 
+use crate::arch::machine;
+use crate::dev::irq::{IntController, IrqContext};
+
 /// Trapped SIMD/FP functionality
 pub const EC_FP_TRAP: u64 = 0b000111;
 /// Data Abort at current EL
@@ -55,7 +58,15 @@ const fn data_abort_access_size(iss: u64) -> &'static str {
 }
 
 #[no_mangle]
-extern "C" fn __aa64_exc_handler(exc: &mut ExceptionFrame) {
+extern "C" fn __aa64_exc_irq_handler() {
+    unsafe {
+        let ic = IrqContext::new();
+        machine::intc().handle_pending_irqs(&ic);
+    }
+}
+
+#[no_mangle]
+extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
     let err_code = exc.esr >> 26;
     let iss = exc.esr & 0x1FFFFFF;
 

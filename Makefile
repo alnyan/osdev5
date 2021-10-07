@@ -57,7 +57,7 @@ clean:
 	cargo clean
 
 qemu: all
-	qemu-system-$(ARCH) $(QEMU_OPTS)
+	$(QEMU_PREFIX)qemu-system-$(ARCH) $(QEMU_OPTS)
 
 gdb: all
 	$(GDB) -x etc/gdbrc $(O)/kernel

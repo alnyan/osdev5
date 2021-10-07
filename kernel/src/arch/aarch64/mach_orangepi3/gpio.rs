@@ -27,17 +27,17 @@ pub(super) struct Gpio {
 }
 
 impl Device for Gpio {
-    fn name() -> &'static str {
+    fn name(&self) -> &'static str {
         "Allwinner H6 GPIO Controller"
     }
 
-    unsafe fn enable(&mut self) -> Result<(), Errno> {
+    unsafe fn enable(&self) -> Result<(), Errno> {
         Ok(())
     }
 }
 
 impl GpioDevice for Gpio {
-    unsafe fn set_pin_config(&mut self, pin: u32, cfg: &PinConfig) -> Result<(), Errno> {
+    unsafe fn set_pin_config(&self, pin: u32, cfg: &PinConfig) -> Result<(), Errno> {
         let pull = match cfg.pull {
             PullMode::None => 0,
             PullMode::Up => 1,
@@ -65,30 +65,30 @@ impl GpioDevice for Gpio {
         Ok(())
     }
 
-    unsafe fn get_pin_config(&mut self, _pin: u32) -> Result<PinConfig, Errno> {
+    unsafe fn get_pin_config(&self, _pin: u32) -> Result<PinConfig, Errno> {
         todo!()
     }
 
-    fn set_pin(&mut self, pin: u32) {
+    fn set_pin(&self, pin: u32) {
         self.regs.DAT.set(self.regs.DAT.get() | (1 << pin));
     }
 
-    fn clear_pin(&mut self, pin: u32) {
+    fn clear_pin(&self, pin: u32) {
         self.regs.DAT.set(self.regs.DAT.get() & !(1 << pin));
     }
 
-    fn toggle_pin(&mut self, pin: u32) {
+    fn toggle_pin(&self, pin: u32) {
         self.regs.DAT.set(self.regs.DAT.get() ^ (1 << pin));
     }
 
-    fn read_pin(&mut self, pin: u32) -> Result<bool, Errno> {
+    fn read_pin(&self, pin: u32) -> Result<bool, Errno> {
         Ok(self.regs.DAT.get() & (1 << pin) != 0)
     }
 }
 
 impl Gpio {
     #[inline]
-    fn set_pin_cfg_inner(&mut self, pin: u32, cfg: u32) {
+    fn set_pin_cfg_inner(&self, pin: u32, cfg: u32) {
         let reg = pin >> 3;
         let shift = (pin & 0x7) * 4;
         let tmp = self.regs.CFG[reg as usize].get() & !(0xF << shift);
@@ -96,7 +96,7 @@ impl Gpio {
     }
 
     #[inline]
-    fn set_pin_pul_inner(&mut self, pin: u32, pul: u32) {
+    fn set_pin_pul_inner(&self, pin: u32, pul: u32) {
         let reg = pin >> 4;
         let shift = (pin & 0xF) * 2;
         let tmp = self.regs.PUL[reg as usize].get() & !(0x3 << shift);

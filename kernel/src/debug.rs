@@ -3,23 +3,22 @@
 //! The module provides [debug!] and [debugln!] macros
 //! which can be used in similar way to print! and
 //! println! from std.
+
 use crate::dev::serial::SerialDevice;
-use crate::sync::Spin;
 use core::fmt;
 
 struct SerialOutput<T: 'static + SerialDevice> {
-    inner: &'static Spin<T>,
+    inner: &'static T,
 }
 
 impl<T: SerialDevice> fmt::Write for SerialOutput<T> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        let mut lock = self.inner.lock();
         for &byte in s.as_bytes() {
             if byte == b'\n' {
-                lock.send(b'\r').ok();
+                self.inner.send(b'\r').ok();
             }
             // TODO check for errors
-            lock.send(byte).ok();
+            self.inner.send(byte).ok();
         }
         Ok(())
     }

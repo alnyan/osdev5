@@ -1,9 +1,9 @@
 //! aarch64 common boot logic
 
 use crate::arch::{aarch64::asm::CPACR_EL1, machine};
-use crate::dev::{Device, serial::SerialDevice, timer::TimestampSource};
+use crate::dev::Device;
 use cortex_a::asm::barrier::{self, dsb, isb};
-use cortex_a::registers::{SCTLR_EL1, VBAR_EL1};
+use cortex_a::registers::{DAIF, SCTLR_EL1, VBAR_EL1};
 use tock_registers::interfaces::{ReadWriteable, Writeable};
 
 #[no_mangle]
@@ -29,17 +29,12 @@ fn __aa64_bsp_main() {
     }
 
     machine::init_board().unwrap();
-
     unsafe {
-        machine::local_timer().lock().enable().unwrap();
+        machine::local_timer().enable().unwrap();
     }
 
-    let base = machine::local_timer().lock().timestamp().unwrap();
-
     loop {
-        let count = machine::local_timer().lock().timestamp().unwrap();
-        let ch = machine::console().lock().recv(true).unwrap();
-        debugln!("[{:?}] {:#04x} = '{}'!", count - base, ch, ch as char);
+        DAIF.modify(DAIF::I::CLEAR);
     }
 }
 

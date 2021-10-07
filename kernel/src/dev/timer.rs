@@ -7,5 +7,5 @@ use error::Errno;
 /// Interface for generic timestamp source
 pub trait TimestampSource: Device {
     /// Reads current timestamp as a [Duration] from system start time
-    fn timestamp(&mut self) -> Result<Duration, Errno>;
+    fn timestamp(&self) -> Result<Duration, Errno>;
 }
