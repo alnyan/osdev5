@@ -9,12 +9,9 @@ use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::register_structs;
 use tock_registers::registers::ReadWrite;
 
-pub const PH0_UART0_TX: u32 = 2;
-pub const PH1_UART0_RX: u32 = 2;
-
 register_structs! {
     #[allow(non_snake_case)]
-    Regs {
+    CpuxPortRegs {
         (0x00 => CFG: [ReadWrite<u32>; 4]),
         (0x10 => DAT: ReadWrite<u32>),
         (0x14 => DRV: [ReadWrite<u32>; 2]),
@@ -23,11 +20,37 @@ register_structs! {
     }
 }
 
-pub(super) struct Gpio {
-    regs: IrqSafeNullLock<MemoryIo<Regs>>,
+struct CpuxGpio {
+    regs: MemoryIo<[CpuxPortRegs; 5]>,
 }
 
-impl Regs {
+pub(super) struct Gpio {
+    cpux: IrqSafeNullLock<CpuxGpio>,
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy)]
+pub struct PinAddress(u32);
+
+impl PinAddress {
+    #[inline(always)]
+    pub const fn new(bank: u32, pin: u32) -> Self {
+        // TODO sanity checks
+        Self((bank << 16) | pin)
+    }
+
+    #[inline(always)]
+    pub const fn bank(self) -> usize {
+        (self.0 >> 16) as usize
+    }
+
+    #[inline(always)]
+    pub const fn pin(self) -> u32 {
+        self.0 & 0xFFFF
+    }
+}
+
+impl CpuxPortRegs {
     #[inline]
     fn set_pin_cfg_inner(&self, pin: u32, cfg: u32) {
         let reg = pin >> 3;
@@ -43,22 +66,13 @@ impl Regs {
         let tmp = self.PUL[reg as usize].get() & !(0x3 << shift);
         self.PUL[reg as usize].set(tmp | ((pul & 0x3) << shift));
     }
-
 }
 
-impl Device for Gpio {
-    fn name(&self) -> &'static str {
-        "Allwinner H6 GPIO Controller"
-    }
+impl CpuxGpio {
+    unsafe fn set_pin_config(&self, bank: usize, pin: u32, cfg: &PinConfig) -> Result<(), Errno> {
+        assert!((0..=7).contains(&bank));
+        let regs = &self.regs[bank];
 
-    unsafe fn enable(&self) -> Result<(), Errno> {
-        Ok(())
-    }
-}
-
-impl GpioDevice for Gpio {
-    unsafe fn set_pin_config(&self, pin: u32, cfg: &PinConfig) -> Result<(), Errno> {
-        let regs = self.regs.lock();
         let pull = match cfg.pull {
             PullMode::None => 0,
             PullMode::Up => 1,
@@ -86,35 +100,101 @@ impl GpioDevice for Gpio {
         Ok(())
     }
 
-    fn get_pin_config(&self, _pin: u32) -> Result<PinConfig, Errno> {
+    #[inline(always)]
+    fn read_pin(&self, bank: usize, pin: u32) -> bool {
+        self.regs[bank].DAT.get() & (1u32 << pin) != 0
+    }
+
+    #[inline(always)]
+    fn toggle_pin(&mut self, bank: usize, pin: u32) {
+        self.regs[bank]
+            .DAT
+            .set(self.regs[bank].DAT.get() ^ (1u32 << pin))
+    }
+
+    #[inline(always)]
+    fn write_pin(&mut self, bank: usize, pin: u32, value: bool) {
+        if value {
+            self.regs[bank]
+                .DAT
+                .set(self.regs[bank].DAT.get() | (1u32 << pin))
+        } else {
+            self.regs[bank]
+                .DAT
+                .set(self.regs[bank].DAT.get() & !(1u32 << pin))
+        }
+    }
+}
+
+impl Device for Gpio {
+    fn name(&self) -> &'static str {
+        "Allwinner H6 GPIO Controller"
+    }
+
+    unsafe fn enable(&self) -> Result<(), Errno> {
+        Ok(())
+    }
+}
+
+impl GpioDevice for Gpio {
+    type PinAddress = PinAddress;
+
+    unsafe fn set_pin_config(&self, pin: PinAddress, cfg: &PinConfig) -> Result<(), Errno> {
+        let bank = pin.bank();
+        let pin = pin.pin();
+
+        match bank {
+            2..=7 => self.cpux.lock().set_pin_config(bank - 2, pin, cfg),
+            _ => unimplemented!(),
+        }
+    }
+
+    fn get_pin_config(&self, _pin: PinAddress) -> Result<PinConfig, Errno> {
         todo!()
     }
 
-    fn set_pin(&self, pin: u32) {
-        let regs = self.regs.lock();
-        regs.DAT.set(regs.DAT.get() | (1 << pin));
+    fn write_pin(&self, pin: PinAddress, state: bool) {
+        let bank = pin.bank();
+        let pin = pin.pin();
+
+        match bank {
+            2..=7 => self.cpux.lock().write_pin(bank - 2, pin, state),
+            _ => unimplemented!(),
+        }
     }
 
-    fn clear_pin(&self, pin: u32) {
-        let regs = self.regs.lock();
-        regs.DAT.set(regs.DAT.get() & !(1 << pin));
+    fn toggle_pin(&self, pin: PinAddress) {
+        let bank = pin.bank();
+        let pin = pin.pin();
+
+        match bank {
+            2..=7 => self.cpux.lock().toggle_pin(bank - 2, pin),
+            _ => unimplemented!(),
+        }
     }
 
-    fn toggle_pin(&self, pin: u32) {
-        let regs = self.regs.lock();
-        regs.DAT.set(regs.DAT.get() ^ (1 << pin));
-    }
+    fn read_pin(&self, pin: PinAddress) -> Result<bool, Errno> {
+        let bank = pin.bank();
+        let pin = pin.pin();
 
-    fn read_pin(&self, pin: u32) -> Result<bool, Errno> {
-        let regs = self.regs.lock();
-        Ok(regs.DAT.get() & (1 << pin) != 0)
+        match bank {
+            2..=7 => Ok(self.cpux.lock().read_pin(bank - 2, pin)),
+            _ => unimplemented!(),
+        }
     }
 }
 
 impl Gpio {
+    pub unsafe fn cfg_uart0_ph0_ph1(&self) -> Result<(), Errno> {
+        self.set_pin_config(PinAddress::new(7, 0), &PinConfig::alt(2))?;
+        self.set_pin_config(PinAddress::new(7, 1), &PinConfig::alt(2))
+    }
+
     pub const unsafe fn new(base: usize) -> Self {
         Self {
-            regs: IrqSafeNullLock::new(MemoryIo::new(base)),
+            cpux: IrqSafeNullLock::new(CpuxGpio {
+                regs: MemoryIo::new(base),
+            }),
         }
     }
 }

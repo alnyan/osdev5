@@ -5,7 +5,6 @@ use crate::arch::aarch64::{
     timer::GenericTimer,
 };
 use crate::dev::{
-    gpio::{GpioDevice, PinConfig},
     irq::{IntController, IntSource},
     serial::SerialDevice,
     timer::TimestampSource,
@@ -25,8 +24,7 @@ pub fn init_board() -> Result<(), Errno> {
     unsafe {
         GIC.enable()?;
 
-        GPIOH.set_pin_config(0, &PinConfig::alt(gpio::PH0_UART0_TX))?;
-        GPIOH.set_pin_config(1, &PinConfig::alt(gpio::PH1_UART0_RX))?;
+        GPIO.cfg_uart0_ph0_ph1()?;
 
         UART0.enable()?;
         UART0.init_irqs()?;
@@ -59,7 +57,5 @@ pub fn intc() -> &'static impl IntController<IrqNumber = IrqNumber> {
 
 static UART0: Uart = unsafe { Uart::new(UART0_BASE, IrqNumber::new(32)) };
 static LOCAL_TIMER: GenericTimer = GenericTimer {};
-#[allow(dead_code)]
-static GPIOD: Gpio = unsafe { Gpio::new(PIO_BASE + 0x24 * 3) };
-static GPIOH: Gpio = unsafe { Gpio::new(PIO_BASE + 0x24 * 7) };
+static GPIO: Gpio = unsafe { Gpio::new(PIO_BASE) };
 static GIC: Gic = unsafe { Gic::new(GICD_BASE, GICC_BASE) };

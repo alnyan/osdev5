@@ -37,26 +37,27 @@ pub struct PinConfig {
     pub func: u32,
 }
 
-// TODO separate traits for "single port controller" and "global gpio controller"
 /// Generic GPIO controller interface
 pub trait GpioDevice: Device {
+    /// Controller-specific address type for a single pin,
+    /// may include its bank and pin numbers
+    type PinAddress;
+
     /// Initializes configuration for given pin
     ///
     /// # Safety
     ///
     /// Unsafe: changes physical pin configuration
-    unsafe fn set_pin_config(&self, pin: u32, cfg: &PinConfig) -> Result<(), Errno>;
+    unsafe fn set_pin_config(&self, pin: Self::PinAddress, cfg: &PinConfig) -> Result<(), Errno>;
     /// Returns current configuration of given pin
-    fn get_pin_config(&self, pin: u32) -> Result<PinConfig, Errno>;
+    fn get_pin_config(&self, pin: Self::PinAddress) -> Result<PinConfig, Errno>;
 
-    /// Sets `pin` to HIGH state
-    fn set_pin(&self, pin: u32);
-    /// Sets `pin` to LOW state
-    fn clear_pin(&self, pin: u32);
+    /// Sets `pin` to HIGH/LOW `state`
+    fn write_pin(&self, pin: Self::PinAddress, state: bool);
     /// Toggles `pin`'s HIGH/LOW state
-    fn toggle_pin(&self, pin: u32);
+    fn toggle_pin(&self, pin: Self::PinAddress);
     /// Returns `true` if input `pin` is in HIGH state
-    fn read_pin(&self, pin: u32) -> Result<bool, Errno>;
+    fn read_pin(&self, pin: Self::PinAddress) -> Result<bool, Errno>;
 }
 
 impl PinConfig {
@@ -65,7 +66,7 @@ impl PinConfig {
         Self {
             mode: PinMode::Alt,
             pull: PullMode::None,
-            func
+            func,
         }
     }
 
@@ -74,7 +75,7 @@ impl PinConfig {
         Self {
             mode: PinMode::Output,
             pull: PullMode::Down,
-            func: 0
+            func: 0,
         }
     }
 }
