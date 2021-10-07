@@ -15,11 +15,13 @@ use error::Errno;
 
 mod gpio;
 mod uart;
+mod rtc;
 
 pub use gic::IrqNumber;
 pub use gpio::PinAddress;
 use gpio::Gpio;
 use uart::Uart;
+use rtc::Rtc;
 
 #[allow(missing_docs)]
 pub fn init_board() -> Result<(), Errno> {
@@ -31,11 +33,15 @@ pub fn init_board() -> Result<(), Errno> {
 
         UART0.enable()?;
         UART0.init_irqs()?;
+
+        RTC.enable()?;
+        RTC.init_irqs()?;
     }
     Ok(())
 }
 
 const UART0_BASE: usize = 0x05000000;
+const RTC_BASE: usize = 0x07000000;
 const PIO_BASE: usize = 0x0300B000;
 const GICD_BASE: usize = 0x03021000;
 const GICC_BASE: usize = 0x03022000;
@@ -61,4 +67,5 @@ pub fn intc() -> &'static impl IntController<IrqNumber = IrqNumber> {
 static UART0: Uart = unsafe { Uart::new(UART0_BASE, IrqNumber::new(32)) };
 static LOCAL_TIMER: GenericTimer = GenericTimer {};
 pub(super) static GPIO: Gpio = unsafe { Gpio::new(PIO_BASE) };
+static RTC: Rtc = unsafe { Rtc::new(RTC_BASE, IrqNumber::new(133)) };
 static GIC: Gic = unsafe { Gic::new(GICD_BASE, GICC_BASE) };
