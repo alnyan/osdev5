@@ -110,9 +110,16 @@ impl SerialDevice for Uart {
 
 impl IntSource for Uart {
     fn handle_irq(&self) -> Result<(), Errno> {
-        let regs = self.regs.lock();
-        let byte = regs.DR_DLL.get();
+        let byte = self.regs.lock().DR_DLL.get();
         debugln!("irq byte = {:#04x}!", byte);
+
+        if byte == 0x1B {
+            debugln!("Received ESC, resetting");
+            unsafe {
+                machine::reset_board();
+            }
+        }
+
         use crate::dev::gpio::{GpioDevice};
         machine::GPIO.toggle_pin(machine::PinAddress::new(3, 26));
         Ok(())

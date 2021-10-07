@@ -1,11 +1,18 @@
-use crate::dev::{Device, rtc::RtcDevice, irq::{IntController, IntSource}};
-use crate::arch::{MemoryIo, machine::{self, IrqNumber}};
+use crate::arch::{
+    machine::{self, IrqNumber},
+    MemoryIo,
+};
+use crate::dev::{
+    irq::{IntController, IntSource},
+    rtc::RtcDevice,
+    Device,
+};
 use crate::sync::IrqSafeNullLock;
 use error::Errno;
 use tock_registers::{
-    interfaces::{Readable, Writeable, ReadWriteable},
+    interfaces::{Readable, Writeable},
     register_bitfields, register_structs,
-    registers::{ReadOnly, ReadWrite, WriteOnly},
+    registers::{ReadOnly, ReadWrite},
 };
 
 register_bitfields! {
@@ -42,7 +49,7 @@ register_structs! {
 
 pub struct Rtc {
     regs: IrqSafeNullLock<MemoryIo<Regs>>,
-    irq: IrqNumber
+    irq: IrqNumber,
 }
 
 impl Regs {
@@ -51,7 +58,8 @@ impl Regs {
         if sec == 0 {
             return;
         }
-        self.ALARM0_IRQ_STA.write(ALARM0_IRQ_STA::ALARM0_IRQ_PEND::SET);
+        self.ALARM0_IRQ_STA
+            .write(ALARM0_IRQ_STA::ALARM0_IRQ_PEND::SET);
         self.ALARM0_IRQ_EN.write(ALARM0_IRQ_EN::ALARM0_IRQ_EN::SET);
         self.ALARM0_COUNTER.set(self.ALARM0_CUR_VLU.get() + sec - 1);
         self.ALARM0_ENABLE.write(ALARM0_ENABLE::ALM_0_EN::SET);
@@ -94,7 +102,7 @@ impl Rtc {
     pub const unsafe fn new(base: usize, irq: IrqNumber) -> Self {
         Self {
             regs: IrqSafeNullLock::new(MemoryIo::new(base)),
-            irq
+            irq,
         }
     }
 }
