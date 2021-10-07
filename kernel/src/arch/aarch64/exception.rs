@@ -72,6 +72,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
 
     debugln!("Unhandled exception at ELR={:#018x}", exc.elr);
 
+    #[allow(clippy::single_match)]
     match err_code {
         EC_DATA_ABORT_ELX => {
             debugln!("Data Abort:");

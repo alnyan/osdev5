@@ -22,6 +22,10 @@ cfg_if! {
 }
 
 /// Masks IRQs and returns previous IRQ mask state
+///
+/// # Safety
+///
+/// Unsafe: disables IRQ handling temporarily
 #[inline(always)]
 pub unsafe fn irq_mask_save() -> u64 {
     let state = DAIF.get();
@@ -30,6 +34,11 @@ pub unsafe fn irq_mask_save() -> u64 {
 }
 
 /// Restores IRQ mask state
+///
+/// # Safety
+///
+/// Unsafe: modifies interrupt behavior. Must only be used in
+/// conjunction with [irq_mask_save]
 #[inline(always)]
 pub unsafe fn irq_restore(state: u64) {
     DAIF.set(state);

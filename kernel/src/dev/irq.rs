@@ -35,7 +35,11 @@ pub trait IntSource: Device {
 }
 
 impl<'q> IrqContext<'q> {
+    /// Constructs an IRQ context token
     ///
+    /// # Safety
+    ///
+    /// Only allowed to be constructed in top-level IRQ handlers
     #[inline(always)]
     pub unsafe fn new() -> Self {
         Self { _0: PhantomData }

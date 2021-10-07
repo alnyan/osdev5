@@ -41,9 +41,13 @@ pub struct PinConfig {
 /// Generic GPIO controller interface
 pub trait GpioDevice: Device {
     /// Initializes configuration for given pin
+    ///
+    /// # Safety
+    ///
+    /// Unsafe: changes physical pin configuration
     unsafe fn set_pin_config(&self, pin: u32, cfg: &PinConfig) -> Result<(), Errno>;
     /// Returns current configuration of given pin
-    unsafe fn get_pin_config(&self, pin: u32) -> Result<PinConfig, Errno>;
+    fn get_pin_config(&self, pin: u32) -> Result<PinConfig, Errno>;
 
     /// Sets `pin` to HIGH state
     fn set_pin(&self, pin: u32);

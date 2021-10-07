@@ -86,7 +86,7 @@ impl GpioDevice for Gpio {
         Ok(())
     }
 
-    unsafe fn get_pin_config(&self, _pin: u32) -> Result<PinConfig, Errno> {
+    fn get_pin_config(&self, _pin: u32) -> Result<PinConfig, Errno> {
         todo!()
     }
 

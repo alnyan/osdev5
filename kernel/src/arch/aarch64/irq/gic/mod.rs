@@ -20,7 +20,7 @@ pub const MAX_IRQ: usize = 300;
 #[derive(Copy, Clone)]
 pub struct IrqNumber(usize);
 
-/// ARM Generic Interrupt Controller
+/// ARM Generic Interrupt Controller, version 2
 pub struct Gic {
     gicc: Gicc,
     gicd: Gicd,
@@ -34,7 +34,7 @@ impl IrqNumber {
         self.0
     }
 
-    ///
+    /// Checks and wraps an IRQ number
     #[inline(always)]
     pub const fn new(v: usize) -> Self {
         assert!(v < MAX_IRQ);
@@ -98,7 +98,11 @@ impl IntController for Gic {
 }
 
 impl Gic {
+    /// Constructs an instance of GICv2.
     ///
+    /// # Safety
+    ///
+    /// Does not perform `gicd_base` and `gicc_base` validation.
     pub const unsafe fn new(gicd_base: usize, gicc_base: usize) -> Self {
         Self {
             gicc: Gicc::new(gicc_base),

@@ -12,7 +12,6 @@ test = false
 [dependencies]
 cfg-if = "1.x.x"
 error = { path = "../error" }
-address = { path = "../address" }
 tock-registers = "0.7.x"
 
 [target.'cfg(target_arch = "aarch64")'.dependencies]

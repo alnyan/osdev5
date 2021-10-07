@@ -41,7 +41,7 @@ pub fn local_timer() -> &'static impl TimestampSource {
     &LOCAL_TIMER
 }
 
-///
+/// Returns CPU's interrupt controller device
 #[inline]
 pub fn intc() -> &'static impl IntController<IrqNumber = IrqNumber> {
     &GIC

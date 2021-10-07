@@ -56,6 +56,9 @@ endif
 clean:
 	cargo clean
 
+clippy:
+	cd kernel && cargo clippy $(CARGO_BUILD_OPTS)
+
 qemu: all
 	$(QEMU_PREFIX)qemu-system-$(ARCH) $(QEMU_OPTS)
 
