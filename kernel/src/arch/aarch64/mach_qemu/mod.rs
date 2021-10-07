@@ -7,6 +7,7 @@ use crate::arch::aarch64::{
 use crate::dev::timer::TimestampSource;
 use crate::dev::{
     irq::{IntController, IntSource},
+    rtc::pl031::Pl031,
     serial::{pl011::Pl011, SerialDevice},
     Device,
 };
@@ -15,6 +16,7 @@ use error::Errno;
 pub use gic::IrqNumber;
 
 const UART0_BASE: usize = 0x09000000;
+const RTC_BASE: usize = 0x09010000;
 const GICD_BASE: usize = 0x08000000;
 const GICC_BASE: usize = 0x08010000;
 
@@ -25,6 +27,9 @@ pub fn init_board() -> Result<(), Errno> {
 
         UART0.enable()?;
         UART0.init_irqs()?;
+
+        RTC.enable()?;
+        RTC.init_irqs()?;
     }
     Ok(())
 }
@@ -48,5 +53,6 @@ pub fn intc() -> &'static impl IntController<IrqNumber = IrqNumber> {
 }
 
 static UART0: Pl011 = unsafe { Pl011::new(UART0_BASE, IrqNumber::new(33)) };
+static RTC: Pl031 = unsafe { Pl031::new(RTC_BASE, IrqNumber::new(34)) };
 static GIC: Gic = unsafe { Gic::new(GICD_BASE, GICC_BASE) };
 static LOCAL_TIMER: GenericTimer = GenericTimer {};

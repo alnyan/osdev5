@@ -3,10 +3,11 @@
 use error::Errno;
 
 // Device classes
-pub mod serial;
-pub mod timer;
 pub mod gpio;
 pub mod irq;
+pub mod rtc;
+pub mod serial;
+pub mod timer;
 
 /// Generic device trait
 pub trait Device {
