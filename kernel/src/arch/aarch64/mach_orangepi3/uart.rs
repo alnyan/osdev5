@@ -113,6 +113,8 @@ impl IntSource for Uart {
         let regs = self.regs.lock();
         let byte = regs.DR_DLL.get();
         debugln!("irq byte = {:#04x}!", byte);
+        use crate::dev::gpio::{GpioDevice};
+        machine::GPIO.toggle_pin(machine::PinAddress::new(3, 26));
         Ok(())
     }
 

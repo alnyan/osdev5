@@ -1,3 +1,10 @@
+//! Allwinner H6 GPIO port controller driver.
+//!
+//! GPIO ports are split into two register groups:
+//!
+//! 1. CPUS-PORT (TODO PL, PM)
+//! 2. CPUX-PORT (PC, PD, PF, PG, PH)
+//!
 use crate::arch::MemoryIo;
 use crate::dev::{
     gpio::{GpioDevice, PinConfig, PinMode, PullMode},
@@ -21,29 +28,33 @@ register_structs! {
 }
 
 struct CpuxGpio {
-    regs: MemoryIo<[CpuxPortRegs; 5]>,
+    regs: MemoryIo<[CpuxPortRegs; 8]>,
 }
 
-pub(super) struct Gpio {
+pub struct Gpio {
     cpux: IrqSafeNullLock<CpuxGpio>,
 }
 
+/// Structure combining bank and pin numbers
 #[repr(transparent)]
 #[derive(Clone, Copy)]
 pub struct PinAddress(u32);
 
 impl PinAddress {
+    /// Constructs a new pin address from `bank` and `pin` numbers
     #[inline(always)]
     pub const fn new(bank: u32, pin: u32) -> Self {
         // TODO sanity checks
         Self((bank << 16) | pin)
     }
 
+    /// Returns bank number of this pin
     #[inline(always)]
     pub const fn bank(self) -> usize {
         (self.0 >> 16) as usize
     }
 
+    /// Returns pin number of this pin
     #[inline(always)]
     pub const fn pin(self) -> u32 {
         self.0 & 0xFFFF
@@ -70,7 +81,6 @@ impl CpuxPortRegs {
 
 impl CpuxGpio {
     unsafe fn set_pin_config(&self, bank: usize, pin: u32, cfg: &PinConfig) -> Result<(), Errno> {
-        assert!((0..=7).contains(&bank));
         let regs = &self.regs[bank];
 
         let pull = match cfg.pull {
@@ -144,8 +154,8 @@ impl GpioDevice for Gpio {
         let pin = pin.pin();
 
         match bank {
-            2..=7 => self.cpux.lock().set_pin_config(bank - 2, pin, cfg),
-            _ => unimplemented!(),
+            0 | 1 | 4 => unimplemented!(),
+            _ => self.cpux.lock().set_pin_config(bank, pin, cfg),
         }
     }
 
@@ -158,8 +168,8 @@ impl GpioDevice for Gpio {
         let pin = pin.pin();
 
         match bank {
-            2..=7 => self.cpux.lock().write_pin(bank - 2, pin, state),
-            _ => unimplemented!(),
+            0 | 1 | 4 => unimplemented!(),
+            _ => self.cpux.lock().write_pin(bank, pin, state),
         }
     }
 
@@ -168,8 +178,8 @@ impl GpioDevice for Gpio {
         let pin = pin.pin();
 
         match bank {
-            2..=7 => self.cpux.lock().toggle_pin(bank - 2, pin),
-            _ => unimplemented!(),
+            0 | 1 | 4 => unimplemented!(),
+            _ => self.cpux.lock().toggle_pin(bank, pin),
         }
     }
 
@@ -178,8 +188,8 @@ impl GpioDevice for Gpio {
         let pin = pin.pin();
 
         match bank {
-            2..=7 => Ok(self.cpux.lock().read_pin(bank - 2, pin)),
-            _ => unimplemented!(),
+            0 | 1 | 4 => unimplemented!(),
+            _ => Ok(self.cpux.lock().read_pin(bank, pin)),
         }
     }
 }
