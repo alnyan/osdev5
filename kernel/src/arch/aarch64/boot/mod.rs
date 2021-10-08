@@ -1,13 +1,14 @@
 //! aarch64 common boot logic
 
 use crate::arch::{aarch64::asm::CPACR_EL1, machine};
-use crate::dev::Device;
+use crate::dev::{Device, fdt::DeviceTree};
+use crate::mem::virt;
 use cortex_a::asm::barrier::{self, dsb, isb};
 use cortex_a::registers::{DAIF, SCTLR_EL1, VBAR_EL1};
 use tock_registers::interfaces::{ReadWriteable, Writeable};
 
 #[no_mangle]
-fn __aa64_bsp_main() {
+fn __aa64_bsp_main(fdt_base: usize) {
     // Disable FP instruction trapping
     CPACR_EL1.modify(CPACR_EL1::FPEN::TrapNone);
 
@@ -28,7 +29,14 @@ fn __aa64_bsp_main() {
         isb(barrier::SY);
     }
 
+    // Enable MMU
+    virt::enable().expect("Failed to initialize virtual memory");
+
     machine::init_board().unwrap();
+
+    let fdt = DeviceTree::from_phys(fdt_base).expect("Failed to obtain a device tree");
+    fdt.dump();
+
     unsafe {
         machine::local_timer().enable().unwrap();
     }

@@ -23,6 +23,11 @@ SECTIONS {
     }
 
     . = ALIGN(4K);
+    .tables : AT(. - KERNEL_OFFSET) {
+        *(.tables)
+    }
+
+    . = ALIGN(4K);
     .bss : AT(. - KERNEL_OFFSET) {
         PROVIDE(__bss_start = .);
         *(COMMON)

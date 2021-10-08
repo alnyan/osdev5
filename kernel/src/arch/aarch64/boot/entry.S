@@ -8,6 +8,9 @@
 .section .text._entry
 .global _entry
 _entry:
+    // Preserve FDT base address
+    mov x8, x0
+
     mrs x1, mpidr_el1
     and x1, x1, #3
     beq 2f
@@ -30,6 +33,7 @@ _entry:
     ADR_REL x0, bsp_stack_top
     mov sp, x0
 
+    mov x0, x8
     b __aa64_bsp_main
 
 .section .bss

@@ -3,6 +3,8 @@
 use error::Errno;
 
 // Device classes
+#[allow(missing_docs)]
+pub mod fdt;
 pub mod gpio;
 pub mod irq;
 pub mod pci;

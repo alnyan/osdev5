@@ -1,5 +1,7 @@
 //! Memory management and functions module
 
+pub mod virt;
+
 /// See memcpy(3p).
 ///
 /// # Safety
