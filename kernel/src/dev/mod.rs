@@ -5,6 +5,7 @@ use error::Errno;
 // Device classes
 pub mod gpio;
 pub mod irq;
+pub mod pci;
 pub mod rtc;
 pub mod serial;
 pub mod timer;

@@ -29,7 +29,8 @@ QEMU_OPTS+=-kernel $(O)/kernel.bin \
 		   -M virt,virtualization=off \
 		   -cpu cortex-a72 \
 		   -m 512 \
-		   -serial chardev:serial0
+		   -serial chardev:serial0 \
+		   -device virtio-serial-pci
 endif
 ifeq ($(MACH),rpi3b)
 QEMU_OPTS+=-kernel $(O)/kernel.bin \
