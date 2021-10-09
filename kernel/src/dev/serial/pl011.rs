@@ -1,11 +1,18 @@
 //! PL011 - ARM PrimeCell UART implementation
 
-use crate::arch::{MemoryIo, machine::{self, IrqNumber}};
-use crate::dev::{serial::SerialDevice, irq::{IntController, IntSource}, Device};
+use crate::arch::machine::{self, IrqNumber};
+use crate::dev::{
+    irq::{IntController, IntSource},
+    serial::SerialDevice,
+    Device,
+};
+use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeNullLock;
+use crate::util::InitOnce;
+use core::fmt;
 use error::Errno;
 use tock_registers::{
-    interfaces::{Readable, Writeable, ReadWriteable},
+    interfaces::{ReadWriteable, Readable, Writeable},
     register_bitfields, register_structs,
     registers::{ReadOnly, ReadWrite, WriteOnly},
 };
@@ -64,27 +71,77 @@ register_structs! {
     }
 }
 
+struct Pl011Inner {
+    regs: DeviceMemoryIo<Regs>,
+}
+
 /// Device struct for PL011
 pub struct Pl011 {
-    regs: IrqSafeNullLock<MemoryIo<Regs>>,
+    inner: InitOnce<IrqSafeNullLock<Pl011Inner>>,
+    base: usize,
     irq: IrqNumber,
+}
+
+impl Pl011Inner {
+    ///
+    #[inline(always)]
+    pub unsafe fn send(&mut self, byte: u8) {
+        while self.regs.FR.matches_all(FR::TXFF::SET) {
+            core::hint::spin_loop();
+        }
+        self.regs.DR.set(byte as u32);
+    }
+
+    ///
+    pub unsafe fn recv(&mut self, blocking: bool) -> Result<u8, Errno> {
+        if self.regs.FR.matches_all(FR::RXFE::SET) {
+            if !blocking {
+                return Err(Errno::WouldBlock);
+            }
+            while self.regs.FR.matches_all(FR::RXFE::SET) {
+                // TODO allow IRQs here?
+                core::hint::spin_loop();
+            }
+        }
+
+        Ok(self.regs.DR.get() as u8)
+    }
+
+    ///
+    pub unsafe fn enable(&mut self) {
+        self.regs.CR.set(0);
+        self.regs.ICR.write(ICR::ALL::CLEAR);
+        self.regs
+            .CR
+            .write(CR::UARTEN::SET + CR::TXE::SET + CR::RXE::SET);
+    }
+}
+
+impl fmt::Write for Pl011Inner {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        for &c in s.as_bytes() {
+            unsafe {
+                self.send(c);
+            }
+        }
+        Ok(())
+    }
 }
 
 impl IntSource for Pl011 {
     fn handle_irq(&self) -> Result<(), Errno> {
-        let regs = self.regs.lock();
-        regs.ICR.write(ICR::ALL::CLEAR);
+        let inner = self.inner.get().lock();
+        inner.regs.ICR.write(ICR::ALL::CLEAR);
 
-        let byte = regs.DR.get();
+        let byte = inner.regs.DR.get();
         debugln!("irq byte = {:#04x}", byte);
-
 
         Ok(())
     }
 
     fn init_irqs(&'static self) -> Result<(), Errno> {
         machine::intc().register_handler(self.irq, self)?;
-        self.regs.lock().IMSC.modify(IMSC::RXIM::SET);
+        self.inner.get().lock().regs.IMSC.modify(IMSC::RXIM::SET);
         machine::intc().enable_irq(self.irq)?;
 
         Ok(())
@@ -93,27 +150,18 @@ impl IntSource for Pl011 {
 
 impl SerialDevice for Pl011 {
     fn send(&self, byte: u8) -> Result<(), Errno> {
-        let regs = self.regs.lock();
-        while regs.FR.matches_all(FR::TXFF::SET) {
-            core::hint::spin_loop();
+        if !self.inner.is_initialized() {
+            // TODO early output here
+            return Ok(());
         }
-        regs.DR.set(byte as u32);
+        unsafe {
+            self.inner.get().lock().send(byte);
+        }
         Ok(())
     }
 
     fn recv(&self, blocking: bool) -> Result<u8, Errno> {
-        let regs = self.regs.lock();
-        if regs.FR.matches_all(FR::RXFE::SET) {
-            if !blocking {
-                return Err(Errno::WouldBlock);
-            }
-            while regs.FR.matches_all(FR::RXFE::SET) {
-                // TODO allow IRQs here?
-                core::hint::spin_loop();
-            }
-        }
-
-        Ok(regs.DR.get() as u8)
+        unsafe { self.inner.get().lock().recv(blocking) }
     }
 }
 
@@ -123,10 +171,12 @@ impl Device for Pl011 {
     }
 
     unsafe fn enable(&self) -> Result<(), Errno> {
-        let regs = self.regs.lock();
-        regs.CR.set(0);
-        regs.ICR.write(ICR::ALL::CLEAR);
-        regs.CR.write(CR::UARTEN::SET + CR::TXE::SET + CR::RXE::SET);
+        let mut inner = Pl011Inner {
+            regs: DeviceMemoryIo::map(self.name(), self.base, 1)?,
+        };
+        inner.enable();
+
+        self.inner.init(IrqSafeNullLock::new(inner));
 
         Ok(())
     }
@@ -140,8 +190,9 @@ impl Pl011 {
     /// Does not perform `base` validation.
     pub const unsafe fn new(base: usize, irq: IrqNumber) -> Self {
         Self {
-            regs: IrqSafeNullLock::new(MemoryIo::new(base)),
-            irq
+            inner: InitOnce::new(),
+            base,
+            irq,
         }
     }
 }

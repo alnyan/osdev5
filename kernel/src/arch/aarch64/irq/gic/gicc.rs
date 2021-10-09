@@ -1,5 +1,5 @@
-use crate::arch::MemoryIo;
 use crate::dev::irq::IrqContext;
+use crate::mem::virt::DeviceMemoryIo;
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::registers::ReadWrite;
 use tock_registers::{register_bitfields, register_structs};
@@ -22,7 +22,7 @@ register_bitfields! {
 
 register_structs! {
     #[allow(non_snake_case)]
-    GiccRegs {
+    pub(super) GiccRegs {
         (0x00 => CTLR: ReadWrite<u32, CTLR::Register>),
         (0x04 => PMR: ReadWrite<u32, PMR::Register>),
         (0x08 => _res0),
@@ -33,13 +33,13 @@ register_structs! {
 }
 
 pub(super) struct Gicc {
-    regs: MemoryIo<GiccRegs>,
+    regs: DeviceMemoryIo<GiccRegs>,
 }
 
 impl Gicc {
-    pub const unsafe fn new(base: usize) -> Self {
+    pub const unsafe fn new(regs: DeviceMemoryIo<GiccRegs>) -> Self {
         Self {
-            regs: MemoryIo::new(base),
+            regs,
         }
     }
 

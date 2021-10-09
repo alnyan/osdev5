@@ -7,7 +7,7 @@ use crate::arch::aarch64::{
 use crate::dev::timer::TimestampSource;
 use crate::dev::{
     irq::{IntController, IntSource},
-    pci::{PciHostDevice, pcie::gpex::GenericPcieHost},
+    pci::{pcie::gpex::GenericPcieHost, PciHostDevice},
     rtc::pl031::Pl031,
     serial::{pl011::Pl011, SerialDevice},
     Device,
@@ -26,9 +26,10 @@ const ECAM_BASE: usize = 0x4010000000;
 #[allow(missing_docs)]
 pub fn init_board() -> Result<(), Errno> {
     unsafe {
+        UART0.enable()?;
+
         GIC.enable()?;
 
-        UART0.enable()?;
         UART0.init_irqs()?;
 
         RTC.enable()?;

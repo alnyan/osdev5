@@ -4,7 +4,9 @@ use crate::dev::{
     irq::{IntController, IntSource, IrqContext},
     Device,
 };
+use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeNullLock;
+use crate::util::InitOnce;
 use error::Errno;
 
 mod gicc;
@@ -22,8 +24,10 @@ pub struct IrqNumber(usize);
 
 /// ARM Generic Interrupt Controller, version 2
 pub struct Gic {
-    gicc: Gicc,
-    gicd: Gicd,
+    gicc: InitOnce<Gicc>,
+    gicd: InitOnce<Gicd>,
+    gicd_base: usize,
+    gicc_base: usize,
     table: IrqSafeNullLock<[Option<&'static (dyn IntSource + Sync)>; MAX_IRQ]>,
 }
 
@@ -48,8 +52,21 @@ impl Device for Gic {
     }
 
     unsafe fn enable(&self) -> Result<(), Errno> {
-        self.gicd.enable();
-        self.gicc.enable();
+        let gicd_mmio_shared =
+            DeviceMemoryIo::map("GICv2 shared Distributor registers", self.gicd_base, 1)?;
+        let gicd_mmio_banked =
+            DeviceMemoryIo::map("GICv2 banked Distributor registers", self.gicd_base, 1)?;
+        let gicc_mmio = DeviceMemoryIo::map("GICv2 CPU registers", self.gicc_base, 1)?;
+
+        let mut gicd = Gicd::new(gicd_mmio_shared, gicd_mmio_banked);
+        let mut gicc = Gicc::new(gicc_mmio);
+
+        gicd.enable();
+        gicc.enable();
+
+        self.gicd.init(gicd);
+        self.gicc.init(gicc);
+
         Ok(())
     }
 }
@@ -58,12 +75,13 @@ impl IntController for Gic {
     type IrqNumber = IrqNumber;
 
     fn enable_irq(&self, irq: Self::IrqNumber) -> Result<(), Errno> {
-        self.gicd.enable_irq(irq);
+        self.gicd.get().enable_irq(irq);
         Ok(())
     }
 
     fn handle_pending_irqs<'irq_context>(&'irq_context self, ic: &IrqContext<'irq_context>) {
-        let irq_number = self.gicc.pending_irq_number(ic);
+        let gicc = self.gicc.get();
+        let irq_number = gicc.pending_irq_number(ic);
         if irq_number >= MAX_IRQ {
             return;
         }
@@ -76,7 +94,7 @@ impl IntController for Gic {
             }
         }
 
-        self.gicc.clear_irq(irq_number as u32, ic);
+        gicc.clear_irq(irq_number as u32, ic);
     }
 
     fn register_handler(
@@ -105,8 +123,10 @@ impl Gic {
     /// Does not perform `gicd_base` and `gicc_base` validation.
     pub const unsafe fn new(gicd_base: usize, gicc_base: usize) -> Self {
         Self {
-            gicc: Gicc::new(gicc_base),
-            gicd: Gicd::new(gicd_base),
+            gicc: InitOnce::new(),
+            gicd: InitOnce::new(),
+            gicd_base,
+            gicc_base,
             table: IrqSafeNullLock::new([None; MAX_IRQ]),
         }
     }

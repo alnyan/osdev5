@@ -1,10 +1,16 @@
 //! PL031 - ARM PrimeCell real-time clock implementation
-use crate::dev::{Device, rtc::RtcDevice, irq::{IntController, IntSource}};
-use crate::arch::{MemoryIo, machine::{self, IrqNumber}};
+use crate::arch::machine::{self, IrqNumber};
+use crate::dev::{
+    irq::{IntController, IntSource},
+    rtc::RtcDevice,
+    Device,
+};
+use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeNullLock;
+use crate::util::InitOnce;
 use error::Errno;
 use tock_registers::{
-    interfaces::{Readable, Writeable, ReadWriteable},
+    interfaces::{ReadWriteable, Readable, Writeable},
     register_bitfields, register_structs,
     registers::{ReadOnly, ReadWrite, WriteOnly},
 };
@@ -37,27 +43,31 @@ register_structs! {
     }
 }
 
-/// Device struct for PL031
-pub struct Pl031 {
-    regs: IrqSafeNullLock<MemoryIo<Regs>>,
-    irq: IrqNumber
+struct Pl031Inner {
+    regs: DeviceMemoryIo<Regs>,
 }
 
-impl RtcDevice for Pl031 {
+/// Device struct for PL031
+pub struct Pl031 {
+    inner: InitOnce<IrqSafeNullLock<Pl031Inner>>,
+    base: usize,
+    irq: IrqNumber,
 }
+
+impl RtcDevice for Pl031 {}
 
 impl IntSource for Pl031 {
     fn handle_irq(&self) -> Result<(), Errno> {
-        let regs = self.regs.lock();
-        regs.ICR.write(ICR::RTCICR::SET);
-        let data = regs.DR.get();
-        regs.MR.set(data + 1);
+        let inner = self.inner.get().lock();
+        inner.regs.ICR.write(ICR::RTCICR::SET);
+        let data = inner.regs.DR.get();
+        inner.regs.MR.set(data + 1);
         Ok(())
     }
 
     fn init_irqs(&'static self) -> Result<(), Errno> {
         machine::intc().register_handler(self.irq, self)?;
-        self.regs.lock().IMSC.modify(IMSC::RTCIMSC::SET);
+        self.inner.get().lock().regs.IMSC.modify(IMSC::RTCIMSC::SET);
         machine::intc().enable_irq(self.irq)?;
 
         Ok(())
@@ -70,10 +80,16 @@ impl Device for Pl031 {
     }
 
     unsafe fn enable(&self) -> Result<(), Errno> {
-        let regs = self.regs.lock();
-        regs.CR.modify(CR::RTCStart::CLEAR);
-        regs.MR.set(regs.DR.get() + 1);
-        regs.CR.modify(CR::RTCStart::SET);
+        let mut inner = Pl031Inner {
+            regs: DeviceMemoryIo::map(self.name(), self.base, 1)?,
+        };
+
+        inner.regs.CR.modify(CR::RTCStart::CLEAR);
+        inner.regs.MR.set(inner.regs.DR.get() + 1);
+        inner.regs.CR.modify(CR::RTCStart::SET);
+
+        self.inner.init(IrqSafeNullLock::new(inner));
+
         Ok(())
     }
 }
@@ -86,8 +102,9 @@ impl Pl031 {
     /// Does not perform `base` validation.
     pub const unsafe fn new(base: usize, irq: IrqNumber) -> Self {
         Self {
-            regs: IrqSafeNullLock::new(MemoryIo::new(base)),
-            irq
+            inner: InitOnce::new(),
+            base,
+            irq,
         }
     }
 }

@@ -19,34 +19,34 @@ cfg_if! {
 }
 
 // TODO move to mod io
-use core::marker::PhantomData;
-use core::ops::Deref;
-
-/// Wrapper for setting up memory-mapped registers and IO
-pub struct MemoryIo<T> {
-    base: usize,
-    _pd: PhantomData<fn() -> T>,
-}
-
-impl<T> MemoryIo<T> {
-    /// Constructs a new instance of MMIO region.
-    ///
-    /// # Safety
-    ///
-    /// Does not perform `base` validation.
-    pub const unsafe fn new(base: usize) -> Self {
-        Self {
-            base,
-            _pd: PhantomData,
-        }
-    }
-}
-
-impl<T> Deref for MemoryIo<T> {
-    type Target = T;
-
-    #[inline(always)]
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*(self.base as *const _) }
-    }
-}
+// use core::marker::PhantomData;
+// use core::ops::Deref;
+//
+// /// Wrapper for setting up memory-mapped registers and IO
+// pub struct MemoryIo<T> {
+//     base: usize,
+//     _pd: PhantomData<fn() -> T>,
+// }
+//
+// impl<T> MemoryIo<T> {
+//     /// Constructs a new instance of MMIO region.
+//     ///
+//     /// # Safety
+//     ///
+//     /// Does not perform `base` validation.
+//     pub const unsafe fn new(base: usize) -> Self {
+//         Self {
+//             base,
+//             _pd: PhantomData,
+//         }
+//     }
+// }
+//
+// impl<T> Deref for MemoryIo<T> {
+//     type Target = T;
+//
+//     #[inline(always)]
+//     fn deref(&self) -> &Self::Target {
+//         unsafe { &*(self.base as *const _) }
+//     }
+// }

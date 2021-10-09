@@ -19,18 +19,15 @@ extern crate cfg_if;
 
 #[macro_use]
 pub mod debug;
+
 pub mod arch;
 pub mod dev;
 pub mod mem;
 pub mod sync;
+pub mod util;
 
 #[panic_handler]
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {
-    if let Some(msg) = pi.message() {
-        debugln!("Panic occurred: {:?}", msg);
-    } else {
-        debugln!("Panic occurred");
-    }
-    debugln!("Panic location: {:?}", pi.location());
+    // TODO
     loop {}
 }

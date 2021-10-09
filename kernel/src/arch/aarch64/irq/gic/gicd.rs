@@ -1,4 +1,4 @@
-use crate::arch::MemoryIo;
+use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeNullLock;
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::registers::{ReadOnly, ReadWrite};
@@ -22,7 +22,7 @@ register_bitfields! {
 
 register_structs! {
     #[allow(non_snake_case)]
-    GicdSharedRegs {
+    pub(super) GicdSharedRegs {
         (0x000 => CTLR: ReadWrite<u32, CTLR::Register>),
         (0x004 => TYPER: ReadWrite<u32, TYPER::Register>),
         (0x008 => _res0),
@@ -37,7 +37,7 @@ register_structs! {
 
 register_structs! {
     #[allow(non_snake_case)]
-    GicdBankedRegs {
+    pub(super) GicdBankedRegs {
         (0x000 => _res0),
         (0x100 => ISENABLER: ReadWrite<u32>),
         (0x104 => _res1),
@@ -63,15 +63,18 @@ impl GicdSharedRegs {
 }
 
 pub(super) struct Gicd {
-    shared_regs: IrqSafeNullLock<MemoryIo<GicdSharedRegs>>,
-    banked_regs: MemoryIo<GicdBankedRegs>,
+    shared_regs: IrqSafeNullLock<DeviceMemoryIo<GicdSharedRegs>>,
+    banked_regs: DeviceMemoryIo<GicdBankedRegs>,
 }
 
 impl Gicd {
-    pub const unsafe fn new(base: usize) -> Self {
+    pub const unsafe fn new(
+        shared_mmio: DeviceMemoryIo<GicdSharedRegs>,
+        banked_mmio: DeviceMemoryIo<GicdBankedRegs>,
+    ) -> Self {
         Self {
-            shared_regs: IrqSafeNullLock::new(MemoryIo::new(base)),
-            banked_regs: MemoryIo::new(base),
+            shared_regs: IrqSafeNullLock::new(shared_mmio),
+            banked_regs: banked_mmio,
         }
     }
 
