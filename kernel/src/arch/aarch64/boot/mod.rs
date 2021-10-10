@@ -4,8 +4,8 @@ use crate::arch::{aarch64::asm::CPACR_EL1, machine};
 use crate::dev::{Device, fdt::DeviceTree};
 use crate::mem::virt;
 use cortex_a::asm::barrier::{self, dsb, isb};
-use cortex_a::registers::{DAIF, SCTLR_EL1, VBAR_EL1};
-use tock_registers::interfaces::{ReadWriteable, Writeable};
+use cortex_a::registers::{DAIF, SCTLR_EL1, VBAR_EL1, CurrentEL};
+use tock_registers::interfaces::{ReadWriteable, Writeable, Readable};
 
 #[no_mangle]
 fn __aa64_bsp_main(fdt_base: usize) {
@@ -34,7 +34,7 @@ fn __aa64_bsp_main(fdt_base: usize) {
 
     machine::init_board().unwrap();
 
-    let fdt = DeviceTree::from_phys(fdt_base).expect("Failed to obtain a device tree");
+    let fdt = DeviceTree::from_phys(fdt_base + 0xFFFFFF8000000000).expect("Failed to obtain a device tree");
     fdt.dump();
 
     unsafe {
@@ -43,6 +43,7 @@ fn __aa64_bsp_main(fdt_base: usize) {
 
     loop {
         DAIF.modify(DAIF::I::CLEAR);
+        cortex_a::asm::wfi();
     }
 }
 
@@ -53,3 +54,5 @@ cfg_if! {
         global_asm!(include_str!("entry.S"));
     }
 }
+
+global_asm!(include_str!("upper.S"));

@@ -40,6 +40,13 @@ QEMU_OPTS+=-kernel $(O)/kernel.bin \
 endif
 endif
 
+ifeq ($(QEMU_DINT),1)
+QEMU_OPTS+=-d int
+endif
+ifeq ($(QEMU_PAUSE),1)
+QEMU_OPTS+=-S
+endif
+
 .PHONY: address error etc kernel src
 
 all: kernel

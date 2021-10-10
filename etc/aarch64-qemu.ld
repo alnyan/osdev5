@@ -1,14 +1,22 @@
 ENTRY(_entry);
 
-KERNEL_OFFSET = 0; /* 0xFFFFFF8000000000; */
+KERNEL_OFFSET = 0xFFFFFF8000000000;
+BASE_OFFSET = 0x40080000;
 
 SECTIONS {
-    . = 0x40080000 + KERNEL_OFFSET;
+    . = BASE_OFFSET;
+
+    .text.lower : {
+        *(.text._entry)
+    }
+
+    . = ALIGN(16);
+    . = . + KERNEL_OFFSET;
 
     PROVIDE(__kernel_start = .);
 
     .text : AT(. - KERNEL_OFFSET) {
-        *(.text._entry)
+        *(.text._entry_upper)
         *(.text*)
     }
 

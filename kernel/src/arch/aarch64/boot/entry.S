@@ -5,6 +5,13 @@
     add \reg, \reg, #:lo12:\sym
 .endm
 
+.macro ADR_ABS reg, sym
+    movz \reg, #:abs_g3:\sym
+    movk \reg, #:abs_g2_nc:\sym
+    movk \reg, #:abs_g1_nc:\sym
+    movk \reg, #:abs_g0_nc:\sym
+.endm
+
 .section .text._entry
 .global _entry
 _entry:
@@ -19,22 +26,24 @@ _entry:
     b 1b
 
 2:
+    // TODO leave EL2 if running in it
 
-    // Zero .bss
-    ADR_REL x0, __bss_start
-    ADR_REL x1, __bss_end
-1:
-    cmp x0, x1
-    beq 2f
-    stp xzr, xzr, [x0], #16
-    b 1b
-2:
+    // TODO zero .bss
 
-    ADR_REL x0, bsp_stack_top
-    mov sp, x0
+    ADR_ABS x9, __aa64_entry_upper
+    b __aa64_enter_upper
 
-    mov x0, x8
-    b __aa64_bsp_main
+.section .text._entry_upper
+__aa64_entry_upper:
+    // x0 -- FDT base address
+
+    ADR_REL x1, bsp_stack_top
+    mov sp, x1
+
+    mov lr, xzr
+    bl __aa64_bsp_main
+
+    b .
 
 .section .bss
 .p2align 4

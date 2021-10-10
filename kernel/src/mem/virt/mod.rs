@@ -1,5 +1,6 @@
 #![allow(missing_docs)]
 
+use crate::mem::KERNEL_OFFSET;
 use core::marker::PhantomData;
 use core::ops::Deref;
 use core::sync::atomic::{AtomicBool, Ordering};
@@ -18,15 +19,6 @@ const PTE_PRESENT: u64 = 1 << 0;
 struct Table([u64; 512]);
 
 #[no_mangle]
-static mut KERNEL_TTBR0: Table = {
-    let mut table = [0; 512];
-    // TODO fine-grained mapping
-    table[0] = (0 << 30) | PTE_BLOCK_AF | PTE_BLOCK_ISH | PTE_PRESENT;
-    table[1] = (1 << 30) | PTE_BLOCK_AF | PTE_BLOCK_ISH | PTE_PRESENT;
-
-    Table(table)
-};
-
 static mut KERNEL_TTBR1: Table = Table([0; 512]);
 // 1GiB
 static mut KERNEL_L1: Table = Table([0; 512]);
@@ -35,6 +27,8 @@ static mut KERNEL_L2: Table = Table([0; 512]);
 static mut COUNT: usize = 0;
 static mut BIG_COUNT: usize = 1;
 static mut HUGE_COUNT: usize = 1;
+
+const DEVICE_MAP_OFFSET: usize = KERNEL_OFFSET + (256 << 30);
 
 pub struct DeviceMemory {
     name: &'static str,
@@ -64,10 +58,11 @@ impl DeviceMemory {
                     }
                     HUGE_COUNT += 1;
 
-                    KERNEL_TTBR1.0[count + 256] = (phys as u64) | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF;
+                    KERNEL_TTBR1.0[count + 256] =
+                        (phys as u64) | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF;
 
-                    0xFFFFFFC000000000 + (count << 30)
-                },
+                    DEVICE_MAP_OFFSET + (count << 30)
+                }
                 512 => {
                     let count = BIG_COUNT;
                     if count == 512 {
@@ -77,8 +72,8 @@ impl DeviceMemory {
 
                     KERNEL_L1.0[count] = (phys as u64) | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF;
 
-                    0xFFFFFFC000000000 + (count << 21)
-                },
+                    DEVICE_MAP_OFFSET + (count << 21)
+                }
                 1 => {
                     let count = COUNT;
                     if count == 512 {
@@ -89,9 +84,9 @@ impl DeviceMemory {
                     KERNEL_L2.0[count] =
                         (phys as u64) | PTE_TABLE | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF;
 
-                    0xFFFFFFC000000000 + count * 0x1000
-                },
-                _ => unimplemented!()
+                    DEVICE_MAP_OFFSET + (count << 12)
+                }
+                _ => unimplemented!(),
             }
         };
 
@@ -130,43 +125,25 @@ impl<T> Deref for DeviceMemoryIo<T> {
 }
 
 pub fn enable() -> Result<(), Errno> {
-    MAIR_EL1.write(
-        MAIR_EL1::Attr0_Normal_Outer::NonCacheable + MAIR_EL1::Attr0_Normal_Inner::NonCacheable,
-    );
-
     unsafe {
-        KERNEL_L1.0[0] = (&KERNEL_L2 as *const _ as u64) | PTE_TABLE | PTE_PRESENT;
-        KERNEL_TTBR1.0[256] = (&KERNEL_L1 as *const _ as u64) | PTE_TABLE | PTE_PRESENT;
-    }
+        // TODO function to translate kernel addresses to physical ones
+        let l1_base = (&KERNEL_L1 as *const _ as u64) - KERNEL_OFFSET as u64;
+        let l2_base = (&KERNEL_L2 as *const _ as u64) - KERNEL_OFFSET as u64;
 
-    TTBR0_EL1.set(unsafe { &mut KERNEL_TTBR0 as *mut _ as u64 });
-    TTBR1_EL1.set(unsafe { &mut KERNEL_TTBR1 as *mut _ as u64 });
+        KERNEL_L1.0[0] = l2_base | PTE_TABLE | PTE_PRESENT;
+        KERNEL_TTBR1.0[256] = l1_base | PTE_TABLE | PTE_PRESENT;
 
-    if ID_AA64MMFR0_EL1.matches_all(ID_AA64MMFR0_EL1::TGran4::NotSupported) {
-        return Err(Errno::InvalidArgument);
+        // NOTE don't think tlb needs to be invalidated when new entries are created
     }
-    let parange = ID_AA64MMFR0_EL1.read(ID_AA64MMFR0_EL1::PARange);
 
     unsafe {
         dsb(barrier::ISH);
         isb(barrier::SY);
     }
 
-    TCR_EL1.write(
-        TCR_EL1::IPS.val(parange)
-            + TCR_EL1::T0SZ.val(25)
-            + TCR_EL1::TG0::KiB_4
-            + TCR_EL1::SH0::Outer
-            + TCR_EL1::IRGN0::NonCacheable
-            + TCR_EL1::ORGN0::NonCacheable
-            + TCR_EL1::T1SZ.val(25)
-            + TCR_EL1::TG1::KiB_4
-            + TCR_EL1::SH1::Outer
-            + TCR_EL1::IRGN1::NonCacheable
-            + TCR_EL1::ORGN1::NonCacheable,
-    );
-
-    SCTLR_EL1.modify(SCTLR_EL1::M::SET);
+    // Disable lower-half translation
+    TTBR0_EL1.set(0);
+    TCR_EL1.modify(TCR_EL1::EPD0::SET);
 
     Ok(())
 }
