@@ -7,10 +7,10 @@ use fdt_rs::{
 
 #[repr(align(16))]
 struct Wrap {
-    data: [u8; 16384],
+    data: [u8; 65536],
 }
 
-static mut INDEX_BUFFER: Wrap = Wrap { data: [0; 16384] };
+static mut INDEX_BUFFER: Wrap = Wrap { data: [0; 65536] };
 
 type INode<'a> = DevTreeIndexNode<'a, 'a, 'a>;
 
@@ -51,7 +51,7 @@ fn dump_node(node: &INode, depth: usize) {
                     }
                 }
                 debug!(">");
-            },
+            }
             _ => debug!("..."),
         }
         debugln!(";");
@@ -76,8 +76,12 @@ impl DeviceTree {
 
     pub fn from_phys(base: usize) -> Result<DeviceTree, Errno> {
         // TODO virtualize address
-        let tree = unsafe { DevTree::from_raw_pointer(base as *const _) }.unwrap();
+        let tree = unsafe { DevTree::from_raw_pointer(base as *const _) }
+            .map_err(|_| Errno::InvalidArgument)?;
         let layout = DevTreeIndex::get_layout(&tree).unwrap();
+        if layout.size() + layout.align() >= unsafe { INDEX_BUFFER.data.len() } {
+            return Err(Errno::OutOfMemory);
+        }
         let index = DevTreeIndex::new(tree, unsafe {
             &mut INDEX_BUFFER.data[0..layout.size() + layout.align()]
         })
