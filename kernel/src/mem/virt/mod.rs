@@ -3,15 +3,12 @@
 use crate::mem::KERNEL_OFFSET;
 use core::marker::PhantomData;
 use core::ops::Deref;
-use core::sync::atomic::{AtomicBool, Ordering};
 use cortex_a::asm::barrier::{self, dsb, isb};
-use cortex_a::registers::{ID_AA64MMFR0_EL1, MAIR_EL1, SCTLR_EL1, TCR_EL1, TTBR0_EL1, TTBR1_EL1};
+use cortex_a::registers::{TCR_EL1, TTBR0_EL1};
 use error::Errno;
-use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers::interfaces::{ReadWriteable, Writeable};
 
 const PTE_BLOCK_AF: u64 = 1 << 10;
-const PTE_BLOCK_NSH: u64 = 0 << 8;
-const PTE_BLOCK_ISH: u64 = 3 << 8;
 const PTE_BLOCK_OSH: u64 = 2 << 8;
 const PTE_TABLE: u64 = 1 << 1;
 const PTE_PRESENT: u64 = 1 << 0;
@@ -32,6 +29,8 @@ static mut HUGE_COUNT: usize = 1;
 
 const DEVICE_MAP_OFFSET: usize = KERNEL_OFFSET + (256 << 30);
 
+#[derive(Debug)]
+#[allow(dead_code)]
 pub struct DeviceMemory {
     name: &'static str,
     base: usize,
@@ -51,6 +50,8 @@ impl DeviceMemory {
 
     pub fn map(name: &'static str, phys: usize, count: usize) -> Result<Self, Errno> {
         // TODO generalize this
+        let phys_page = phys & !0xFFF;
+
         let base = unsafe {
             match count {
                 262144 => {
@@ -61,10 +62,10 @@ impl DeviceMemory {
                     HUGE_COUNT += 1;
 
                     KERNEL_TTBR1.0[count + 256] =
-                        (phys as u64) | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF | PTE_ATTR1;
+                        (phys_page as u64) | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF | PTE_ATTR1;
                     asm!("dsb ish; isb");
 
-                    DEVICE_MAP_OFFSET + (count << 30)
+                    DEVICE_MAP_OFFSET + (count << 30) + (phys & 0xFFF)
                 }
                 512 => {
                     let count = BIG_COUNT;
@@ -73,10 +74,11 @@ impl DeviceMemory {
                     }
                     BIG_COUNT += 1;
 
-                    KERNEL_L1.0[count] = (phys as u64) | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF | PTE_ATTR1;
+                    KERNEL_L1.0[count] =
+                        (phys_page as u64) | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF | PTE_ATTR1;
                     asm!("dsb ish; isb");
 
-                    DEVICE_MAP_OFFSET + (count << 21)
+                    DEVICE_MAP_OFFSET + (count << 21) + (phys & 0xFFF)
                 }
                 1 => {
                     let count = COUNT;
@@ -85,12 +87,15 @@ impl DeviceMemory {
                     }
                     COUNT += 1;
 
-                    KERNEL_L2.0[count] =
-                        (phys as u64) | PTE_TABLE | PTE_BLOCK_OSH | PTE_PRESENT | PTE_BLOCK_AF | PTE_ATTR1;
-                    asm!("tlbi vaae1, {}", in(reg) (DEVICE_MAP_OFFSET + (count << 12)), options(nostack, nomem));
+                    KERNEL_L2.0[count] = (phys_page as u64)
+                        | PTE_TABLE
+                        | PTE_BLOCK_OSH
+                        | PTE_PRESENT
+                        | PTE_BLOCK_AF
+                        | PTE_ATTR1;
                     asm!("dsb ish; isb");
 
-                    DEVICE_MAP_OFFSET + (count << 12)
+                    DEVICE_MAP_OFFSET + (count << 12) + (phys & 0xFFF)
                 }
                 _ => unimplemented!(),
             }
