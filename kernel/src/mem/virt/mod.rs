@@ -111,6 +111,15 @@ impl DeviceMemory {
 
         Ok(Self { name, base, count })
     }
+
+    pub unsafe fn clone(&self) -> Self {
+        // TODO maybe add refcount and remove "unsafe"?
+        Self {
+            name: self.name,
+            base: self.base,
+            count: self.count
+        }
+    }
 }
 
 impl<T> DeviceMemoryIo<T> {

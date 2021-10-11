@@ -4,7 +4,7 @@ use crate::dev::{
     irq::{IntController, IntSource, IrqContext},
     Device,
 };
-use crate::mem::virt::DeviceMemoryIo;
+use crate::mem::virt::{DeviceMemoryIo, DeviceMemory};
 use crate::sync::IrqSafeNullLock;
 use crate::util::InitOnce;
 use error::Errno;
@@ -52,10 +52,9 @@ impl Device for Gic {
     }
 
     unsafe fn enable(&self) -> Result<(), Errno> {
-        let gicd_mmio_shared =
-            DeviceMemoryIo::map("GICv2 shared Distributor registers", self.gicd_base, 1)?;
-        let gicd_mmio_banked =
-            DeviceMemoryIo::map("GICv2 banked Distributor registers", self.gicd_base, 1)?;
+        let gicd_mmio = DeviceMemory::map("GICv2 Distributor registers", self.gicd_base, 1)?;
+        let gicd_mmio_shared = DeviceMemoryIo::new(gicd_mmio.clone());
+        let gicd_mmio_banked = DeviceMemoryIo::new(gicd_mmio);
         let gicc_mmio = DeviceMemoryIo::map("GICv2 CPU registers", self.gicc_base, 1)?;
 
         let mut gicd = Gicd::new(gicd_mmio_shared, gicd_mmio_banked);
