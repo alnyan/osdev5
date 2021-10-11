@@ -10,10 +10,12 @@ use error::Errno;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 
 const PTE_BLOCK_AF: u64 = 1 << 10;
+const PTE_BLOCK_NSH: u64 = 0 << 8;
 const PTE_BLOCK_ISH: u64 = 3 << 8;
 const PTE_BLOCK_OSH: u64 = 2 << 8;
 const PTE_TABLE: u64 = 1 << 1;
 const PTE_PRESENT: u64 = 1 << 0;
+const PTE_ATTR1: u64 = 1 << 2;
 
 #[repr(C, align(0x1000))]
 struct Table([u64; 512]);
@@ -59,7 +61,8 @@ impl DeviceMemory {
                     HUGE_COUNT += 1;
 
                     KERNEL_TTBR1.0[count + 256] =
-                        (phys as u64) | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF;
+                        (phys as u64) | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF | PTE_ATTR1;
+                    asm!("dsb ish; isb");
 
                     DEVICE_MAP_OFFSET + (count << 30)
                 }
@@ -70,7 +73,8 @@ impl DeviceMemory {
                     }
                     BIG_COUNT += 1;
 
-                    KERNEL_L1.0[count] = (phys as u64) | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF;
+                    KERNEL_L1.0[count] = (phys as u64) | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF | PTE_ATTR1;
+                    asm!("dsb ish; isb");
 
                     DEVICE_MAP_OFFSET + (count << 21)
                 }
@@ -82,7 +86,9 @@ impl DeviceMemory {
                     COUNT += 1;
 
                     KERNEL_L2.0[count] =
-                        (phys as u64) | PTE_TABLE | PTE_PRESENT | PTE_BLOCK_OSH | PTE_BLOCK_AF;
+                        (phys as u64) | PTE_TABLE | PTE_BLOCK_OSH | PTE_PRESENT | PTE_BLOCK_AF | PTE_ATTR1;
+                    asm!("tlbi vaae1, {}", in(reg) (DEVICE_MAP_OFFSET + (count << 12)), options(nostack, nomem));
+                    asm!("dsb ish; isb");
 
                     DEVICE_MAP_OFFSET + (count << 12)
                 }

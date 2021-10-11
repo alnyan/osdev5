@@ -1,13 +1,12 @@
-use crate::arch::{
-    machine::{self, IrqNumber},
-    MemoryIo,
-};
+use crate::arch::machine::{self, IrqNumber};
 use crate::dev::{
     irq::{IntController, IntSource},
     rtc::RtcDevice,
     Device,
 };
+use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeNullLock;
+use crate::util::InitOnce;
 use error::Errno;
 use tock_registers::{
     interfaces::{Readable, Writeable},
@@ -48,7 +47,8 @@ register_structs! {
 }
 
 pub struct Rtc {
-    regs: IrqSafeNullLock<MemoryIo<Regs>>,
+    regs: InitOnce<IrqSafeNullLock<DeviceMemoryIo<Regs>>>,
+    base: usize,
     irq: IrqNumber,
 }
 
@@ -70,13 +70,14 @@ impl RtcDevice for Rtc {}
 
 impl IntSource for Rtc {
     fn handle_irq(&self) -> Result<(), Errno> {
-        self.regs.lock().arm_alarm0_irq(1);
+        self.regs.get().lock().arm_alarm0_irq(1);
+        debugln!("Tick!");
         Ok(())
     }
 
     fn init_irqs(&'static self) -> Result<(), Errno> {
         machine::intc().register_handler(self.irq, self)?;
-        self.regs.lock().arm_alarm0_irq(1);
+        self.regs.get().lock().arm_alarm0_irq(1);
         machine::intc().enable_irq(self.irq)?;
 
         Ok(())
@@ -89,6 +90,7 @@ impl Device for Rtc {
     }
 
     unsafe fn enable(&self) -> Result<(), Errno> {
+        self.regs.init(IrqSafeNullLock::new(DeviceMemoryIo::map(self.name(), self.base, 1)?));
         Ok(())
     }
 }
@@ -101,7 +103,8 @@ impl Rtc {
     /// Does not perform `base` validation.
     pub const unsafe fn new(base: usize, irq: IrqNumber) -> Self {
         Self {
-            regs: IrqSafeNullLock::new(MemoryIo::new(base)),
+            regs: InitOnce::new(),
+            base,
             irq,
         }
     }

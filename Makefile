@@ -57,7 +57,7 @@ ifeq ($(ARCH),aarch64)
 	$(OBJCOPY) -O binary $(O)/kernel $(O)/kernel.bin
 endif
 ifeq ($(MACH),orangepi3)
-	$(LLVM_BASE)/llvm-strip $(O)/kernel
+#	$(LLVM_BASE)/llvm-strip $(O)/kernel
 	$(LLVM_BASE)/llvm-size $(O)/kernel
 endif
 

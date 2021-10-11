@@ -6,8 +6,8 @@
 
 .set MAIR_EL1_Attr0_Normal_Inner_NC,    (4 << 0)
 .set MAIR_EL1_Attr0_Normal_Outer_NC,    (4 << 4)
-.set MAIR_EL1_Attr1_Device,             (0 << 4)
-.set MAIR_EL1_Attr1_Device_nGnRnE,      (0 << 4)
+.set MAIR_EL1_Attr1_Device,             (0 << 12)
+.set MAIR_EL1_Attr1_Device_nGnRE,       (1 << 8)
 
 .set ID_AA64MMFR0_EL1_TGran4,           (0xF << 28)
 
@@ -27,12 +27,9 @@
 
 .set TCR_EL1_ATTRS,                     (TCR_EL1_TG1_4K | TCR_EL1_SH1_Outer | TCR_EL1_TG0_4K | TCR_EL1_SH0_Outer | (25 << TCR_EL1_T1SZ_SHIFT) | (25 << TCR_EL1_T0SZ_SHIFT))
 
+.set SCTLR_EL1_I,                       (1 << 12)
+.set SCTLR_EL1_C,                       (1 << 2)
 .set SCTLR_EL1_M,                       (1 << 0)
-
-.macro MOV_L reg, value
-    mov \reg, #((\value) & 0xFFFF)
-    movk \reg, #((\value) >> 16), lsl #16
-.endm
 
 .section .text._entry
 .global __aa64_enter_upper
@@ -65,7 +62,9 @@ __aa64_enter_upper:
     cbnz x2, 1b
 
 .init_mmu_regs:
-    mov x0, #(MAIR_EL1_Attr0_Normal_Outer_NC | MAIR_EL1_Attr0_Normal_Inner_NC | MAIR_EL1_Attr1_Device | MAIR_EL1_Attr1_Device_nGnRnE)
+    mov x0, #(MAIR_EL1_Attr0_Normal_Outer_NC | MAIR_EL1_Attr0_Normal_Inner_NC | MAIR_EL1_Attr1_Device | MAIR_EL1_Attr1_Device_nGnRE)
+    msr mair_el1, x0
+
     // Test for 4KiB page support
     mrs x0, ID_AA64MMFR0_EL1
     mov x1, ID_AA64MMFR0_EL1_TGran4
@@ -79,10 +78,11 @@ __aa64_enter_upper:
     orr x0, x0, x1
     msr tcr_el1, x0
 
-    msr mair_el1, x0
-
     msr ttbr0_el1, x5
     msr ttbr1_el1, x5
+
+    dsb ish
+    isb
 
     mrs x0, sctlr_el1
     orr x0, x0, #SCTLR_EL1_M

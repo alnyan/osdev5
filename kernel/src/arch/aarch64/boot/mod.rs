@@ -34,8 +34,10 @@ fn __aa64_bsp_main(fdt_base: usize) {
 
     machine::init_board().unwrap();
 
-    let fdt = DeviceTree::from_phys(fdt_base + 0xFFFFFF8000000000).expect("Failed to obtain a device tree");
-    fdt.dump();
+    // let fdt = DeviceTree::from_phys(fdt_base + 0xFFFFFF8000000000).expect("Failed to obtain a device tree");
+    // fdt.dump();
+
+    debugln!("Machine init finished");
 
     unsafe {
         machine::local_timer().enable().unwrap();
@@ -46,6 +48,8 @@ fn __aa64_bsp_main(fdt_base: usize) {
         cortex_a::asm::wfi();
     }
 }
+
+global_asm!(include_str!("macros.S"));
 
 cfg_if! {
     if #[cfg(feature = "mach_orangepi3")] {

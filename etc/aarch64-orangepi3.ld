@@ -1,35 +1,44 @@
 ENTRY(_entry);
 
-MEMORY {
-    ram : ORIGIN = 0x48000000, LENGTH = 992M
-}
+KERNEL_OFFSET = 0xFFFFFF8000000000;
+BASE_OFFSET = 0x42000000;
 
 SECTIONS {
+    . = BASE_OFFSET;
+
+    .text.lower : {
+        *(.text._entry)
+    }
+
+    . = ALIGN(16);
+    . = . + KERNEL_OFFSET;
+
     PROVIDE(__kernel_start = .);
 
-    .text : {
-        *(.text._entry)
+    .text : AT(. - KERNEL_OFFSET) {
+        *(.text._entry_upper)
         *(.text*)
-    } >ram
+    }
 
     . = ALIGN(4K);
-    .rodata : {
+    .rodata : AT(. - KERNEL_OFFSET) {
         *(.rodata*)
-    } >ram
+    }
 
     . = ALIGN(4K);
-    .data : {
+    .data : AT(. - KERNEL_OFFSET) {
         *(.data*)
-    } >ram
+    }
 
     . = ALIGN(4K);
-    .bss : {
-        PROVIDE(__bss_start = .);
+    PROVIDE(__bss_start_phys = . - KERNEL_OFFSET);
+    PROVIDE(__bss_start = .);
+    .bss : AT(. - KERNEL_OFFSET) {
         *(COMMON)
         *(.bss*)
         . = ALIGN(4K);
-        PROVIDE(__bss_end = .);
-    } >ram
+    }
+    PROVIDE(__bss_end_phys = . - KERNEL_OFFSET);
 
     PROVIDE(__kernel_end = .);
 }

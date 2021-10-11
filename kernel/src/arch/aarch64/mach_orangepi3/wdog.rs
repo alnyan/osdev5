@@ -1,5 +1,8 @@
-use crate::arch::MemoryIo;
+use crate::dev::Device;
+use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeNullLock;
+use crate::util::InitOnce;
+use error::Errno;
 use tock_registers::{
     interfaces::Writeable, register_bitfields, register_structs, registers::ReadWrite,
 };
@@ -36,7 +39,23 @@ register_structs! {
 }
 
 pub(super) struct RWdog {
-    regs: IrqSafeNullLock<MemoryIo<RWdogRegs>>,
+    inner: InitOnce<IrqSafeNullLock<DeviceMemoryIo<RWdogRegs>>>,
+    base: usize,
+}
+
+impl Device for RWdog {
+    fn name(&self) -> &'static str {
+        "Allwinner H6 R_WDOG"
+    }
+
+    unsafe fn enable(&self) -> Result<(), Errno> {
+        self.inner.init(IrqSafeNullLock::new(DeviceMemoryIo::map(
+            self.name(),
+            self.base,
+            1,
+        )?));
+        Ok(())
+    }
 }
 
 impl RWdog {
@@ -46,7 +65,7 @@ impl RWdog {
     ///
     /// Unsafe: may interrupt critical processes
     pub unsafe fn reset_board(&self) -> ! {
-        let regs = self.regs.lock();
+        let regs = self.inner.get().lock();
 
         regs.CFG.write(CFG::CONFIG::System);
         regs.MODE.write(MODE::EN::SET);
@@ -64,7 +83,8 @@ impl RWdog {
     /// Does not perform `base` validation.
     pub const unsafe fn new(base: usize) -> Self {
         Self {
-            regs: IrqSafeNullLock::new(MemoryIo::new(base)),
+            inner: InitOnce::new(),
+            base,
         }
     }
 }

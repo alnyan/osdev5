@@ -28,13 +28,16 @@ use wdog::RWdog;
 #[allow(missing_docs)]
 pub fn init_board() -> Result<(), Errno> {
     unsafe {
+        UART0.enable()?;
         GIC.enable()?;
+        GPIO.enable()?;
+
+        UART0.init_irqs()?;
+
+        R_WDOG.enable()?;
 
         GPIO.cfg_uart0_ph0_ph1()?;
         GPIO.set_pin_config(PinAddress::new(3, 26), &PinConfig::out_pull_down())?;
-
-        UART0.enable()?;
-        UART0.init_irqs()?;
 
         RTC.enable()?;
         RTC.init_irqs()?;

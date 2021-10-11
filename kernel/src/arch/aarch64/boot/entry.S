@@ -1,17 +1,4 @@
 // vi:ft=a64asm.asm:
-
-.macro ADR_REL reg, sym
-    adrp \reg, \sym
-    add \reg, \reg, #:lo12:\sym
-.endm
-
-.macro ADR_ABS reg, sym
-    movz \reg, #:abs_g3:\sym
-    movk \reg, #:abs_g2_nc:\sym
-    movk \reg, #:abs_g1_nc:\sym
-    movk \reg, #:abs_g0_nc:\sym
-.endm
-
 .section .text._entry
 .global _entry
 _entry:

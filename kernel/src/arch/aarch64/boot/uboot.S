@@ -10,19 +10,11 @@
 .set CNTHCTL_EL2_EL1PCEN,   1 << 1
 .set CNTHCTL_EL2_EL1PCTEN,  1 << 0
 
-.macro ADR_REL reg, sym
-    adrp \reg, \sym
-    add \reg, \reg, #:lo12:\sym
-.endm
-
-.macro MOV_L reg, value
-    mov \reg, #((\value) & 0xFFFF)
-    movk \reg, #((\value) >> 16), lsl #16
-.endm
-
 .section .text._entry
 .global _entry
 _entry:
+    mov x8, x0
+
     // Test for EL2
     mrs x0, CurrentEL
     lsr x0, x0, #2
@@ -45,7 +37,7 @@ _entry:
     orr x0, x0, #SPSR_EL2_MASK_DAIF
     msr spsr_el2, x0
 
-    ADR_REL x0, 1f
+    adr x0, 1f
     msr elr_el2, x0
 
     isb
@@ -54,8 +46,27 @@ _entry:
     dsb sy
     isb
 
-    ADR_REL x0, bsp_stack_top
-    mov sp, x0
+    // Zero .bss
+    ADR_ABS x0, __bss_start_phys
+    ADR_ABS x1, __bss_end_phys
+1:
+    cmp x0, x1
+    beq 2f
+
+    str xzr, [x0], #8
+
+    b 1b
+2:
+
+    ADR_ABS x9, __aa64_entry_upper
+    b __aa64_enter_upper
+
+.section .text._entry_upper
+__aa64_entry_upper:
+    // x0 -- fdt address
+
+    ADR_REL x1, bsp_stack_top
+    mov sp, x1
 
     mov lr, xzr
     bl __aa64_bsp_main

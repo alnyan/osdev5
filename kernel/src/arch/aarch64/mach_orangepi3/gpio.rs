@@ -5,12 +5,13 @@
 //! 1. CPUS-PORT (TODO PL, PM)
 //! 2. CPUX-PORT (PC, PD, PF, PG, PH)
 //!
-use crate::arch::MemoryIo;
 use crate::dev::{
     gpio::{GpioDevice, PinConfig, PinMode, PullMode},
     Device,
 };
+use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeNullLock;
+use crate::util::InitOnce;
 use error::Errno;
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::register_structs;
@@ -28,11 +29,12 @@ register_structs! {
 }
 
 struct CpuxGpio {
-    regs: MemoryIo<[CpuxPortRegs; 8]>,
+    regs: DeviceMemoryIo<[CpuxPortRegs; 8]>,
 }
 
 pub struct Gpio {
-    cpux: IrqSafeNullLock<CpuxGpio>,
+    cpux: InitOnce<IrqSafeNullLock<CpuxGpio>>,
+    cpux_base: usize,
 }
 
 /// Structure combining bank and pin numbers
@@ -142,6 +144,9 @@ impl Device for Gpio {
     }
 
     unsafe fn enable(&self) -> Result<(), Errno> {
+        self.cpux.init(IrqSafeNullLock::new(CpuxGpio {
+            regs: DeviceMemoryIo::map(self.name(), self.cpux_base, 1)?,
+        }));
         Ok(())
     }
 }
@@ -155,7 +160,7 @@ impl GpioDevice for Gpio {
 
         match bank {
             0 | 1 | 4 => unimplemented!(),
-            _ => self.cpux.lock().set_pin_config(bank, pin, cfg),
+            _ => self.cpux.get().lock().set_pin_config(bank, pin, cfg),
         }
     }
 
@@ -169,7 +174,7 @@ impl GpioDevice for Gpio {
 
         match bank {
             0 | 1 | 4 => unimplemented!(),
-            _ => self.cpux.lock().write_pin(bank, pin, state),
+            _ => self.cpux.get().lock().write_pin(bank, pin, state),
         }
     }
 
@@ -179,7 +184,7 @@ impl GpioDevice for Gpio {
 
         match bank {
             0 | 1 | 4 => unimplemented!(),
-            _ => self.cpux.lock().toggle_pin(bank, pin),
+            _ => self.cpux.get().lock().toggle_pin(bank, pin),
         }
     }
 
@@ -189,7 +194,7 @@ impl GpioDevice for Gpio {
 
         match bank {
             0 | 1 | 4 => unimplemented!(),
-            _ => Ok(self.cpux.lock().read_pin(bank, pin)),
+            _ => Ok(self.cpux.get().lock().read_pin(bank, pin)),
         }
     }
 }
@@ -200,11 +205,10 @@ impl Gpio {
         self.set_pin_config(PinAddress::new(7, 1), &PinConfig::alt(2))
     }
 
-    pub const unsafe fn new(base: usize) -> Self {
+    pub const unsafe fn new(cpux_base: usize) -> Self {
         Self {
-            cpux: IrqSafeNullLock::new(CpuxGpio {
-                regs: MemoryIo::new(base),
-            }),
+            cpux: InitOnce::new(),
+            cpux_base,
         }
     }
 }

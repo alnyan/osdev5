@@ -26,8 +26,28 @@ pub mod mem;
 pub mod sync;
 pub mod util;
 
+use core::fmt::{Write, self};
+struct DummyUart;
+
+impl Write for DummyUart {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        for b in s.bytes() {
+            unsafe {
+                core::ptr::write_volatile(0xFFFFFFC000000000 as *mut u32, b as u32);
+                for _ in 0..100000 {
+                    asm!("nop");
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 #[panic_handler]
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {
+    let mut u = DummyUart;
+    write!(&mut u, "Panic occurred!\r\n");
+    write!(&mut u, "{:?}", pi);
     // TODO
     loop {}
 }
