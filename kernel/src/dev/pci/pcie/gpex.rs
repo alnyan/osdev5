@@ -1,3 +1,5 @@
+//! Generic PCIe host driver
+
 use crate::dev::{
     pci::{pcie::EcamCfgSpace, PciAddress, PciCfgSpace, PciHostDevice},
     Device,
@@ -6,6 +8,7 @@ use crate::mem::virt::DeviceMemory;
 use crate::util::InitOnce;
 use error::Errno;
 
+/// GPEX host controller struct
 pub struct GenericPcieHost {
     ecam_base: usize,
     ecam: InitOnce<DeviceMemory>,
@@ -47,7 +50,12 @@ impl GenericPcieHost {
     }
 
     fn map_function(&self, addr: PciAddress, cfg: EcamCfgSpace) -> Result<(), Errno> {
-        debugln!("{:?}: {:04x}:{:04x}", addr, cfg.vendor_id(), cfg.device_id());
+        debugln!(
+            "{:?}: {:04x}:{:04x}",
+            addr,
+            cfg.vendor_id(),
+            cfg.device_id()
+        );
         Ok(())
     }
 
@@ -82,6 +90,11 @@ impl GenericPcieHost {
         Ok(())
     }
 
+    /// Constructs an instance of GPEX device.
+    ///
+    /// # Safety
+    ///
+    /// Does not perform `ecam_base` validation.
     pub const unsafe fn new(ecam_base: usize, bus_count: u8) -> Self {
         Self {
             ecam: InitOnce::new(),

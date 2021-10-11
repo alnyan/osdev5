@@ -22,6 +22,7 @@ impl<T> InitOnce<T> {
         self.state.load(Ordering::Acquire)
     }
 
+    #[allow(clippy::mut_from_ref)]
     pub fn get(&self) -> &mut T {
         assert!(self.is_initialized(), "Access to uninitialized InitOnce<T>");
         unsafe { (*self.inner.get()).assume_init_mut() }
