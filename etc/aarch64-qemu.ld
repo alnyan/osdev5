@@ -31,18 +31,14 @@ SECTIONS {
     }
 
     . = ALIGN(4K);
-    .tables : AT(. - KERNEL_OFFSET) {
-        *(.tables)
-    }
-
-    . = ALIGN(4K);
+    PROVIDE(__bss_start_phys = . - KERNEL_OFFSET);
+    PROVIDE(__bss_start = .);
     .bss : AT(. - KERNEL_OFFSET) {
-        PROVIDE(__bss_start = .);
         *(COMMON)
         *(.bss*)
         . = ALIGN(4K);
-        PROVIDE(__bss_end = .);
     }
+    PROVIDE(__bss_end_phys = . - KERNEL_OFFSET);
 
     PROVIDE(__kernel_end = .);
 }

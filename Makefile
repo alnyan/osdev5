@@ -26,7 +26,7 @@ $(error TODO)
 else
 ifeq ($(MACH),qemu)
 QEMU_OPTS+=-kernel $(O)/kernel \
-		   -M virt,virtualization=off \
+		   -M virt,virtualization=on \
 		   -cpu cortex-a72 \
 		   -m 512 \
 		   -serial chardev:serial0 \

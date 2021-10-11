@@ -4,8 +4,8 @@ use crate::arch::{aarch64::asm::CPACR_EL1, machine};
 use crate::dev::{Device, fdt::DeviceTree};
 use crate::mem::virt;
 use cortex_a::asm::barrier::{self, dsb, isb};
-use cortex_a::registers::{DAIF, SCTLR_EL1, VBAR_EL1, CurrentEL};
-use tock_registers::interfaces::{ReadWriteable, Writeable, Readable};
+use cortex_a::registers::{DAIF, SCTLR_EL1, VBAR_EL1};
+use tock_registers::interfaces::{ReadWriteable, Writeable};
 
 #[no_mangle]
 extern "C" fn __aa64_bsp_main(fdt_base: usize) {
@@ -57,13 +57,5 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) {
 }
 
 global_asm!(include_str!("macros.S"));
-
-cfg_if! {
-    if #[cfg(feature = "mach_orangepi3")] {
-        global_asm!(include_str!("uboot.S"));
-    } else {
-        global_asm!(include_str!("entry.S"));
-    }
-}
-
+global_asm!(include_str!("uboot.S"));
 global_asm!(include_str!("upper.S"));

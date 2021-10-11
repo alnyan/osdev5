@@ -57,8 +57,8 @@ impl Device for Gic {
         let gicd_mmio_banked = DeviceMemoryIo::new(gicd_mmio);
         let gicc_mmio = DeviceMemoryIo::map("GICv2 CPU registers", self.gicc_base, 1)?;
 
-        let mut gicd = Gicd::new(gicd_mmio_shared, gicd_mmio_banked);
-        let mut gicc = Gicc::new(gicc_mmio);
+        let gicd = Gicd::new(gicd_mmio_shared, gicd_mmio_banked);
+        let gicc = Gicc::new(gicc_mmio);
 
         gicd.enable();
         gicc.enable();

@@ -80,7 +80,7 @@ impl Device for Pl031 {
     }
 
     unsafe fn enable(&self) -> Result<(), Errno> {
-        let mut inner = Pl031Inner {
+        let inner = Pl031Inner {
             regs: DeviceMemoryIo::map(self.name(), self.base, 1)?,
         };
 

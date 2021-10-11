@@ -13,7 +13,13 @@ _entry:
     b 1b
 
 2:
-    // TODO leave EL2 if running in it
+    mrs x0, currentel
+    cmp x0, #8
+    bne 1f
+
+    b .
+
+1:
 
     // TODO zero .bss
 

@@ -14,6 +14,7 @@ static mut INDEX_BUFFER: Wrap = Wrap { data: [0; 65536] };
 
 type INode<'a> = DevTreeIndexNode<'a, 'a, 'a>;
 
+#[allow(dead_code)]
 pub struct DeviceTree {
     tree: DevTree<'static>,
     index: DevTreeIndex<'static, 'static>,

@@ -67,7 +67,6 @@ extern "C" fn __aa64_exc_irq_handler() {
 
 #[no_mangle]
 extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
-    loop {}
     let err_code = exc.esr >> 26;
     let iss = exc.esr & 0x1FFFFFF;
 
