@@ -25,7 +25,7 @@ ifeq ($(ARCH),x86_64)
 $(error TODO)
 else
 ifeq ($(MACH),qemu)
-QEMU_OPTS+=-kernel $(O)/kernel.bin \
+QEMU_OPTS+=-kernel $(O)/kernel \
 		   -M virt,virtualization=off \
 		   -cpu cortex-a72 \
 		   -m 512 \
@@ -53,12 +53,20 @@ all: kernel
 
 kernel:
 	cd kernel && cargo build $(CARGO_BUILD_OPTS)
-ifeq ($(ARCH),aarch64)
-	$(OBJCOPY) -O binary $(O)/kernel $(O)/kernel.bin
-endif
 ifeq ($(MACH),orangepi3)
-#	$(LLVM_BASE)/llvm-strip $(O)/kernel
-	$(LLVM_BASE)/llvm-size $(O)/kernel
+	$(LLVM_BASE)/llvm-strip -o $(O)/kernel.strip $(O)/kernel
+	$(LLVM_BASE)/llvm-size $(O)/kernel.strip
+	$(OBJCOPY) -O binary $(O)/kernel.strip $(O)/kernel.bin
+	$(MKIMAGE) \
+		-A arm64 \
+		-O linux \
+		-T kernel \
+		-C none \
+		-a 0x48000000 \
+		-e 0x48000000 \
+		-n kernel \
+		-d $(O)/kernel.bin \
+		$(O)/uImage
 endif
 
 clean:

@@ -8,7 +8,7 @@ use cortex_a::registers::{DAIF, SCTLR_EL1, VBAR_EL1, CurrentEL};
 use tock_registers::interfaces::{ReadWriteable, Writeable, Readable};
 
 #[no_mangle]
-fn __aa64_bsp_main(fdt_base: usize) {
+extern "C" fn __aa64_bsp_main(fdt_base: usize) {
     // Disable FP instruction trapping
     CPACR_EL1.modify(CPACR_EL1::FPEN::TrapNone);
 
@@ -34,8 +34,15 @@ fn __aa64_bsp_main(fdt_base: usize) {
 
     machine::init_board().unwrap();
 
-    // let fdt = DeviceTree::from_phys(fdt_base + 0xFFFFFF8000000000).expect("Failed to obtain a device tree");
-    // fdt.dump();
+    if fdt_base != 0 {
+        debugln!("fdt_base = {:#x}", fdt_base);
+        let fdt = DeviceTree::from_phys(fdt_base + 0xFFFFFF8000000000);
+        if let Ok(fdt) = fdt {
+            fdt.dump();
+        } else {
+            debugln!("Failed to init FDT");
+        }
+    }
 
     debugln!("Machine init finished");
 

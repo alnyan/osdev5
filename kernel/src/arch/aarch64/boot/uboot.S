@@ -77,3 +77,8 @@ __aa64_entry_upper:
 bsp_stack_bottom:
     .skip 32768
 bsp_stack_top:
+
+.section .data
+.p2align 4
+fdt_base_phys:
+    .skip 8
