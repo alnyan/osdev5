@@ -12,6 +12,7 @@ use crate::dev::{
     serial::{pl011::Pl011, SerialDevice},
     Device,
 };
+use crate::mem::phys;
 use error::Errno;
 
 pub use gic::IrqNumber;
@@ -23,10 +24,16 @@ const GICC_BASE: usize = 0x08010000;
 // TODO extract this from device tree
 const ECAM_BASE: usize = 0x4010000000;
 
+const PHYS_BASE: usize = 0x40000000;
+const PHYS_SIZE: usize = 0x10000000;
+
 #[allow(missing_docs)]
 pub fn init_board() -> Result<(), Errno> {
     unsafe {
+        // Enable UART early on
         UART0.enable()?;
+
+        phys::init_from_region(PHYS_BASE, PHYS_SIZE);
 
         GIC.enable()?;
 

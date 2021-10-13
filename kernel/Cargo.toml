@@ -10,8 +10,8 @@ name = "kernel"
 test = false
 
 [dependencies]
-cfg-if = "1.x.x"
 error = { path = "../error" }
+cfg-if = "1.x.x"
 tock-registers = "0.7.x"
 fdt-rs = { version = "0.x.x", default-features = false }
 

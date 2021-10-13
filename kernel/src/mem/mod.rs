@@ -1,9 +1,27 @@
 //! Memory management and functions module
+#![allow(missing_docs)]
 
+pub mod phys;
 pub mod virt;
 
 /// Virtual offset applied to kernel address space
 pub const KERNEL_OFFSET: usize = 0xFFFFFF8000000000;
+///
+pub fn virtualize(addr: usize) -> usize {
+    // TODO remove this function
+    addr + KERNEL_OFFSET
+}
+
+///
+pub fn kernel_end_phys() -> usize {
+    extern "C" {
+        static __kernel_end_phys: u8;
+    }
+    unsafe { &__kernel_end_phys as *const _ as usize }
+}
+
+///
+pub const PAGE_SIZE: usize = 4096;
 
 /// See memcpy(3p).
 ///
