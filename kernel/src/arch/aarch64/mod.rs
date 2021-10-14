@@ -5,6 +5,7 @@ use tock_registers::interfaces::{Readable, Writeable};
 
 pub mod asm;
 pub mod boot;
+pub mod context;
 pub mod exception;
 pub mod irq;
 pub mod timer;

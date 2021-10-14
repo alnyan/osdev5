@@ -12,11 +12,16 @@
 
     mrs x0, elr_el1
     stp x30, x0, [sp, #160]
+
+    mrs x0, spsr_el1
+    stp x0, xzr, [sp, #176]
 .endm
 
 .macro EXC_RESTORE_CTX
     ldp x30, x0, [sp, #160]
     msr elr_el1, x0
+    ldp x0, xzr, [sp, #176]
+    msr spsr_el1, x0
 
     ldp x0, x1, [sp, #0]
     ldp x2, x3, [sp, #16]
@@ -48,13 +53,13 @@ aa64_el1_vectors:
 
 .p2align 7
 .el1_sp_el1_sync:
-    sub sp, sp, #192
+    sub sp, sp, #208
 
     EXC_SAVE_CTX
 
     mrs x0, esr_el1
     mrs x1, far_el1
-    stp x0, x1, [sp, #176]
+    stp x0, x1, [sp, #192]
 
     mov x0, sp
     bl __aa64_exc_sync_handler
@@ -62,7 +67,7 @@ aa64_el1_vectors:
     b .
 .p2align 7
 .el1_sp_el1_irq:
-    sub sp, sp, #176
+    sub sp, sp, #192
 
     EXC_SAVE_CTX
 
@@ -71,7 +76,7 @@ aa64_el1_vectors:
 
     EXC_RESTORE_CTX
 
-    add sp, sp, #176
+    add sp, sp, #192
     eret
 
 .p2align 7

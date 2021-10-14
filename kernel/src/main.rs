@@ -27,6 +27,7 @@ pub mod dev;
 pub mod mem;
 pub mod sync;
 pub mod util;
+pub mod proc;
 
 #[panic_handler]
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {

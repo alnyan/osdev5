@@ -1,19 +1,19 @@
 //! aarch64 common boot logic
 
 use crate::arch::{aarch64::asm::CPACR_EL1, machine};
-use crate::dev::{fdt::DeviceTree, Device};
+use crate::dev::{fdt::DeviceTree, irq::IntSource, Device};
 use crate::mem::{
-    self,
-    heap,
+    self, heap,
     phys::{self, PageUsage},
     virt,
 };
+use crate::proc;
 use cortex_a::asm::barrier::{self, dsb, isb};
 use cortex_a::registers::{DAIF, SCTLR_EL1, VBAR_EL1};
 use tock_registers::interfaces::{ReadWriteable, Writeable};
 
 #[no_mangle]
-extern "C" fn __aa64_bsp_main(fdt_base: usize) {
+extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
     // Disable FP instruction trapping
     CPACR_EL1.modify(CPACR_EL1::FPEN::TrapNone);
 
@@ -67,11 +67,9 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) {
 
     unsafe {
         machine::local_timer().enable().unwrap();
-    }
+        machine::local_timer().init_irqs().unwrap();
 
-    loop {
-        DAIF.modify(DAIF::I::CLEAR);
-        cortex_a::asm::wfi();
+        proc::enter();
     }
 }
 

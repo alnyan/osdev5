@@ -28,6 +28,7 @@ pub struct Gic {
     gicd: InitOnce<Gicd>,
     gicd_base: usize,
     gicc_base: usize,
+    scheduler_irq: IrqNumber,
     table: IrqSafeNullLock<[Option<&'static (dyn IntSource + Sync)>; MAX_IRQ]>,
 }
 
@@ -85,6 +86,10 @@ impl IntController for Gic {
             return;
         }
 
+        if self.scheduler_irq.0 == irq_number {
+            gicc.clear_irq(irq_number as u32, ic);
+        }
+
         {
             let table = self.table.lock();
             match table[irq_number] {
@@ -120,12 +125,13 @@ impl Gic {
     /// # Safety
     ///
     /// Does not perform `gicd_base` and `gicc_base` validation.
-    pub const unsafe fn new(gicd_base: usize, gicc_base: usize) -> Self {
+    pub const unsafe fn new(gicd_base: usize, gicc_base: usize, scheduler_irq: IrqNumber) -> Self {
         Self {
             gicc: InitOnce::new(),
             gicd: InitOnce::new(),
             gicd_base,
             gicc_base,
+            scheduler_irq,
             table: IrqSafeNullLock::new([None; MAX_IRQ]),
         }
     }

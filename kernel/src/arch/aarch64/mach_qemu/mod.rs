@@ -18,8 +18,11 @@ use error::Errno;
 pub use gic::IrqNumber;
 
 // TODO extract this from device tree
+const LOCAL_TIMER_IRQ: IrqNumber = IrqNumber::new(30);
 const UART0_BASE: usize = 0x09000000;
+const UART0_IRQ: IrqNumber = IrqNumber::new(33);
 const RTC_BASE: usize = 0x09010000;
+const RTC_IRQ: IrqNumber = IrqNumber::new(34);
 const GICD_BASE: usize = 0x08000000;
 const GICC_BASE: usize = 0x08010000;
 const ECAM_BASE: usize = 0x4010000000;
@@ -62,7 +65,7 @@ pub fn console() -> &'static impl SerialDevice {
 
 /// Returns the timer used as CPU-local periodic IRQ source
 #[inline]
-pub fn local_timer() -> &'static impl TimestampSource {
+pub fn local_timer() -> &'static GenericTimer {
     &LOCAL_TIMER
 }
 
@@ -72,8 +75,8 @@ pub fn intc() -> &'static impl IntController<IrqNumber = IrqNumber> {
     &GIC
 }
 
-static UART0: Pl011 = unsafe { Pl011::new(UART0_BASE, IrqNumber::new(33)) };
-static RTC: Pl031 = unsafe { Pl031::new(RTC_BASE, IrqNumber::new(34)) };
-static GIC: Gic = unsafe { Gic::new(GICD_BASE, GICC_BASE) };
+static UART0: Pl011 = unsafe { Pl011::new(UART0_BASE, UART0_IRQ) };
+static RTC: Pl031 = unsafe { Pl031::new(RTC_BASE, RTC_IRQ) };
+static GIC: Gic = unsafe { Gic::new(GICD_BASE, GICC_BASE, LOCAL_TIMER_IRQ) };
 static PCIE: GenericPcieHost = unsafe { GenericPcieHost::new(ECAM_BASE, 8) };
-static LOCAL_TIMER: GenericTimer = GenericTimer {};
+static LOCAL_TIMER: GenericTimer = GenericTimer::new(LOCAL_TIMER_IRQ);
