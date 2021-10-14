@@ -20,23 +20,25 @@ CARGO_BUILD_OPTS+=--release
 endif
 
 QEMU_OPTS=-s \
-		  -chardev stdio,id=serial0,mux=on
+		  -chardev stdio,id=serial1,mux=on
 ifeq ($(ARCH),x86_64)
 $(error TODO)
 else
 ifeq ($(MACH),qemu)
-QEMU_OPTS+=-kernel $(O)/kernel \
+QEMU_OPTS+=-kernel $(O)/kernel.bin \
 		   -M virt,virtualization=on \
 		   -cpu cortex-a72 \
 		   -m 512 \
-		   -serial chardev:serial0 \
-		   -device virtio-serial-pci
+		   -serial chardev:serial1 \
+		   -device qemu-xhci \
+		   -net none
 endif
-ifeq ($(MACH),rpi3b)
+ifeq ($(MACH),rpi3)
 QEMU_OPTS+=-kernel $(O)/kernel.bin \
+		   -dtb etc/bcm2837-rpi-3-b-plus.dtb \
 		   -M raspi3b \
 		   -serial null \
-		   -serial chardev:serial0
+		   -serial chardev:serial1
 endif
 endif
 
@@ -53,10 +55,12 @@ all: kernel
 
 kernel:
 	cd kernel && cargo build $(CARGO_BUILD_OPTS)
-ifeq ($(MACH),orangepi3)
+ifeq ($(ARCH),aarch64)
 	$(LLVM_BASE)/llvm-strip -o $(O)/kernel.strip $(O)/kernel
 	$(LLVM_BASE)/llvm-size $(O)/kernel.strip
 	$(OBJCOPY) -O binary $(O)/kernel.strip $(O)/kernel.bin
+endif
+ifeq ($(MACH),orangepi3)
 	$(MKIMAGE) \
 		-A arm64 \
 		-O linux \

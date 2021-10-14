@@ -21,3 +21,4 @@ cortex-a = { version = "6.x.x" }
 [features]
 mach_qemu = []
 mach_orangepi3 = []
+mach_rpi3 = []

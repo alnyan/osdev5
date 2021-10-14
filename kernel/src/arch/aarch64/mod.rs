@@ -18,6 +18,10 @@ cfg_if! {
         pub mod mach_orangepi3;
 
         pub use mach_orangepi3 as machine;
+    } else if #[cfg(feature = "mach_rpi3")] {
+        pub mod mach_rpi3;
+
+        pub use mach_rpi3 as machine;
     }
 }
 
