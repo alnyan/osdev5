@@ -8,7 +8,8 @@
     const_fn_fn_ptr_basics,
     const_fn_trait_bound,
     const_panic,
-    panic_info_message
+    panic_info_message,
+    alloc_error_handler,
 )]
 #![no_std]
 #![no_main]
@@ -16,6 +17,7 @@
 
 #[macro_use]
 extern crate cfg_if;
+extern crate alloc;
 
 #[macro_use]
 pub mod debug;

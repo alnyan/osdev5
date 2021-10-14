@@ -1,5 +1,6 @@
 use crate::mem::PAGE_SIZE;
 use core::mem::size_of;
+use error::Errno;
 
 mod reserved;
 mod manager;
@@ -15,7 +16,8 @@ const MAX_PAGES: usize = 1024 * 1024;
 pub enum PageUsage {
     Reserved,
     Available,
-    Kernel
+    Kernel,
+    KernelHeap
 }
 
 pub struct PageInfo {
@@ -44,6 +46,10 @@ impl Iterator for SimpleMemoryIterator {
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.take()
     }
+}
+
+pub fn alloc_contiguous_pages(pu: PageUsage, count: usize) -> Result<usize, Errno> {
+    MANAGER.lock().as_mut().unwrap().alloc_contiguous_pages(pu, count)
 }
 
 fn find_contiguous<T: Iterator<Item = MemoryRegion>>(

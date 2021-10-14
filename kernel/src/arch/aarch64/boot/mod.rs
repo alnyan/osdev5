@@ -1,8 +1,13 @@
 //! aarch64 common boot logic
 
 use crate::arch::{aarch64::asm::CPACR_EL1, machine};
-use crate::dev::{Device, fdt::DeviceTree};
-use crate::mem::virt;
+use crate::dev::{fdt::DeviceTree, Device};
+use crate::mem::{
+    self,
+    heap,
+    phys::{self, PageUsage},
+    virt,
+};
 use cortex_a::asm::barrier::{self, dsb, isb};
 use cortex_a::registers::{DAIF, SCTLR_EL1, VBAR_EL1};
 use tock_registers::interfaces::{ReadWriteable, Writeable};
@@ -32,6 +37,18 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) {
     // Enable MMU
     virt::enable().expect("Failed to initialize virtual memory");
 
+    // Most basic machine init: initialize proper debug output
+    // physical memory
+    machine::init_board_early().unwrap();
+
+    // Setup a heap
+    unsafe {
+        let heap_base_phys = phys::alloc_contiguous_pages(PageUsage::KernelHeap, 4096)
+            .expect("Failed to allocate memory for heap");
+        let heap_base_virt = mem::virtualize(heap_base_phys);
+        heap::init(heap_base_virt, 16 * 1024 * 1024);
+    }
+
     machine::init_board().unwrap();
 
     if fdt_base != 0 {
@@ -42,6 +59,8 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) {
         } else {
             debugln!("Failed to init FDT");
         }
+    } else {
+        debugln!("No FDT present");
     }
 
     debugln!("Machine init finished");

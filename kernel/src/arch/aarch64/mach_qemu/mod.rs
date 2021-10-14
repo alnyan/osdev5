@@ -17,24 +17,30 @@ use error::Errno;
 
 pub use gic::IrqNumber;
 
+// TODO extract this from device tree
 const UART0_BASE: usize = 0x09000000;
 const RTC_BASE: usize = 0x09010000;
 const GICD_BASE: usize = 0x08000000;
 const GICC_BASE: usize = 0x08010000;
-// TODO extract this from device tree
 const ECAM_BASE: usize = 0x4010000000;
 
 const PHYS_BASE: usize = 0x40000000;
 const PHYS_SIZE: usize = 0x10000000;
 
 #[allow(missing_docs)]
-pub fn init_board() -> Result<(), Errno> {
+pub fn init_board_early() -> Result<(), Errno> {
     unsafe {
         // Enable UART early on
         UART0.enable()?;
 
         phys::init_from_region(PHYS_BASE, PHYS_SIZE);
+    }
+    Ok(())
+}
 
+#[allow(missing_docs)]
+pub fn init_board() -> Result<(), Errno> {
+    unsafe {
         GIC.enable()?;
 
         UART0.init_irqs()?;
@@ -43,7 +49,7 @@ pub fn init_board() -> Result<(), Errno> {
         RTC.init_irqs()?;
 
         PCIE.enable()?;
-        PCIE.map()?;
+        // PCIE.map()?;
     }
     Ok(())
 }

@@ -3,6 +3,7 @@
 
 pub mod phys;
 pub mod virt;
+pub mod heap;
 
 /// Virtual offset applied to kernel address space
 pub const KERNEL_OFFSET: usize = 0xFFFFFF8000000000;
