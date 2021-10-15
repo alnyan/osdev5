@@ -1,19 +1,25 @@
 #![allow(missing_docs)]
 
+use crate::mem::{
+    self,
+    phys::{self, PageUsage},
+    virt::Space,
+};
 use crate::sync::IrqSafeNullLock;
 use crate::util::InitOnce;
 use alloc::collections::{BTreeMap, VecDeque};
 use alloc::rc::Rc;
-use core::cell::{RefCell, UnsafeCell};
-use core::mem::MaybeUninit;
+use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 pub use crate::arch::platform::context::{self, Context};
 
 pub type ProcessRef = Rc<UnsafeCell<Process>>;
 
+#[allow(dead_code)]
 pub struct Process {
     ctx: Context,
+    space: &'static mut Space,
     id: u32,
 }
 
@@ -29,12 +35,35 @@ pub struct Scheduler {
 }
 
 impl SchedulerInner {
-    fn new_kernel(&mut self, entry: extern "C" fn(usize) -> !, arg: usize) -> u32 {
+    fn new_kernel(&mut self, entry: usize, arg: usize) -> u32 {
         static LAST_PID: AtomicU32 = AtomicU32::new(0);
+        const USTACK_PAGE_COUNT: usize = 8;
+        const USTACK_VIRT_TOP: usize = 0x100000000;
+        const USTACK_VIRT_BASE: usize = USTACK_VIRT_TOP - USTACK_PAGE_COUNT * mem::PAGE_SIZE;
 
         let id = LAST_PID.fetch_add(1, Ordering::Relaxed);
+        if id == 256 {
+            panic!("Ran out of ASIDs (TODO FIXME)");
+        }
+        let space = Space::empty().unwrap();
+
+        unsafe {
+            for i in 0..USTACK_PAGE_COUNT {
+                let page = phys::alloc_page(PageUsage::Kernel).unwrap();
+                space
+                    .map(USTACK_VIRT_BASE + i * mem::PAGE_SIZE, page)
+                    .unwrap();
+            }
+        }
+
         let proc = Process {
-            ctx: Context::kernel(entry as usize, arg),
+            ctx: Context::kernel(
+                entry,
+                arg,
+                ((space as *mut _ as usize) - mem::KERNEL_OFFSET) | ((id as usize) << 56),
+                USTACK_VIRT_TOP,
+            ),
+            space,
             id,
         };
         debugln!("Created kernel process with PID {}", id);
@@ -55,14 +84,14 @@ impl SchedulerInner {
             current: None,
         };
 
-        this.idle = this.new_kernel(idle_fn, 0);
+        this.idle = this.new_kernel(idle_fn as usize, 0);
 
         this
     }
 }
 
 impl Scheduler {
-    pub fn new_kernel(&self, entry: extern "C" fn(usize) -> !, arg: usize) -> u32 {
+    pub fn new_kernel(&self, entry: usize, arg: usize) -> u32 {
         self.inner.get().lock().new_kernel(entry, arg)
     }
 
@@ -72,15 +101,6 @@ impl Scheduler {
 
     pub fn enqueue(&self, pid: u32) {
         self.inner.get().lock().queue.push_back(pid);
-    }
-
-    pub fn current(&self) -> Option<ProcessRef> {
-        let mut inner = self.inner.get().lock();
-        inner
-            .current
-            .as_ref()
-            .and_then(|id| inner.processes.get(id))
-            .map(|r| r.clone())
     }
 
     pub unsafe fn enter(&self) -> ! {
@@ -114,7 +134,7 @@ impl Scheduler {
             inner.current = Some(next);
             (
                 inner.processes.get(&current).unwrap().clone(),
-                inner.processes.get(&next).unwrap().clone()
+                inner.processes.get(&next).unwrap().clone(),
             )
         };
 
@@ -131,10 +151,21 @@ extern "C" fn idle_fn(_a: usize) -> ! {
     loop {}
 }
 
+#[inline(never)]
+extern "C" fn f1(u: usize) {
+    let mut x = u;
+    while x != 0 {
+        x -= 1;
+    }
+}
+
+#[inline(never)]
 extern "C" fn f0(a: usize) -> ! {
-    debugln!("Thread #{} started", a);
     loop {
-        debug!("{}", a);
+        unsafe {
+            asm!("svc #0", in("x0") a, in("x1") &a);
+        }
+        f1(1000000);
     }
 }
 
@@ -143,13 +174,13 @@ pub fn switch() {
 }
 
 static SCHED: Scheduler = Scheduler {
-    inner: InitOnce::new()
+    inner: InitOnce::new(),
 };
 
 pub unsafe fn enter() -> ! {
     SCHED.init();
     for i in 0..10 {
-        SCHED.enqueue(SCHED.new_kernel(f0, i));
+        SCHED.enqueue(SCHED.new_kernel(f0 as usize, i));
     }
     SCHED.enter();
 }

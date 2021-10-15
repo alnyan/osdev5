@@ -16,6 +16,9 @@ pub struct GenericTimer {
     irq: IrqNumber
 }
 
+///
+pub const TIMER_TICK: u64 = 1000000;
+
 impl Device for GenericTimer {
     fn name(&self) -> &'static str {
         "ARM Generic Timer"
@@ -29,7 +32,8 @@ impl Device for GenericTimer {
 
 impl IntSource for GenericTimer {
     fn handle_irq(&self) -> Result<(), Errno> {
-        CNTP_TVAL_EL0.set(10000);
+        CNTP_TVAL_EL0.set(TIMER_TICK);
+        CNTP_CTL_EL0.write(CNTP_CTL_EL0::ENABLE::SET);
         use crate::proc;
         proc::switch();
         Ok(())
@@ -37,6 +41,7 @@ impl IntSource for GenericTimer {
 
     fn init_irqs(&'static self) -> Result<(), Errno> {
         machine::intc().register_handler(self.irq, self)?;
+        CNTP_TVAL_EL0.set(TIMER_TICK);
         machine::intc().enable_irq(self.irq)?;
         Ok(())
     }

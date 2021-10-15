@@ -2,8 +2,8 @@ use crate::mem::PAGE_SIZE;
 use core::mem::size_of;
 use error::Errno;
 
-mod reserved;
 mod manager;
+mod reserved;
 
 use manager::{Manager, SimpleManager, MANAGER};
 pub use reserved::ReservedRegion;
@@ -17,12 +17,14 @@ pub enum PageUsage {
     Reserved,
     Available,
     Kernel,
-    KernelHeap
+    KernelHeap,
+    Paging,
+    UserStack,
 }
 
 pub struct PageInfo {
     refcount: usize,
-    usage: PageUsage
+    usage: PageUsage,
 }
 
 #[derive(Clone)]
@@ -49,13 +51,18 @@ impl Iterator for SimpleMemoryIterator {
 }
 
 pub fn alloc_contiguous_pages(pu: PageUsage, count: usize) -> Result<usize, Errno> {
-    MANAGER.lock().as_mut().unwrap().alloc_contiguous_pages(pu, count)
+    MANAGER
+        .lock()
+        .as_mut()
+        .unwrap()
+        .alloc_contiguous_pages(pu, count)
 }
 
-fn find_contiguous<T: Iterator<Item = MemoryRegion>>(
-    iter: T,
-    count: usize,
-) -> Option<usize> {
+pub fn alloc_page(pu: PageUsage) -> Result<usize, Errno> {
+    MANAGER.lock().as_mut().unwrap().alloc_page(pu)
+}
+
+fn find_contiguous<T: Iterator<Item = MemoryRegion>>(iter: T, count: usize) -> Option<usize> {
     for region in iter {
         let mut collected = 0;
         let mut base_addr = None;
@@ -84,7 +91,7 @@ pub unsafe fn init_from_iter<T: Iterator<Item = MemoryRegion> + Clone>(iter: T) 
             mem_base = reg.start;
         }
     }
-    debugln!("Memory base is {:?}", mem_base);
+    debugln!("Memory base is {:#x}", mem_base);
     // Step 1. Count available memory
     let mut total_pages = 0usize;
     for reg in iter.clone() {
@@ -118,7 +125,7 @@ pub unsafe fn init_from_iter<T: Iterator<Item = MemoryRegion> + Clone>(iter: T) 
 pub unsafe fn init_from_region(base: usize, size: usize) {
     let iter = SimpleMemoryIterator::new(MemoryRegion {
         start: base,
-        end: base + size
+        end: base + size,
     });
 
     init_from_iter(iter);

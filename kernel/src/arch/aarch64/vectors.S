@@ -1,113 +1,126 @@
-.macro EXC_SAVE_CTX
-    stp x0, x1, [sp, #0]
-    stp x2, x3, [sp, #16]
-    stp x4, x5, [sp, #32]
-    stp x6, x7, [sp, #48]
-    stp x8, x9, [sp, #64]
-    stp x10, x11, [sp, #80]
-    stp x12, x13, [sp, #96]
-    stp x14, x15, [sp, #112]
-    stp x16, x17, [sp, #128]
-    stp x18, x29, [sp, #144]
+// vi:ft=a64asm:
 
-    mrs x0, elr_el1
-    stp x30, x0, [sp, #160]
+.set PT_REGS_SIZE,      (16 * 16 + 16 * 2)
+
+.macro EXC_SAVE_STATE
+    sub sp, sp, #PT_REGS_SIZE
+
+    // TODO only save all registers if doing fork()?
+    stp x0,  x1,  [sp, #16 * 0]
+    stp x2,  x3,  [sp, #16 * 1]
+    stp x4,  x5,  [sp, #16 * 2]
+    stp x6,  x7,  [sp, #16 * 3]
+    stp x8,  x9,  [sp, #16 * 4]
+    stp x10, x11, [sp, #16 * 5]
+    stp x12, x13, [sp, #16 * 6]
+    stp x14, x15, [sp, #16 * 7]
+    stp x16, x17, [sp, #16 * 8]
+    stp x18, x19, [sp, #16 * 9]
+    stp x20, x21, [sp, #16 * 10]
+    stp x22, x23, [sp, #16 * 11]
+    stp x24, x25, [sp, #16 * 12]
+    stp x26, x27, [sp, #16 * 13]
+    stp x28, x29, [sp, #16 * 14]
+    stp x30, x31, [sp, #16 * 15]
 
     mrs x0, spsr_el1
-    stp x0, xzr, [sp, #176]
+    mrs x1, elr_el1
+    mrs x2, sp_el0
+    mrs x3, ttbr0_el1
+
+    stp x0,  x1,  [sp, #16 * 16]
+    stp x2,  x3,  [sp, #16 * 17]
 .endm
 
-.macro EXC_RESTORE_CTX
-    ldp x30, x0, [sp, #160]
-    msr elr_el1, x0
-    ldp x0, xzr, [sp, #176]
+.macro EXC_RESTORE_STATE
+    ldp x0,  x1,  [sp, #16 * 16]
+    ldp x2,  x3,  [sp, #16 * 17]
     msr spsr_el1, x0
+    msr elr_el1, x1
+    msr sp_el0, x2
+    msr ttbr0_el1, x3
 
-    ldp x0, x1, [sp, #0]
-    ldp x2, x3, [sp, #16]
-    ldp x4, x5, [sp, #32]
-    ldp x6, x7, [sp, #48]
-    ldp x8, x9, [sp, #64]
-    ldp x10, x11, [sp, #80]
-    ldp x12, x13, [sp, #96]
-    ldp x14, x15, [sp, #112]
-    ldp x16, x17, [sp, #128]
-    ldp x18, x29, [sp, #144]
+    ldp x0,  x1,  [sp, #16 * 0]
+    ldp x2,  x3,  [sp, #16 * 1]
+    ldp x4,  x5,  [sp, #16 * 2]
+    ldp x6,  x7,  [sp, #16 * 3]
+    ldp x8,  x9,  [sp, #16 * 4]
+    ldp x10, x11, [sp, #16 * 5]
+    ldp x12, x13, [sp, #16 * 6]
+    ldp x14, x15, [sp, #16 * 7]
+    ldp x16, x17, [sp, #16 * 8]
+    ldp x18, x19, [sp, #16 * 9]
+    ldp x20, x21, [sp, #16 * 10]
+    ldp x22, x23, [sp, #16 * 11]
+    ldp x24, x25, [sp, #16 * 12]
+    ldp x26, x27, [sp, #16 * 13]
+    ldp x28, x29, [sp, #16 * 14]
+    ldp x30, x31, [sp, #16 * 15]
+
+    add sp, sp, #PT_REGS_SIZE
+.endm
+
+.macro EXC_VECTOR el, ht, bits, kind
+.p2align 7
+    b __aa\bits\()_el\el\ht\()_\kind
+.endm
+
+.macro EXC_ENTRY_HANDLER el, ht, bits, kind
+__aa\bits\()_el\el\ht\()_\kind:
+.if \bits == 32
+    // TODO AArch32?
+    b .
+.endif
+
+    EXC_SAVE_STATE
+    mov x0, sp
+    mov lr, xzr
+    bl __aa64_exc_\kind\()_handler
+    EXC_RESTORE_STATE
+    eret
 .endm
 
 .section .text
 .global aa64_el1_vectors
 .p2align 12
 aa64_el1_vectors:
-.el1_sp_el0_sync:
-    b .
-.p2align 7
-.el1_sp_el0_irq:
-    b .
-.p2align 7
-.el1_sp_el0_fiq:
-    b .
-.p2align 7
-.el1_sp_el0_serror:
-    b .
+    EXC_VECTOR 1, t, 64, sync
+    EXC_VECTOR 1, t, 64, irq
+    EXC_VECTOR 1, t, 64, fiq
+    EXC_VECTOR 1, t, 64, serror
+
+    EXC_VECTOR 1, h, 64, sync
+    EXC_VECTOR 1, h, 64, irq
+    EXC_VECTOR 1, h, 64, fiq
+    EXC_VECTOR 1, h, 64, serror
+
+    EXC_VECTOR 0, t, 64, sync
+    EXC_VECTOR 0, t, 64, irq
+    EXC_VECTOR 0, t, 64, fiq
+    EXC_VECTOR 0, t, 64, serror
+
+    EXC_VECTOR 0, t, 32, sync
+    EXC_VECTOR 0, t, 32, irq
+    EXC_VECTOR 0, t, 32, fiq
+    EXC_VECTOR 0, t, 32, serror
 
 .p2align 7
-.el1_sp_el1_sync:
-    sub sp, sp, #208
+EXC_ENTRY_HANDLER 1, t, 64, sync
+EXC_ENTRY_HANDLER 1, t, 64, irq
+EXC_ENTRY_HANDLER 1, t, 64, fiq
+EXC_ENTRY_HANDLER 1, t, 64, serror
 
-    EXC_SAVE_CTX
+EXC_ENTRY_HANDLER 1, h, 64, sync
+EXC_ENTRY_HANDLER 1, h, 64, irq
+EXC_ENTRY_HANDLER 1, h, 64, fiq
+EXC_ENTRY_HANDLER 1, h, 64, serror
 
-    mrs x0, esr_el1
-    mrs x1, far_el1
-    stp x0, x1, [sp, #192]
+EXC_ENTRY_HANDLER 0, t, 64, sync
+EXC_ENTRY_HANDLER 0, t, 64, irq
+EXC_ENTRY_HANDLER 0, t, 64, fiq
+EXC_ENTRY_HANDLER 0, t, 64, serror
 
-    mov x0, sp
-    bl __aa64_exc_sync_handler
-
-    b .
-.p2align 7
-.el1_sp_el1_irq:
-    sub sp, sp, #192
-
-    EXC_SAVE_CTX
-
-    mov x0, sp
-    bl __aa64_exc_irq_handler
-
-    EXC_RESTORE_CTX
-
-    add sp, sp, #192
-    eret
-
-.p2align 7
-.el1_sp_el1_fiq:
-    b .
-.p2align 7
-.el1_sp_el1_serror:
-    b .
-
-.p2align 7
-.el0_aa64_sync:
-    b .
-.p2align 7
-.el0_aa64_irq:
-    b .
-.p2align 7
-.el0_aa64_fiq:
-    b .
-.p2align 7
-.el0_aa64_serror:
-    b .
-
-.p2align 7
-.el0_aa32_sync:
-    b .
-.p2align 7
-.el0_aa32_irq:
-    b .
-.p2align 7
-.el0_aa32_fiq:
-    b .
-.p2align 7
-.el0_aa32_serror:
-    b .
+EXC_ENTRY_HANDLER 0, t, 32, sync
+EXC_ENTRY_HANDLER 0, t, 32, irq
+EXC_ENTRY_HANDLER 0, t, 32, fiq
+EXC_ENTRY_HANDLER 0, t, 32, serror

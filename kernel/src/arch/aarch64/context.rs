@@ -10,22 +10,27 @@ struct Stack {
 
 #[repr(C)]
 pub struct Context {
-    pub k_sp: usize,
+    pub k_sp: usize,        // 0x00
+    pub ttbr0: usize,       // 0x08
 
     stack_base_phys: usize,
     stack_page_count: usize,
 }
 
 impl Context {
-    pub fn kernel(entry: usize, arg: usize) -> Self {
-        let mut stack = Stack::new(4);
+    pub fn kernel(entry: usize, arg: usize, ttbr0: usize, ustack: usize) -> Self {
+        let mut stack = Stack::new(8);
+
+        debugln!("STACK {:#x}, {:#x}", stack.bp, stack.bp + 8 * 4096);
 
         stack.push(entry);
         stack.push(arg);
+        stack.push(ttbr0);
+        stack.push(ustack);
 
         stack.push(__aa64_ctx_enter_kernel as usize); // x30/lr
-        stack.push(0);      // xzr
         stack.push(0);      // x29
+        stack.push(0);      // x28
         stack.push(0);      // x27
         stack.push(0);      // x26
         stack.push(0);      // x25
@@ -38,18 +43,19 @@ impl Context {
 
         Self {
             k_sp: stack.sp,
+            ttbr0,
 
             stack_base_phys: stack.bp,
-            stack_page_count: 4
+            stack_page_count: 8
         }
     }
 
-    pub unsafe fn enter(&mut self) -> ! {
+    pub unsafe extern "C" fn enter(&mut self) -> ! {
         __aa64_ctx_switch_to(self);
         panic!("This code should not run");
     }
 
-    pub unsafe fn switch(&mut self, to: &mut Context) {
+    pub unsafe extern "C" fn switch(&mut self, to: &mut Context) {
         __aa64_ctx_switch(to, self);
     }
 }

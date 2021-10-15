@@ -41,4 +41,5 @@ SECTIONS {
     PROVIDE(__bss_end_phys = . - KERNEL_OFFSET);
 
     PROVIDE(__kernel_end = .);
+    PROVIDE(__kernel_end_phys = . - KERNEL_OFFSET);
 }

@@ -4,10 +4,9 @@ use crate::arch::aarch64::{
     irq::gic::{self, Gic},
     timer::GenericTimer,
 };
-use crate::dev::timer::TimestampSource;
 use crate::dev::{
     irq::{IntController, IntSource},
-    pci::{pcie::gpex::GenericPcieHost, PciHostDevice},
+    pci::pcie::gpex::GenericPcieHost,
     rtc::pl031::Pl031,
     serial::{pl011::Pl011, SerialDevice},
     Device,

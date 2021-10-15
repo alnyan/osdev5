@@ -1,21 +1,28 @@
 #![allow(missing_docs)]
 
-use crate::mem::KERNEL_OFFSET;
+use crate::mem::{
+    self,
+    phys::{self, PageUsage},
+    KERNEL_OFFSET,
+};
 use core::marker::PhantomData;
 use core::ops::Deref;
 use cortex_a::asm::barrier::{self, dsb, isb};
-use cortex_a::registers::{TCR_EL1, TTBR0_EL1};
+use cortex_a::registers::TTBR0_EL1;
 use error::Errno;
-use tock_registers::interfaces::{ReadWriteable, Writeable};
+use tock_registers::interfaces::Writeable;
 
 const PTE_BLOCK_AF: u64 = 1 << 10;
 const PTE_BLOCK_OSH: u64 = 2 << 8;
 const PTE_TABLE: u64 = 1 << 1;
 const PTE_PRESENT: u64 = 1 << 0;
 const PTE_ATTR1: u64 = 1 << 2;
+const PTE_BLOCK_NG: u64 = 1 << 11;
 
 #[repr(C, align(0x1000))]
-struct Table([u64; 512]);
+pub struct Table([u64; 512]);
+
+pub use Table as Space;
 
 #[no_mangle]
 static mut KERNEL_TTBR1: Table = Table([0; 512]);
@@ -40,6 +47,100 @@ pub struct DeviceMemory {
 pub struct DeviceMemoryIo<T> {
     mmio: DeviceMemory,
     _0: PhantomData<T>,
+}
+
+impl Table {
+    pub fn empty() -> Result<&'static mut Self, Errno> {
+        let phys = phys::alloc_page(PageUsage::Paging)?;
+        let virt = mem::virtualize(phys);
+        let res = unsafe { &mut *(virt as *mut Self) };
+        res.0.fill(0);
+        Ok(res)
+    }
+
+    pub fn dump(&self) {
+        debugln!("Paging table dump:");
+        for l0i in 0usize..512 {
+            let l0e = self.0[l0i];
+            if l0e & PTE_PRESENT == 0 {
+                continue;
+            }
+
+            let l1_phys = (l0e & 0xfffffffff000) as usize;
+            let l1t = unsafe { &mut *(mem::virtualize(l1_phys) as *mut Self) };
+
+            for l1i in 0usize..512 {
+                let l1e = l1t.0[l1i];
+                if l1e & PTE_PRESENT == 0 {
+                    continue;
+                }
+
+                let l2_phys = (l1e & 0xfffffffff000) as usize;
+                let l2t = unsafe { &mut *(mem::virtualize(l2_phys) as *mut Self) };
+
+                for l2i in 0usize..512 {
+                    let l2e = l2t.0[l2i];
+                    if l2e & PTE_PRESENT == 0 {
+                        continue;
+                    }
+
+                    let virt = (l0i << 30) | (l1i << 21) | (l2i << 12);
+                    debugln!("{:#x} -> {:#x}", virt, l2e & 0xfffffffff000);
+                }
+            }
+        }
+    }
+
+    pub unsafe fn map(&mut self, virt: usize, phys: usize) -> Result<(), Errno> {
+        let l0i = virt >> 30;
+        let l1i = (virt >> 21) & 0x1FF;
+        let l2i = (virt >> 12) & 0x1FF;
+
+        debugln!("l0i = {}, l1i = {}, l2i = {}", l0i, l1i, l2i);
+
+        let l0e = self.0[l0i];
+        let l1_phys = if l0e & PTE_PRESENT != 0 {
+            assert!(l0e & PTE_TABLE != 0);
+            (l0e & 0xfffffffff000) as usize
+        } else {
+            let page = phys::alloc_page(PageUsage::Paging)?;
+            self.0[l0i] = (page as u64) | (PTE_PRESENT | PTE_TABLE);
+
+            let virt = mem::virtualize(phys);
+            let res = &mut *(virt as *mut Self);
+            res.0.fill(0);
+            page
+        };
+        let l1t = &mut *(mem::virtualize(l1_phys) as *mut Self);
+
+        let l1e = l1t.0[l1i];
+        let l2_phys = if l1e & PTE_PRESENT != 0 {
+            assert!(l1e & PTE_TABLE != 0);
+            (l1e & 0xfffffffff000) as usize
+        } else {
+            let page = phys::alloc_page(PageUsage::Paging)?;
+            l1t.0[l1i] = (page as u64) | (PTE_PRESENT | PTE_TABLE);
+
+            let virt = mem::virtualize(phys);
+            let res = &mut *(virt as *mut Self);
+            res.0.fill(0);
+            page
+        };
+        let l2t = &mut *(mem::virtualize(l2_phys) as *mut Self);
+
+        if l2t.0[l2i] & PTE_PRESENT != 0 {
+            panic!(
+                "Page is already mapped: {:#x} (tried {:#x}, got {:#x})",
+                virt, phys, l2t.0[l2i]
+            );
+        }
+
+        debugln!("{:p} map {:#x} -> {:#x}", self, virt, phys);
+        l2t.0[l2i] =
+            (phys as u64) | (PTE_BLOCK_NG | PTE_PRESENT | PTE_TABLE | PTE_BLOCK_OSH | PTE_BLOCK_AF);
+
+        Ok(())
+    }
 }
 
 impl DeviceMemory {
@@ -117,7 +218,7 @@ impl DeviceMemory {
         Self {
             name: self.name,
             base: self.base,
-            count: self.count
+            count: self.count,
         }
     }
 }
@@ -163,7 +264,7 @@ pub fn enable() -> Result<(), Errno> {
 
     // Disable lower-half translation
     TTBR0_EL1.set(0);
-    TCR_EL1.modify(TCR_EL1::EPD0::SET);
+    //TCR_EL1.modify(TCR_EL1::EPD0::SET);
 
     Ok(())
 }

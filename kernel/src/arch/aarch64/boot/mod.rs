@@ -9,7 +9,7 @@ use crate::mem::{
 };
 use crate::proc;
 use cortex_a::asm::barrier::{self, dsb, isb};
-use cortex_a::registers::{DAIF, SCTLR_EL1, VBAR_EL1};
+use cortex_a::registers::{SCTLR_EL1, VBAR_EL1};
 use tock_registers::interfaces::{ReadWriteable, Writeable};
 
 #[no_mangle]

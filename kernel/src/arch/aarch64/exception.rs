@@ -2,39 +2,24 @@
 
 use crate::arch::machine;
 use crate::dev::irq::{IntController, IrqContext};
+use cortex_a::registers::{ESR_EL1, FAR_EL1};
+use tock_registers::interfaces::Readable;
 
 /// Trapped SIMD/FP functionality
 pub const EC_FP_TRAP: u64 = 0b000111;
 /// Data Abort at current EL
 pub const EC_DATA_ABORT_ELX: u64 = 0b100101;
+/// SVC instruction in AA64 state
+pub const EC_SVC_AA64: u64 = 0b010101;
 
 #[derive(Debug)]
 #[repr(C)]
 struct ExceptionFrame {
-    x0: u64,
-    x1: u64,
-    x2: u64,
-    x3: u64,
-    x4: u64,
-    x5: u64,
-    x6: u64,
-    x7: u64,
-    x8: u64,
-    x9: u64,
-    x10: u64,
-    x11: u64,
-    x12: u64,
-    x13: u64,
-    x14: u64,
-    x15: u64,
-    x16: u64,
-    x17: u64,
-    x18: u64,
-    x29: u64,
-    x30: u64,
-    elr: u64,
-    esr: u64,
-    far: u64,
+    x: [u64; 32],
+    spsr_el1: u64,
+    elr_el1: u64,
+    sp_el0: u64,
+    ttbr0_el1: u64,
 }
 
 #[inline(always)]
@@ -58,42 +43,75 @@ const fn data_abort_access_size(iss: u64) -> &'static str {
 }
 
 #[no_mangle]
-extern "C" fn __aa64_exc_irq_handler() {
+extern "C" fn __aa64_exc_irq_handler(_exc: &mut ExceptionFrame) {
     unsafe {
         let ic = IrqContext::new();
         machine::intc().handle_pending_irqs(&ic);
     }
 }
 
+fn dump_data_abort(esr: u64, far: u64) {
+    let iss = esr & 0x1FFFFFF;
+    debugln!("Data Abort:");
+
+    debug!("  Illegal {}", data_abort_access_type(iss),);
+    if iss & (1 << 24) != 0 {
+        debug!(" of a {}", data_abort_access_size(iss));
+    }
+    if iss & (1 << 10) == 0 {
+        debug!(" at {:#018x}", far);
+    } else {
+        debug!(" at UNKNOWN");
+    }
+    debugln!("");
+}
+
 #[no_mangle]
 extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
-    let err_code = exc.esr >> 26;
-    let iss = exc.esr & 0x1FFFFFF;
-
-    debugln!("Unhandled exception at ELR={:#018x}", exc.elr);
+    let esr = ESR_EL1.get();
+    let err_code = esr >> 26;
 
     #[allow(clippy::single_match)]
     match err_code {
         EC_DATA_ABORT_ELX => {
-            debugln!("Data Abort:");
-
-            debug!("  Illegal {}", data_abort_access_type(iss),);
-            if iss & (1 << 24) != 0 {
-                debug!(" of a {}", data_abort_access_size(iss));
-            }
-            if iss & (1 << 10) == 0 {
-                debug!(" at {:#018x}", exc.far);
-            } else {
-                debug!(" at UNKNOWN");
-            }
-            debugln!("");
+            let far = FAR_EL1.get();
+            dump_data_abort(esr, far);
+        }
+        EC_SVC_AA64 => {
+            debugln!("{:#x} {:#x}", exc.x[0], exc.x[1]);
+            return;
         }
         _ => {}
     }
 
-    debugln!("{:#018x?}", exc);
+    debugln!(
+        "Unhandled exception at ELR={:#018x}, ESR={:#010x}, exc ctx @ {:p}",
+        exc.elr_el1,
+        esr,
+        exc
+    );
+
+    if exc.sp_el0 == 0xFFFFFF50 {
+        for i in 0..10 {
+            debugln!("[{:#x}] {:#x}", exc.sp_el0 + i * 8, unsafe {
+                core::ptr::read((exc.sp_el0 + i * 8) as *const u64)
+            });
+        }
+    }
+
+    debugln!("{:#x?}", exc);
 
     panic!("Unhandled exception");
+}
+
+#[no_mangle]
+extern "C" fn __aa64_exc_fiq_handler(_exc: &mut ExceptionFrame) {
+    todo!();
+}
+
+#[no_mangle]
+extern "C" fn __aa64_exc_serror_handler(_exc: &mut ExceptionFrame) {
+    todo!();
 }
 
 global_asm!(include_str!("vectors.S"));

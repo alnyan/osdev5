@@ -16,9 +16,9 @@ pub fn virtualize(addr: usize) -> usize {
 ///
 pub fn kernel_end_phys() -> usize {
     extern "C" {
-        static __kernel_end_phys: u8;
+        static __kernel_end: u8;
     }
-    unsafe { &__kernel_end_phys as *const _ as usize }
+    unsafe { &__kernel_end as *const _ as usize - KERNEL_OFFSET }
 }
 
 ///
