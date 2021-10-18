@@ -65,7 +65,7 @@ impl SchedulerInner {
             ctx: Context::kernel(
                 entry,
                 arg,
-                ((space as *mut _ as usize) - mem::KERNEL_OFFSET) | ((id as usize) << 56),
+                ((space as *mut _ as usize) - mem::KERNEL_OFFSET) | ((id as usize) << 48),
                 USTACK_VIRT_TOP,
             ),
             space,
