@@ -33,7 +33,7 @@ pub mod util;
 
 #[panic_handler]
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {
-    debugln!("Panic: {:?}", pi);
+    errorln!("Panic: {:?}", pi);
     // TODO
     loop {}
 }

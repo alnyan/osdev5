@@ -4,6 +4,7 @@ use crate::arch::machine;
 use crate::dev::irq::{IntController, IrqContext};
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
 use tock_registers::interfaces::Readable;
+use crate::debug::Level;
 
 /// Trapped SIMD/FP functionality
 pub const EC_FP_TRAP: u64 = 0b000111;
@@ -50,20 +51,20 @@ extern "C" fn __aa64_exc_irq_handler(_exc: &mut ExceptionFrame) {
     }
 }
 
-fn dump_data_abort(esr: u64, far: u64) {
+fn dump_data_abort(level: Level, esr: u64, far: u64) {
     let iss = esr & 0x1FFFFFF;
-    debugln!("Data Abort:");
+    println!(level, "Data Abort:");
 
-    debug!("  Illegal {}", data_abort_access_type(iss),);
+    print!(level, "  Illegal {}", data_abort_access_type(iss),);
     if iss & (1 << 24) != 0 {
-        debug!(" of a {}", data_abort_access_size(iss));
+        print!(level, " of a {}", data_abort_access_size(iss));
     }
     if iss & (1 << 10) == 0 {
-        debug!(" at {:#018x}", far);
+        print!(level, " at {:#018x}", far);
     } else {
-        debug!(" at UNKNOWN");
+        print!(level, " at UNKNOWN");
     }
-    debugln!("");
+    print!(level, "");
 }
 
 #[no_mangle]
@@ -75,31 +76,21 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
     match err_code {
         EC_DATA_ABORT_ELX => {
             let far = FAR_EL1.get();
-            dump_data_abort(esr, far);
+            dump_data_abort(Level::Error, esr, far);
         }
         EC_SVC_AA64 => {
-            debugln!("{:#x} {:#x}", exc.x[0], exc.x[1]);
+            infoln!("{:#x} {:#x}", exc.x[0], exc.x[1]);
             return;
         }
         _ => {}
     }
 
-    debugln!(
+    errorln!(
         "Unhandled exception at ELR={:#018x}, ESR={:#010x}, exc ctx @ {:p}",
         exc.elr_el1,
         esr,
         exc
     );
-
-    if exc.sp_el0 == 0xFFFFFF50 {
-        for i in 0..10 {
-            debugln!("[{:#x}] {:#x}", exc.sp_el0 + i * 8, unsafe {
-                core::ptr::read((exc.sp_el0 + i * 8) as *const u64)
-            });
-        }
-    }
-
-    debugln!("{:#x?}", exc);
 
     panic!("Unhandled exception");
 }

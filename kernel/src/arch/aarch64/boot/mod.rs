@@ -52,18 +52,17 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
     machine::init_board().unwrap();
 
     if fdt_base != 0 {
-        debugln!("fdt_base = {:#x}", fdt_base);
         let fdt = DeviceTree::from_phys(fdt_base + 0xFFFFFF8000000000);
-        if let Ok(fdt) = fdt {
-            fdt.dump();
+        if let Ok(_fdt) = fdt {
+            // fdt.dump(Level::Debug);
         } else {
-            debugln!("Failed to init FDT");
+            errorln!("Failed to init FDT");
         }
     } else {
-        debugln!("No FDT present");
+        warnln!("No FDT present");
     }
 
-    debugln!("Machine init finished");
+    infoln!("Machine init finished");
 
     unsafe {
         machine::local_timer().enable().unwrap();

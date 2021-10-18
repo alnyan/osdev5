@@ -7,6 +7,19 @@
 use crate::dev::serial::SerialDevice;
 use core::fmt;
 
+/// Kernel logging levels
+#[derive(Clone, Copy, PartialEq)]
+pub enum Level {
+    /// Debugging information
+    Debug,
+    /// General informational messages
+    Info,
+    /// Non-critical warnings
+    Warn,
+    /// Critical errors
+    Error,
+}
+
 struct SerialOutput<T: 'static + SerialDevice> {
     inner: &'static T,
 }
@@ -24,22 +37,64 @@ impl<T: SerialDevice> fmt::Write for SerialOutput<T> {
     }
 }
 
-/// Writes a debug message to debug output
+/// Writes a formatted message to output stream
 #[macro_export]
-macro_rules! debug {
-    ($($it:tt)+) => ($crate::debug::_debug(format_args!($($it)+)))
+macro_rules! print {
+    ($level:expr, $($it:tt)+) => ($crate::debug::_debug($level, format_args!($($it)+)))
 }
 
-/// Writes a debug message, followed by a newline, to debug output
+/// Writes a formatted message, followed by a newline, to output stream
+#[macro_export]
+macro_rules! println {
+    ($level:expr, $($it:tt)+) => (print!($level, "{}\n", format_args!($($it)+)))
+}
+
+/// Writes a message, annotated with current file and line, with a newline, to
+/// debug level output.
 ///
-/// See [debug!]
+/// See [println!].
 #[macro_export]
 macro_rules! debugln {
-    ($($it:tt)+) => (debug!("{}\n", format_args!($($it)+)))
+    ($($it:tt)+) => (
+        print!($crate::debug::Level::Debug, "[{}:{}] {}\n", file!(), line!(), format_args!($($it)+))
+    )
+}
+
+/// Writes a message, annotated with current file and line, with a newline, to
+/// info level output.
+///
+/// See [println!].
+#[macro_export]
+macro_rules! infoln {
+    ($($it:tt)+) => (
+        print!($crate::debug::Level::Info, "\x1B[1m[{}:{}] {}\x1B[0m\n", file!(), line!(), format_args!($($it)+))
+    )
+}
+
+/// Writes a message, annotated with current file and line, with a newline, to
+/// warning level output.
+///
+/// See [println!].
+#[macro_export]
+macro_rules! warnln {
+    ($($it:tt)+) => (
+        print!($crate::debug::Level::Warn, "\x1B[33;1m[{}:{}] {}\x1B[0m\n", file!(), line!(), format_args!($($it)+))
+    )
+}
+
+/// Writes a message, annotated with current file and line, with a newline, to
+/// error level output.
+///
+/// See [println!].
+#[macro_export]
+macro_rules! errorln {
+    ($($it:tt)+) => (
+        print!($crate::debug::Level::Error, "\x1B[41;1m[{}:{}] {}\x1B[0m\n", file!(), line!(), format_args!($($it)+))
+    )
 }
 
 #[doc(hidden)]
-pub fn _debug(args: fmt::Arguments) {
+pub fn _debug(_level: Level, args: fmt::Arguments) {
     use crate::arch::machine;
     use fmt::Write;
 

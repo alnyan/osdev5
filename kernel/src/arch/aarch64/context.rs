@@ -24,8 +24,6 @@ impl Context {
     pub fn kernel(entry: usize, arg: usize, ttbr0: usize, ustack: usize) -> Self {
         let mut stack = Stack::new(8);
 
-        debugln!("STACK {:#x}, {:#x}", stack.bp, stack.bp + 8 * 4096);
-
         stack.push(entry);
         stack.push(arg);
         stack.push(ttbr0);

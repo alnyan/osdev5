@@ -1,5 +1,6 @@
 use error::Errno;
 use fdt_rs::prelude::*;
+use crate::debug::Level;
 use fdt_rs::{
     base::DevTree,
     index::{DevTreeIndex, DevTreeIndexNode},
@@ -20,59 +21,59 @@ pub struct DeviceTree {
     index: DevTreeIndex<'static, 'static>,
 }
 
-fn tab(depth: usize) {
+fn tab(level: Level, depth: usize) {
     for _ in 0..depth {
-        debug!("\t");
+        print!(level, "\t");
     }
 }
 
-fn dump_node(node: &INode, depth: usize) {
+fn dump_node(level: Level, node: &INode, depth: usize) {
     if node.name().unwrap().starts_with("virtio_mmio@") {
         return;
     }
 
-    tab(depth);
-    debugln!("{:?} {{", node.name().unwrap());
+    tab(level, depth);
+    println!(level, "{:?} {{", node.name().unwrap());
 
     for prop in node.props() {
-        tab(depth + 1);
+        tab(level, depth + 1);
         let name = prop.name().unwrap();
-        debug!("{:?} = ", name);
+        print!(level, "{:?} = ", name);
 
         match name {
-            "compatible" => debug!("{:?}", prop.str().unwrap()),
-            "#address-cells" | "#size-cells" => debug!("{}", prop.u32(0).unwrap()),
+            "compatible" => print!(level, "{:?}", prop.str().unwrap()),
+            "#address-cells" | "#size-cells" => print!(level, "{}", prop.u32(0).unwrap()),
             "reg" => {
-                debug!("<");
+                print!(level, "<");
                 let len = prop.length() / 4;
                 for i in 0..len {
-                    debug!("{:#010x}", prop.u32(i).unwrap());
+                    print!(level, "{:#010x}", prop.u32(i).unwrap());
                     if i < len - 1 {
-                        debug!(", ");
+                        print!(level, ", ");
                     }
                 }
-                debug!(">");
+                print!(level, ">");
             }
-            _ => debug!("..."),
+            _ => print!(level, "..."),
         }
-        debugln!(";");
+        println!(level, ";");
     }
 
     if node.children().next().is_some() {
-        debugln!("");
+        println!(level, "");
     }
 
     for child in node.children() {
-        dump_node(&child, depth + 1);
+        dump_node(level, &child, depth + 1);
     }
 
-    tab(depth);
-    debugln!("}}");
+    tab(level, depth);
+    println!(level, "}}");
 }
 
 impl DeviceTree {
-    pub fn dump(&self) {
-        dump_node(&self.index.root(), 0);
+    pub fn dump(&self, level: Level) {
+        dump_node(level, &self.index.root(), 0);
     }
 
     pub fn from_phys(base: usize) -> Result<DeviceTree, Errno> {

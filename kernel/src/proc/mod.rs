@@ -136,7 +136,6 @@ impl Scheduler {
                 inner.queue.pop_front().unwrap()
             };
 
-            debugln!("{} -> {}", current, next);
             inner.current = Some(next);
             (
                 inner.processes.get(&current).unwrap().clone(),

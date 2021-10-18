@@ -35,7 +35,7 @@ static mut RESERVED_REGIONS_HEAD: *mut ReservedRegion = null_mut();
 static mut RESERVED_REGION_KERNEL: MaybeUninit<ReservedRegion> = MaybeUninit::uninit();
 static mut RESERVED_REGION_PAGES: MaybeUninit<ReservedRegion> = MaybeUninit::uninit();
 pub unsafe fn reserve(usage: &str, region: *mut ReservedRegion) {
-    debugln!(
+    infoln!(
         "Reserving {:?} region: {:#x}..{:#x}",
         usage,
         (*region).start,

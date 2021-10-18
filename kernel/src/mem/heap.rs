@@ -52,7 +52,7 @@ static HEAP: InitOnce<IrqSafeNullLock<Heap>> = InitOnce::new();
 pub unsafe fn init(base: usize, size: usize) {
     let heap = Heap { base, size, ptr: 0 };
 
-    debugln!("Kernel heap: {:#x}..{:#x}", base, base + size);
+    infoln!("Kernel heap: {:#x}..{:#x}", base, base + size);
 
     HEAP.init(IrqSafeNullLock::new(heap));
 }

@@ -41,7 +41,6 @@ impl Table {
             Ok(unsafe { &mut *(mem::virtualize(entry.address_unchecked()) as *mut _) })
         } else {
             let phys = phys::alloc_page(PageUsage::Paging)?;
-            debugln!("Allocated new page table at {:#x}", phys);
             let res = unsafe { &mut *(mem::virtualize(phys) as *mut Self) };
             self[index] = Entry::table(phys, MapAttributes::empty());
             res.entries.fill(Entry::invalid());

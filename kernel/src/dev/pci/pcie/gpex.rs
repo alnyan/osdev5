@@ -50,7 +50,7 @@ impl GenericPcieHost {
     }
 
     fn map_function(&self, addr: PciAddress, cfg: EcamCfgSpace) -> Result<(), Errno> {
-        debugln!(
+        infoln!(
             "{:?}: {:04x}:{:04x}",
             addr,
             cfg.vendor_id(),
