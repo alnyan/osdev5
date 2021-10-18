@@ -10,7 +10,14 @@ __aa64_ctx_enter_kernel:
     msr sp_el0, x0
     msr ttbr0_el1, x1
 
+    tst x0, x0
+    mov x0, #5
+    bne 1f
+    b 2f
+1:
     mov x0, #4
+2:
+
     msr spsr_el1, x0
     ldp x0, x1, [sp, #16]
     msr elr_el1, x1

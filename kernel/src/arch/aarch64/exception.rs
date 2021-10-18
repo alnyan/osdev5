@@ -64,7 +64,7 @@ fn dump_data_abort(level: Level, esr: u64, far: u64) {
     } else {
         print!(level, " at UNKNOWN");
     }
-    print!(level, "");
+    println!(level, "");
 }
 
 #[no_mangle]
@@ -80,6 +80,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
         }
         EC_SVC_AA64 => {
             infoln!("{:#x} {:#x}", exc.x[0], exc.x[1]);
+            exc.x[0] += 1;
             return;
         }
         _ => {}

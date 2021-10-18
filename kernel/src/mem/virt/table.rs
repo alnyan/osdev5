@@ -42,6 +42,10 @@ bitflags! {
         const UXN = 1 << 54;
         /// PXN bit -- if set, page may not be used for instruction fetching from EL1
         const PXN = 1 << 53;
+
+        // AP field
+        /// If set, the page referred to by this entry is read-only for both EL0/EL1
+        const AP_BOTH_READONLY = 3 << 6;
     }
 }
 

@@ -11,8 +11,12 @@ use alloc::collections::{BTreeMap, VecDeque};
 use alloc::rc::Rc;
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU32, Ordering};
+use alloc::boxed::Box;
+use error::Errno;
 
 pub use crate::arch::platform::context::{self, Context};
+
+pub mod elf;
 
 /// Wrapper type for a process struct reference
 pub type ProcessRef = Rc<UnsafeCell<Process>>;
@@ -39,24 +43,28 @@ pub struct Scheduler {
     inner: InitOnce<IrqSafeNullLock<SchedulerInner>>,
 }
 
+static LAST_PID: AtomicU32 = AtomicU32::new(0);
 impl SchedulerInner {
-    fn new_kernel(&mut self, entry: usize, arg: usize) -> u32 {
-        static LAST_PID: AtomicU32 = AtomicU32::new(0);
-        const USTACK_PAGE_COUNT: usize = 8;
-        const USTACK_VIRT_TOP: usize = 0x100000000;
-        const USTACK_VIRT_BASE: usize = USTACK_VIRT_TOP - USTACK_PAGE_COUNT * mem::PAGE_SIZE;
+    const USTACK_VIRT_TOP: usize = 0x100000000;
 
+    fn new_kernel<F: FnOnce(&mut Space) -> Result<usize, Errno>>(
+        &mut self,
+        loader: F,
+        ustack_pages: usize,
+        arg: usize,
+    ) -> u32 {
         let id = LAST_PID.fetch_add(1, Ordering::Relaxed);
         if id == 256 {
             panic!("Ran out of ASIDs (TODO FIXME)");
         }
         let space = Space::alloc_empty().unwrap();
 
-        for i in 0..USTACK_PAGE_COUNT {
+        let ustack_virt_bottom = Self::USTACK_VIRT_TOP - ustack_pages * mem::PAGE_SIZE;
+        for i in 0..ustack_pages {
             let page = phys::alloc_page(PageUsage::Kernel).unwrap();
             space
                 .map(
-                    USTACK_VIRT_BASE + i * mem::PAGE_SIZE,
+                    ustack_virt_bottom + i * mem::PAGE_SIZE,
                     page,
                     MapAttributes::SH_OUTER
                         | MapAttributes::NOT_GLOBAL
@@ -66,12 +74,18 @@ impl SchedulerInner {
                 .unwrap();
         }
 
+        let entry = loader(space).unwrap();
+
         let proc = Process {
             ctx: Context::kernel(
                 entry,
                 arg,
                 ((space as *mut _ as usize) - mem::KERNEL_OFFSET) | ((id as usize) << 48),
-                USTACK_VIRT_TOP,
+                if ustack_pages != 0 {
+                    Self::USTACK_VIRT_TOP
+                } else {
+                    0
+                },
             ),
             space,
             id,
@@ -86,6 +100,10 @@ impl SchedulerInner {
         id
     }
 
+    fn new_idle(&mut self) -> u32 {
+        self.new_kernel(|_| Ok(idle_fn as usize), 0, 0)
+    }
+
     fn new() -> Self {
         let mut this = Self {
             processes: BTreeMap::new(),
@@ -94,7 +112,7 @@ impl SchedulerInner {
             current: None,
         };
 
-        this.idle = this.new_kernel(idle_fn as usize, 0);
+        this.idle = this.new_idle();
 
         this
     }
@@ -104,8 +122,16 @@ impl Scheduler {
     /// Constructs a new kernel-space process with `entry` and `arg`.
     /// Returns resulting process ID
     // TODO see the first TODO here
-    pub fn new_kernel(&self, entry: usize, arg: usize) -> u32 {
-        self.inner.get().lock().new_kernel(entry, arg)
+    pub fn new_kernel<F: FnOnce(&mut Space) -> Result<usize, Errno>>(
+        &self,
+        loader: F,
+        ustack_pages: usize,
+        arg: usize,
+    ) -> u32 {
+        self.inner
+            .get()
+            .lock()
+            .new_kernel(loader, ustack_pages, arg)
     }
 
     /// Initializes inner data structure:
@@ -170,6 +196,61 @@ impl Scheduler {
             }
         }
     }
+
+    ///
+    pub fn current_process(&self) -> ProcessRef {
+        let inner = self.inner.get().lock();
+        let current = inner.current.unwrap();
+        inner.processes.get(&current).unwrap().clone()
+    }
+}
+
+impl Process {
+    ///
+    pub fn execve<F: FnOnce(&mut Space) -> Result<usize, Errno>>(
+        &mut self,
+        loader: F,
+        arg: usize,
+    ) -> Result<(), Errno> {
+        unsafe {
+            // Run with interrupts disabled
+            asm!("msr daifset, #2");
+        }
+
+        let ustack_pages = 4;
+        let new_space = Space::alloc_empty()?;
+        let new_space_phys = ((new_space as *mut _ as usize) - mem::KERNEL_OFFSET); // | ((id as usize) << 48),
+
+        let ustack_virt_bottom = SchedulerInner::USTACK_VIRT_TOP - ustack_pages * mem::PAGE_SIZE;
+        for i in 0..ustack_pages {
+            let page = phys::alloc_page(PageUsage::Kernel).unwrap();
+            new_space
+                .map(
+                    ustack_virt_bottom + i * mem::PAGE_SIZE,
+                    page,
+                    MapAttributes::SH_OUTER
+                        | MapAttributes::NOT_GLOBAL
+                        | MapAttributes::UXN
+                        | MapAttributes::PXN,
+                )
+                .unwrap();
+        }
+
+        let entry = loader(new_space)?;
+
+        self.ctx = Context::kernel(
+            entry,
+            0,
+            new_space_phys | ((self.id as usize) << 48),
+            SchedulerInner::USTACK_VIRT_TOP,
+        );
+        self.space = new_space;
+
+        unsafe {
+            self.ctx.enter();
+        }
+        panic!("This should not run");
+    }
 }
 
 extern "C" fn idle_fn(_a: usize) -> ! {
@@ -177,22 +258,13 @@ extern "C" fn idle_fn(_a: usize) -> ! {
 }
 
 #[inline(never)]
-extern "C" fn f1(u: usize) {
-    let mut x = u;
-    while x != 0 {
-        cortex_a::asm::nop();
-        x -= 1;
-    }
-}
+extern "C" fn init_fn(initrd_ptr: usize) -> ! {
+    debugln!("Running kernel init process");
 
-#[inline(never)]
-extern "C" fn f0(a: usize) -> ! {
-    loop {
-        unsafe {
-            asm!("svc #0", in("x0") a, in("x1") &a);
-        }
-        f1(10000000);
-    }
+    let (start, _end) = unsafe { *(initrd_ptr as *const (usize, usize)) };
+    let proc = unsafe { &mut *SCHED.current_process().get() };
+    proc.execve(|space| elf::load_elf(space, start as *const u8), 0).unwrap();
+    loop {}
 }
 
 /// Performs a task switch.
@@ -213,10 +285,11 @@ static SCHED: Scheduler = Scheduler {
 /// # Safety
 ///
 /// Unsafe: May only be called once.
-pub unsafe fn enter() -> ! {
+pub unsafe fn enter(initrd: Option<(usize, usize)>) -> ! {
     SCHED.init();
-    for i in 0..4 {
-        SCHED.enqueue(SCHED.new_kernel(f0 as usize, i));
+    if let Some((start, end)) = initrd {
+        let initrd = Box::into_raw(Box::new((mem::virtualize(start), mem::virtualize(end))));
+        SCHED.enqueue(SCHED.new_kernel(|_| Ok(init_fn as usize), 0, initrd as usize));
     }
     SCHED.enter();
 }

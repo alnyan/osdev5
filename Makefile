@@ -5,6 +5,8 @@ endif
 GDB?=gdb-multiarch
 
 LLVM_BASE=$(shell llvm-config --bindir)
+CLANG=clang-14
+LDLLD=ld.lld-12
 OBJCOPY=$(LLVM_BASE)/llvm-objcopy
 MKIMAGE?=mkimage
 
@@ -26,6 +28,7 @@ $(error TODO)
 else
 ifeq ($(MACH),qemu)
 QEMU_OPTS+=-kernel $(O)/kernel.bin \
+		   -initrd $(O)/initrd.img \
 		   -M virt,virtualization=on \
 		   -cpu cortex-a72 \
 		   -m 512 \
@@ -55,6 +58,8 @@ all: kernel
 
 kernel:
 	cd kernel && cargo build $(CARGO_BUILD_OPTS)
+	cd init && cargo build --target=../etc/$(ARCH)-osdev5.json -Z build-std=core
+	cp target/$(ARCH)-osdev5/debug/init $(O)/initrd.img
 ifeq ($(ARCH),aarch64)
 	$(LLVM_BASE)/llvm-strip -o $(O)/kernel.strip $(O)/kernel
 	$(LLVM_BASE)/llvm-size $(O)/kernel.strip

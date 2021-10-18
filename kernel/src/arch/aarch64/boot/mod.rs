@@ -2,6 +2,7 @@
 
 use crate::arch::{aarch64::reg::CPACR_EL1, machine};
 use crate::dev::{fdt::DeviceTree, irq::IntSource, Device};
+use crate::debug::Level;
 use crate::mem::{
     self, heap,
     phys::{self, PageUsage},
@@ -51,14 +52,18 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
 
     machine::init_board().unwrap();
 
+    let initrd;
     if fdt_base != 0 {
         let fdt = DeviceTree::from_phys(fdt_base + 0xFFFFFF8000000000);
-        if let Ok(_fdt) = fdt {
+        if let Ok(fdt) = fdt {
             // fdt.dump(Level::Debug);
+            initrd = fdt.initrd();
         } else {
+            initrd = None;
             errorln!("Failed to init FDT");
         }
     } else {
+        initrd = None;
         warnln!("No FDT present");
     }
 
@@ -68,7 +73,7 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
         machine::local_timer().enable().unwrap();
         machine::local_timer().init_irqs().unwrap();
 
-        proc::enter();
+        proc::enter(initrd);
     }
 }
 

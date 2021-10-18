@@ -1,9 +1,10 @@
+use crate::debug::Level;
+use crate::util;
 use error::Errno;
 use fdt_rs::prelude::*;
-use crate::debug::Level;
 use fdt_rs::{
     base::DevTree,
-    index::{DevTreeIndex, DevTreeIndexNode},
+    index::{DevTreeIndex, DevTreeIndexNode, DevTreeIndexProp},
 };
 
 #[repr(align(16))]
@@ -14,6 +15,7 @@ struct Wrap {
 static mut INDEX_BUFFER: Wrap = Wrap { data: [0; 65536] };
 
 type INode<'a> = DevTreeIndexNode<'a, 'a, 'a>;
+type IProp<'a> = DevTreeIndexProp<'a, 'a, 'a>;
 
 #[allow(dead_code)]
 pub struct DeviceTree {
@@ -71,9 +73,50 @@ fn dump_node(level: Level, node: &INode, depth: usize) {
     println!(level, "}}");
 }
 
+fn find_node<'a>(at: INode<'a>, path: &str) -> Option<INode<'a>> {
+    let (item, path) = util::path_component_left(path);
+    if item == "" {
+        assert_eq!(path, "");
+        Some(at)
+    } else {
+        let child = at.children().find(|c| c.name().unwrap() == item)?;
+        if path == "" {
+            Some(child)
+        } else {
+            find_node(child, path)
+        }
+    }
+}
+
+fn find_prop<'a>(at: INode<'a>, name: &str) -> Option<IProp<'a>> {
+    at.props().find(|p| p.name().unwrap() == name)
+}
+
+fn read_cells(prop: &IProp, off: usize, cells: u32) -> Option<u64> {
+    Some(match cells {
+        1 => prop.u32(off).ok()? as u64,
+        2 => (prop.u32(off).ok()? as u64) | ((prop.u32(off + 1).ok()? as u64) << 32),
+        _ => todo!(),
+    })
+}
+
 impl DeviceTree {
     pub fn dump(&self, level: Level) {
         dump_node(level, &self.index.root(), 0);
+    }
+
+    pub fn node_by_path(&self, path: &str) -> Option<INode> {
+        find_node(self.index.root(), path.trim_start_matches('/'))
+    }
+
+    pub fn initrd(&self) -> Option<(usize, usize)> {
+        let chosen = self.node_by_path("/chosen")?;
+        let initrd_start = find_prop(chosen.clone(), "linux,initrd-start")?
+            .u32(0)
+            .ok()?;
+        let initrd_end = find_prop(chosen, "linux,initrd-end")?.u32(0).ok()?;
+
+        Some((initrd_start as usize, initrd_end as usize))
     }
 
     pub fn from_phys(base: usize) -> Result<DeviceTree, Errno> {
