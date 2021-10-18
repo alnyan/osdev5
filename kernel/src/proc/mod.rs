@@ -3,7 +3,7 @@
 use crate::mem::{
     self,
     phys::{self, PageUsage},
-    virt::Space,
+    virt::{MapAttributes, Space},
 };
 use crate::sync::IrqSafeNullLock;
 use crate::util::InitOnce;
@@ -45,15 +45,20 @@ impl SchedulerInner {
         if id == 256 {
             panic!("Ran out of ASIDs (TODO FIXME)");
         }
-        let space = Space::empty().unwrap();
+        let space = Space::alloc_empty().unwrap();
 
-        unsafe {
-            for i in 0..USTACK_PAGE_COUNT {
-                let page = phys::alloc_page(PageUsage::Kernel).unwrap();
-                space
-                    .map(USTACK_VIRT_BASE + i * mem::PAGE_SIZE, page)
-                    .unwrap();
-            }
+        for i in 0..USTACK_PAGE_COUNT {
+            let page = phys::alloc_page(PageUsage::Kernel).unwrap();
+            space
+                .map(
+                    USTACK_VIRT_BASE + i * mem::PAGE_SIZE,
+                    page,
+                    MapAttributes::SH_OUTER
+                        | MapAttributes::NOT_GLOBAL
+                        | MapAttributes::UXN
+                        | MapAttributes::PXN,
+                )
+                .unwrap();
         }
 
         let proc = Process {
@@ -131,6 +136,7 @@ impl Scheduler {
                 inner.queue.pop_front().unwrap()
             };
 
+            debugln!("{} -> {}", current, next);
             inner.current = Some(next);
             (
                 inner.processes.get(&current).unwrap().clone(),
@@ -155,6 +161,7 @@ extern "C" fn idle_fn(_a: usize) -> ! {
 extern "C" fn f1(u: usize) {
     let mut x = u;
     while x != 0 {
+        cortex_a::asm::nop();
         x -= 1;
     }
 }
@@ -165,7 +172,7 @@ extern "C" fn f0(a: usize) -> ! {
         unsafe {
             asm!("svc #0", in("x0") a, in("x1") &a);
         }
-        f1(1000000);
+        f1(10000000);
     }
 }
 
@@ -179,7 +186,7 @@ static SCHED: Scheduler = Scheduler {
 
 pub unsafe fn enter() -> ! {
     SCHED.init();
-    for i in 0..10 {
+    for i in 0..4 {
         SCHED.enqueue(SCHED.new_kernel(f0 as usize, i));
     }
     SCHED.enter();
