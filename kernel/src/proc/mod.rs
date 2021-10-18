@@ -1,4 +1,4 @@
-#![allow(missing_docs)]
+//! Process and thread manipulation facilities
 
 use crate::mem::{
     self,
@@ -14,8 +14,10 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 pub use crate::arch::platform::context::{self, Context};
 
+/// Wrapper type for a process struct reference
 pub type ProcessRef = Rc<UnsafeCell<Process>>;
 
+/// Structure describing an operating system process
 #[allow(dead_code)]
 pub struct Process {
     ctx: Context,
@@ -24,12 +26,15 @@ pub struct Process {
 }
 
 struct SchedulerInner {
+    // TODO the process list itself is not a scheduler-related thing so maybe
+    //      move it outside?
     processes: BTreeMap<u32, ProcessRef>,
     queue: VecDeque<u32>,
     idle: u32,
     current: Option<u32>,
 }
 
+/// Process scheduler state and queues
 pub struct Scheduler {
     inner: InitOnce<IrqSafeNullLock<SchedulerInner>>,
 }
@@ -96,18 +101,31 @@ impl SchedulerInner {
 }
 
 impl Scheduler {
+    /// Constructs a new kernel-space process with `entry` and `arg`.
+    /// Returns resulting process ID
+    // TODO see the first TODO here
     pub fn new_kernel(&self, entry: usize, arg: usize) -> u32 {
         self.inner.get().lock().new_kernel(entry, arg)
     }
 
+    /// Initializes inner data structure:
+    ///
+    /// * idle thread
+    /// * process list/queue data structs
     pub fn init(&self) {
         self.inner.init(IrqSafeNullLock::new(SchedulerInner::new()));
     }
 
+    /// Schedules a thread for execution
     pub fn enqueue(&self, pid: u32) {
         self.inner.get().lock().queue.push_back(pid);
     }
 
+    /// Performs initial process entry.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe: may only be called once, repeated calls will cause UB.
     pub unsafe fn enter(&self) -> ! {
         let thread = {
             let mut inner = self.inner.get().lock();
@@ -124,6 +142,8 @@ impl Scheduler {
         (*thread.get()).ctx.enter();
     }
 
+    /// Switches to the next task scheduled for execution. If there're
+    /// none present in the queue, switches to the idle task.
     pub fn switch(&self) {
         let (from, to) = {
             let mut inner = self.inner.get().lock();
@@ -175,6 +195,9 @@ extern "C" fn f0(a: usize) -> ! {
     }
 }
 
+/// Performs a task switch.
+///
+/// See [Scheduler::switch]
 pub fn switch() {
     SCHED.switch();
 }
@@ -183,6 +206,13 @@ static SCHED: Scheduler = Scheduler {
     inner: InitOnce::new(),
 };
 
+/// Sets up initial process and enters it.
+///
+/// See [Scheduler::enter]
+///
+/// # Safety
+///
+/// Unsafe: May only be called once.
 pub unsafe fn enter() -> ! {
     SCHED.init();
     for i in 0..4 {

@@ -1,17 +1,4 @@
-//
-//#[repr(C, align(0x1000))]
-//pub struct OldTable([u64; 512]);
-//
-//#[no_mangle]
-//static mut KERNEL_TTBR1: OldTable = OldTable([0; 512]);
-//// 1GiB
-//static mut KERNEL_L1: OldTable = OldTable([0; 512]);
-//// 2MiB
-//static mut KERNEL_L2: OldTable = OldTable([0; 512]);
-//static mut COUNT: usize = 0;
-//static mut BIG_COUNT: usize = 1;
-//static mut HUGE_COUNT: usize = 1;
-//
+//! Fixed-size table group for device MMIO mappings
 
 use crate::mem::{
     self,
@@ -22,6 +9,8 @@ use error::Errno;
 
 const DEVICE_MAP_OFFSET: usize = mem::KERNEL_OFFSET + (256usize << 30);
 
+/// Fixed-layout group of tables describing device MMIO and kernel identity
+/// mappings
 #[repr(C, align(0x1000))]
 pub struct FixedTableGroup {
     l0: Table,
@@ -34,6 +23,8 @@ pub struct FixedTableGroup {
 }
 
 impl FixedTableGroup {
+    /// Constructs a new instance of [Self], initialized with non-present mapping
+    /// entries
     pub const fn empty() -> Self {
         Self {
             l0: Table::empty(),
@@ -46,6 +37,10 @@ impl FixedTableGroup {
         }
     }
 
+    /// Allocates a virtual memory range from this table group for requested
+    /// `phys`..`phys + count * PAGE_SIZE` physical memory region and maps it.
+    ///
+    /// TODO: only allows 4K, 2M and 1G mappings.
     pub fn map_region(&mut self, phys: usize, count: usize) -> Result<usize, Errno> {
         // TODO generalize region allocation
         let phys_page = phys & !0xFFF;
@@ -101,6 +96,7 @@ impl FixedTableGroup {
         }
     }
 
+    /// Sets up initial mappings for 4K, 2M and 1G device memory page translation
     pub fn init_device_map(&mut self) {
         let l1_phys = (&self.l1 as *const _) as usize - mem::KERNEL_OFFSET;
         let l2_phys = (&self.l2 as *const _) as usize - mem::KERNEL_OFFSET;

@@ -1,5 +1,4 @@
-//! Assembly intrinsics for AArch64 platform
-#![allow(missing_docs)]
+//! CPACR_EL1 register
 
 use tock_registers::{
     interfaces::{Readable, Writeable},
@@ -8,15 +7,24 @@ use tock_registers::{
 
 register_bitfields! {
     u64,
+    #[allow(missing_docs)]
+    /// EL1 Architectural Feature Access Control Register
     pub CPACR_EL1 [
+        /// Enable EL0 and EL1 SIMD/FP accesses to EL1
         FPEN OFFSET(20) NUMBITS(2) [
+            /// Trap both EL0 and EL1
             TrapAll = 0,
+            /// Trap EL0
             TrapEl0 = 1,
+            /// Trap EL1
+            TrapEl1 = 2,
+            /// Do not trap any SIMD/FP instructions
             TrapNone = 3
         ]
     ]
 }
 
+/// CPACR_EL1 register
 pub struct Reg;
 
 impl Readable for Reg {
@@ -45,4 +53,5 @@ impl Writeable for Reg {
     }
 }
 
+/// CPACR_EL1 register
 pub const CPACR_EL1: Reg = Reg;

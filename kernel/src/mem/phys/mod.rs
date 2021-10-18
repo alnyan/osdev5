@@ -1,3 +1,5 @@
+//! Physical memory management facilities
+
 use crate::mem::PAGE_SIZE;
 use core::mem::size_of;
 use error::Errno;
@@ -12,33 +14,46 @@ type ManagerImpl = SimpleManager;
 
 const MAX_PAGES: usize = 1024 * 1024;
 
+/// These describe what a memory page is used for
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum PageUsage {
+    /// The page cannot be allocated/used
     Reserved,
+    /// The page can be allocated and is unused at the moment
     Available,
+    /// Kernel data page
     Kernel,
+    /// Kernel heap page
     KernelHeap,
+    /// Translation tables
     Paging,
+    /// Userspace page
     UserStack,
 }
 
+/// Data structure representing a single physical memory page
 pub struct PageInfo {
     refcount: usize,
     usage: PageUsage,
 }
 
+/// Page-aligned physical memory region
 #[derive(Clone)]
 pub struct MemoryRegion {
+    /// Start address (page-aligned)
     pub start: usize,
+    /// End address (page-aligned)
     pub end: usize,
 }
 
+/// Wrapper for single-region physical memory initialization
 #[repr(transparent)]
 #[derive(Clone)]
 pub struct SimpleMemoryIterator {
     inner: Option<MemoryRegion>,
 }
 impl SimpleMemoryIterator {
+    /// Constructs a new instance of [Self]
     pub const fn new(reg: MemoryRegion) -> Self {
         Self { inner: Some(reg) }
     }
@@ -50,6 +65,7 @@ impl Iterator for SimpleMemoryIterator {
     }
 }
 
+/// Allocates a contiguous range of `count` physical memory pages.
 pub fn alloc_contiguous_pages(pu: PageUsage, count: usize) -> Result<usize, Errno> {
     MANAGER
         .lock()
@@ -58,6 +74,7 @@ pub fn alloc_contiguous_pages(pu: PageUsage, count: usize) -> Result<usize, Errn
         .alloc_contiguous_pages(pu, count)
 }
 
+/// Allocates a single physical memory page.
 pub fn alloc_page(pu: PageUsage) -> Result<usize, Errno> {
     MANAGER.lock().as_mut().unwrap().alloc_page(pu)
 }
@@ -84,6 +101,8 @@ fn find_contiguous<T: Iterator<Item = MemoryRegion>>(iter: T, count: usize) -> O
     None
 }
 
+/// Initializes physical memory manager using an iterator of available
+/// physical memory ranges
 pub unsafe fn init_from_iter<T: Iterator<Item = MemoryRegion> + Clone>(iter: T) {
     let mut mem_base = usize::MAX;
     for reg in iter.clone() {
@@ -122,6 +141,9 @@ pub unsafe fn init_from_iter<T: Iterator<Item = MemoryRegion> + Clone>(iter: T) 
     *MANAGER.lock() = Some(manager);
 }
 
+/// Initializes physical memory manager using a single memory region.
+///
+/// See [init_from_iter].
 pub unsafe fn init_from_region(base: usize, size: usize) {
     let iter = SimpleMemoryIterator::new(MemoryRegion {
         start: base,

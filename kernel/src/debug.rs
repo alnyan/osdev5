@@ -1,8 +1,15 @@
 //! Debug output module.
 //!
-//! The module provides [debug!] and [debugln!] macros
+//! The module provides [print!] and [println!] macros
 //! which can be used in similar way to print! and
 //! println! from std.
+//!
+//! Level-specific debugging macros are provided as well:
+//!
+//! * [debugln!]
+//! * [infoln!]
+//! * [warnln!]
+//! * [errorln!]
 
 use crate::dev::serial::SerialDevice;
 use core::fmt;

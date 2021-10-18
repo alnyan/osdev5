@@ -1,3 +1,5 @@
+//! Kernel heap allocation facilities
+
 use crate::sync::IrqSafeNullLock;
 use crate::util::InitOnce;
 use core::alloc::{GlobalAlloc, Layout};
@@ -49,6 +51,11 @@ static SYSTEM_ALLOC: SystemAlloc = SystemAlloc;
 
 static HEAP: InitOnce<IrqSafeNullLock<Heap>> = InitOnce::new();
 
+/// Initializes kernel heap with virtual `base` address and `size`.
+///
+/// # Safety
+///
+/// Unsafe: accepts arbitrary `base` and `size` parameters.
 pub unsafe fn init(base: usize, size: usize) {
     let heap = Heap { base, size, ptr: 0 };
 

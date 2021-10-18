@@ -76,6 +76,12 @@ endif
 clean:
 	cargo clean
 
+doc:
+	cd kernel && cargo doc --all-features --target=../etc/$(ARCH)-$(MACH).json
+
+doc-open:
+	cd kernel && cargo doc --open --all-features --target=../etc/$(ARCH)-$(MACH).json
+
 clippy:
 	cd kernel && cargo clippy $(CARGO_BUILD_OPTS)
 

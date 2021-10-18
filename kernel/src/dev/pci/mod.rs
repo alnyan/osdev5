@@ -87,7 +87,7 @@ pub trait PciHostDevice: Device {
 }
 
 impl PciAddress {
-    /// Constructs a [PCIAddress] instance from its components
+    /// Constructs a [PciAddress] instance from its components
     #[inline(always)]
     pub const fn new(bus: u8, dev: u8, func: u8) -> Self {
         Self {
@@ -95,25 +95,25 @@ impl PciAddress {
         }
     }
 
-    /// Returns `bus` field of [PCIAddress]
+    /// Returns `bus` field of [PciAddress]
     #[inline(always)]
     pub const fn bus(self) -> u8 {
         (self.value >> 8) as u8
     }
 
-    /// Returns `dev` field of [PCIAddress]
+    /// Returns `dev` field of [PciAddress]
     #[inline(always)]
     pub const fn dev(self) -> u8 {
         ((self.value >> 3) as u8) & 0x1F
     }
 
-    /// Returns `func` field of [PCIAddress]
+    /// Returns `func` field of [PciAddress]
     #[inline(always)]
     pub const fn func(self) -> u8 {
         (self.value as u8) & 0x7
     }
 
-    /// Returns a new [PCIAddress], constructed from `self`, but with
+    /// Returns a new [PciAddress], constructed from `self`, but with
     /// specified `func` number
     #[inline(always)]
     pub const fn with_func(self, func: u8) -> Self {

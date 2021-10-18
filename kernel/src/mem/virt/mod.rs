@@ -1,4 +1,4 @@
-#![allow(missing_docs)]
+//! Virtual memory and translation table management
 
 use core::marker::PhantomData;
 use core::ops::Deref;
@@ -15,7 +15,10 @@ pub use fixed::FixedTableGroup;
 #[no_mangle]
 static mut KERNEL_TTBR1: FixedTableGroup = FixedTableGroup::empty();
 
-#[derive(Debug)]
+/// Structure representing a region of memory used for MMIO/device access
+// TODO: this shouldn't be trivially-cloneable and should instead incorporate
+//       refcount and properly implement Drop trait
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct DeviceMemory {
     name: &'static str,
@@ -23,16 +26,24 @@ pub struct DeviceMemory {
     count: usize,
 }
 
+/// Structure implementing `Deref<T>` for convenient MMIO register access.
+///
+/// See [DeviceMemory].
 pub struct DeviceMemoryIo<T> {
     mmio: DeviceMemory,
     _0: PhantomData<T>,
 }
 impl DeviceMemory {
+    /// Returns base address of this MMIO region
     #[inline(always)]
     pub const fn base(&self) -> usize {
         self.base
     }
 
+    /// Allocates a virtual memory region and maps it to contiguous region
+    /// `phys`..`phys + count * PAGE_SIZE` for MMIO use.
+    ///
+    /// See [FixedTableGroup::map_region]
     pub fn map(name: &'static str, phys: usize, count: usize) -> Result<Self, Errno> {
         let base = unsafe { KERNEL_TTBR1.map_region(phys, count) }?;
         debugln!(
@@ -44,18 +55,10 @@ impl DeviceMemory {
         );
         Ok(Self { name, base, count })
     }
-
-    pub unsafe fn clone(&self) -> Self {
-        // TODO maybe add refcount and remove "unsafe"?
-        Self {
-            name: self.name,
-            base: self.base,
-            count: self.count,
-        }
-    }
 }
 
 impl<T> DeviceMemoryIo<T> {
+    /// Constructs a new [DeviceMemoryIo<T>] from existing `mmio` region
     pub const fn new(mmio: DeviceMemory) -> Self {
         Self {
             mmio,
@@ -63,6 +66,9 @@ impl<T> DeviceMemoryIo<T> {
         }
     }
 
+    /// Allocates and maps device MMIO memory.
+    ///
+    /// See [DeviceMemory::map]
     pub unsafe fn map(name: &'static str, phys: usize, count: usize) -> Result<Self, Errno> {
         DeviceMemory::map(name, phys, count).map(Self::new)
     }
@@ -77,6 +83,8 @@ impl<T> Deref for DeviceMemoryIo<T> {
     }
 }
 
+/// Sets up device mapping tables and disable lower-half
+/// identity-mapped translation
 pub fn enable() -> Result<(), Errno> {
     unsafe {
         KERNEL_TTBR1.init_device_map();

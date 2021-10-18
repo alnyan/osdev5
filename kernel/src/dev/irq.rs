@@ -13,14 +13,14 @@ pub trait IntController: Device {
     /// Implementation-specific definition for "IRQ line"
     type IrqNumber;
 
-    /// Binds a handler [IntSource] to a specific [irq] line
+    /// Binds a handler [IntSource] to a specific `irq` line
     fn register_handler(
         &self,
         irq: Self::IrqNumber,
         handler: &'static (dyn IntSource + Sync),
     ) -> Result<(), Errno>;
 
-    /// Enables/unmasks [irq] line
+    /// Enables/unmasks `irq` line
     fn enable_irq(&self, irq: Self::IrqNumber) -> Result<(), Errno>;
 
     /// Handles all pending IRQs for this interrupt controller

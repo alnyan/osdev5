@@ -4,14 +4,13 @@ use crate::arch::platform::{irq_mask_save, irq_restore};
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
 
-/// Same as [NullLock], but ensures IRQs are disabled while
-/// the lock is held
+/// Lock structure ensuring IRQs are disabled when inner value is accessed
 pub struct IrqSafeNullLock<T: ?Sized> {
     value: UnsafeCell<T>,
 }
 
-/// Same as [NullLockGuard], but reverts IRQ mask back to normal
-/// when dropped
+/// Guard-structure wrapping a reference to value owned by [IrqSafeNullLock].
+/// Restores saved IRQ state when dropped.
 pub struct IrqSafeNullLockGuard<'a, T: ?Sized> {
     value: &'a mut T,
     irq_state: u64,

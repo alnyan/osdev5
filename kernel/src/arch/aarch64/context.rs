@@ -1,4 +1,4 @@
-#![allow(missing_docs)]
+//! Thread context
 
 use crate::mem::{
     self,
@@ -11,9 +11,12 @@ struct Stack {
     sp: usize,
 }
 
+/// Structure representing thread context
 #[repr(C)]
 pub struct Context {
-    pub k_sp: usize,  // 0x00
+    /// Thread's kernel stack pointer
+    pub k_sp: usize, // 0x00
+    /// Thread's translation table physical address with ASID
     pub ttbr0: usize, // 0x08
 
     stack_base_phys: usize,
@@ -21,6 +24,7 @@ pub struct Context {
 }
 
 impl Context {
+    /// Constructs a new kernel-space thread context
     pub fn kernel(entry: usize, arg: usize, ttbr0: usize, ustack: usize) -> Self {
         let mut stack = Stack::new(8);
 
@@ -51,11 +55,22 @@ impl Context {
         }
     }
 
+    /// Performs initial thread entry
+    ///
+    /// # Safety
+    ///
+    /// Unsafe: does not check if any context has already been activated
+    /// before, so must only be called once.
     pub unsafe extern "C" fn enter(&mut self) -> ! {
         __aa64_ctx_switch_to(self);
         panic!("This code should not run");
     }
 
+    /// Performs context switch from `self` to `to`.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe: does not check if `self` is actually an active context.
     pub unsafe extern "C" fn switch(&mut self, to: &mut Context) {
         __aa64_ctx_switch(to, self);
     }
