@@ -1,9 +1,9 @@
 //! Memory management and functions module
 #![allow(missing_docs)]
 
+pub mod heap;
 pub mod phys;
 pub mod virt;
-pub mod heap;
 
 /// Virtual offset applied to kernel address space
 pub const KERNEL_OFFSET: usize = 0xFFFFFF8000000000;

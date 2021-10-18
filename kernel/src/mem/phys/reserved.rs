@@ -35,15 +35,17 @@ static mut RESERVED_REGIONS_HEAD: *mut ReservedRegion = null_mut();
 static mut RESERVED_REGION_KERNEL: MaybeUninit<ReservedRegion> = MaybeUninit::uninit();
 static mut RESERVED_REGION_PAGES: MaybeUninit<ReservedRegion> = MaybeUninit::uninit();
 pub unsafe fn reserve(usage: &str, region: *mut ReservedRegion) {
-    debugln!("Reserving {:?} region: {:#x}..{:#x}", usage, (*region).start, (*region).end);
+    debugln!(
+        "Reserving {:?} region: {:#x}..{:#x}",
+        usage,
+        (*region).start,
+        (*region).end
+    );
     (*region).next = RESERVED_REGIONS_HEAD;
     RESERVED_REGIONS_HEAD = region;
 }
 pub(super) unsafe fn reserve_kernel() {
-    RESERVED_REGION_KERNEL.write(ReservedRegion::new(
-        0,
-        kernel_end_phys(),
-    ));
+    RESERVED_REGION_KERNEL.write(ReservedRegion::new(0, kernel_end_phys()));
     reserve("kernel", RESERVED_REGION_KERNEL.as_mut_ptr());
 }
 pub(super) unsafe fn reserve_pages(base: usize, count: usize) {
@@ -63,4 +65,3 @@ pub fn is_reserved(page: usize) -> bool {
     }
     false
 }
-

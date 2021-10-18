@@ -4,7 +4,7 @@ use crate::dev::{
     irq::{IntController, IntSource, IrqContext},
     Device,
 };
-use crate::mem::virt::{DeviceMemoryIo, DeviceMemory};
+use crate::mem::virt::{DeviceMemory, DeviceMemoryIo};
 use crate::sync::IrqSafeNullLock;
 use crate::util::InitOnce;
 use error::Errno;

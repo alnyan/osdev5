@@ -1,4 +1,7 @@
-use crate::dev::{Device, irq::{IntController, IntSource, IrqContext}};
+use crate::dev::{
+    irq::{IntController, IntSource, IrqContext},
+    Device,
+};
 use error::Errno;
 
 #[derive(Debug, Clone, Copy)]
@@ -20,7 +23,11 @@ impl Device for Bcm283xIntController {
 impl IntController for Bcm283xIntController {
     type IrqNumber = IrqNumber;
 
-    fn register_handler(&self, irq: IrqNumber, handler: &'static (dyn IntSource + Sync)) -> Result<(), Errno> {
+    fn register_handler(
+        &self,
+        irq: IrqNumber,
+        handler: &'static (dyn IntSource + Sync),
+    ) -> Result<(), Errno> {
         todo!()
     }
 

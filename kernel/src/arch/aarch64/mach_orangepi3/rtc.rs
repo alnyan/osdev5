@@ -90,7 +90,11 @@ impl Device for Rtc {
     }
 
     unsafe fn enable(&self) -> Result<(), Errno> {
-        self.regs.init(IrqSafeNullLock::new(DeviceMemoryIo::map(self.name(), self.base, 1)?));
+        self.regs.init(IrqSafeNullLock::new(DeviceMemoryIo::map(
+            self.name(),
+            self.base,
+            1,
+        )?));
         Ok(())
     }
 }

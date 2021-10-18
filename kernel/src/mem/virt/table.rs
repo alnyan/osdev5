@@ -2,8 +2,8 @@ use crate::mem::{
     self,
     phys::{self, PageUsage},
 };
-use error::Errno;
 use core::ops::{Index, IndexMut};
+use error::Errno;
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
@@ -50,7 +50,9 @@ impl Table {
     }
 
     pub const fn empty() -> Table {
-        Table { entries: [Entry::invalid(); 512] }
+        Table {
+            entries: [Entry::invalid(); 512],
+        }
     }
 }
 

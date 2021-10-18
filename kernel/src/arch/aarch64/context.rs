@@ -1,6 +1,9 @@
 #![allow(missing_docs)]
 
-use crate::mem::{self, phys::{self, PageUsage}};
+use crate::mem::{
+    self,
+    phys::{self, PageUsage},
+};
 use core::mem::size_of;
 
 struct Stack {
@@ -10,8 +13,8 @@ struct Stack {
 
 #[repr(C)]
 pub struct Context {
-    pub k_sp: usize,        // 0x00
-    pub ttbr0: usize,       // 0x08
+    pub k_sp: usize,  // 0x00
+    pub ttbr0: usize, // 0x08
 
     stack_base_phys: usize,
     stack_page_count: usize,
@@ -29,24 +32,24 @@ impl Context {
         stack.push(ustack);
 
         stack.push(__aa64_ctx_enter_kernel as usize); // x30/lr
-        stack.push(0);      // x29
-        stack.push(0);      // x28
-        stack.push(0);      // x27
-        stack.push(0);      // x26
-        stack.push(0);      // x25
-        stack.push(0);      // x24
-        stack.push(0);      // x23
-        stack.push(0);      // x22
-        stack.push(0);      // x21
-        stack.push(0);      // x20
-        stack.push(0);      // x19
+        stack.push(0); // x29
+        stack.push(0); // x28
+        stack.push(0); // x27
+        stack.push(0); // x26
+        stack.push(0); // x25
+        stack.push(0); // x24
+        stack.push(0); // x23
+        stack.push(0); // x22
+        stack.push(0); // x21
+        stack.push(0); // x20
+        stack.push(0); // x19
 
         Self {
             k_sp: stack.sp,
             ttbr0,
 
             stack_base_phys: stack.bp,
-            stack_page_count: 8
+            stack_page_count: 8,
         }
     }
 
@@ -66,7 +69,7 @@ impl Stack {
         let bp = mem::virtualize(phys);
         Stack {
             bp,
-            sp: bp + page_count * mem::PAGE_SIZE
+            sp: bp + page_count * mem::PAGE_SIZE,
         }
     }
 

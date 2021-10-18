@@ -1,19 +1,19 @@
 //! ARM generic timer implementation
 
+use crate::arch::machine::{self, IrqNumber};
 use crate::dev::{
     irq::{IntController, IntSource},
     timer::TimestampSource,
     Device,
 };
-use crate::arch::machine::{self, IrqNumber};
 use core::time::Duration;
-use cortex_a::registers::{CNTFRQ_EL0, CNTP_TVAL_EL0, CNTPCT_EL0, CNTP_CTL_EL0};
+use cortex_a::registers::{CNTFRQ_EL0, CNTPCT_EL0, CNTP_CTL_EL0, CNTP_TVAL_EL0};
 use error::Errno;
 use tock_registers::interfaces::{Readable, Writeable};
 
 /// Generic timer struct
 pub struct GenericTimer {
-    irq: IrqNumber
+    irq: IrqNumber,
 }
 
 ///
@@ -58,8 +58,6 @@ impl TimestampSource for GenericTimer {
 impl GenericTimer {
     /// Constructs a new instance of ARM Generic Timer
     pub const fn new(irq: IrqNumber) -> Self {
-        Self {
-            irq
-        }
+        Self { irq }
     }
 }

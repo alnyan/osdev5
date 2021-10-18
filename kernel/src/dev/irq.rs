@@ -14,7 +14,11 @@ pub trait IntController: Device {
     type IrqNumber;
 
     /// Binds a handler [IntSource] to a specific [irq] line
-    fn register_handler(&self, irq: Self::IrqNumber, handler: &'static (dyn IntSource + Sync)) -> Result<(), Errno>;
+    fn register_handler(
+        &self,
+        irq: Self::IrqNumber,
+        handler: &'static (dyn IntSource + Sync),
+    ) -> Result<(), Errno>;
 
     /// Enables/unmasks [irq] line
     fn enable_irq(&self, irq: Self::IrqNumber) -> Result<(), Errno>;

@@ -1,8 +1,8 @@
 //! Synchronization facilities module
 
+use crate::arch::platform::{irq_mask_save, irq_restore};
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
-use crate::arch::platform::{irq_mask_save, irq_restore};
 
 /// Same as [NullLock], but ensures IRQs are disabled while
 /// the lock is held
@@ -14,7 +14,7 @@ pub struct IrqSafeNullLock<T: ?Sized> {
 /// when dropped
 pub struct IrqSafeNullLockGuard<'a, T: ?Sized> {
     value: &'a mut T,
-    irq_state: u64
+    irq_state: u64,
 }
 
 impl<T> IrqSafeNullLock<T> {
@@ -22,7 +22,7 @@ impl<T> IrqSafeNullLock<T> {
     #[inline(always)]
     pub const fn new(value: T) -> Self {
         Self {
-            value: UnsafeCell::new(value)
+            value: UnsafeCell::new(value),
         }
     }
 
@@ -32,7 +32,7 @@ impl<T> IrqSafeNullLock<T> {
         unsafe {
             IrqSafeNullLockGuard {
                 value: &mut *self.value.get(),
-                irq_state: irq_mask_save()
+                irq_state: irq_mask_save(),
             }
         }
     }

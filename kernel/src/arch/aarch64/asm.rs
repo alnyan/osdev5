@@ -3,7 +3,7 @@
 
 use tock_registers::{
     interfaces::{Readable, Writeable},
-    register_bitfields
+    register_bitfields,
 };
 
 register_bitfields! {

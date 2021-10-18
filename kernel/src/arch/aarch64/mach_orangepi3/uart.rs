@@ -1,16 +1,14 @@
-use crate::arch::{
-    machine::{self, IrqNumber},
-};
-use crate::sync::IrqSafeNullLock;
-use crate::util::InitOnce;
-use crate::mem::virt::DeviceMemoryIo;
+use crate::arch::machine::{self, IrqNumber};
 use crate::dev::{
     irq::{IntController, IntSource},
     serial::SerialDevice,
     Device,
 };
+use crate::mem::virt::DeviceMemoryIo;
+use crate::sync::IrqSafeNullLock;
+use crate::util::InitOnce;
 use error::Errno;
-use tock_registers::interfaces::{Readable, Writeable, ReadWriteable};
+use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::registers::{Aliased, ReadOnly, ReadWrite};
 use tock_registers::{register_bitfields, register_structs};
 
@@ -75,13 +73,13 @@ register_structs! {
 }
 
 struct UartInner {
-    regs: DeviceMemoryIo<Regs>
+    regs: DeviceMemoryIo<Regs>,
 }
 
 pub(super) struct Uart {
     inner: InitOnce<IrqSafeNullLock<UartInner>>,
     base: usize,
-    irq: IrqNumber
+    irq: IrqNumber,
 }
 
 impl Device for Uart {
@@ -91,7 +89,7 @@ impl Device for Uart {
 
     unsafe fn enable(&self) -> Result<(), Errno> {
         let mut inner = UartInner {
-            regs: DeviceMemoryIo::map(self.name(), self.base, 1)?
+            regs: DeviceMemoryIo::map(self.name(), self.base, 1)?,
         };
         // TODO
         self.inner.init(IrqSafeNullLock::new(inner));
@@ -134,7 +132,7 @@ impl IntSource for Uart {
             }
         }
 
-        use crate::dev::gpio::{GpioDevice};
+        use crate::dev::gpio::GpioDevice;
         machine::GPIO.toggle_pin(machine::PinAddress::new(3, 26));
         Ok(())
     }
@@ -153,7 +151,7 @@ impl Uart {
         Self {
             inner: InitOnce::new(),
             base,
-            irq
+            irq,
         }
     }
 }

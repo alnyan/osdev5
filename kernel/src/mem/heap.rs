@@ -1,5 +1,5 @@
-use crate::util::InitOnce;
 use crate::sync::IrqSafeNullLock;
+use crate::util::InitOnce;
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::null_mut;
 
@@ -36,8 +36,7 @@ impl Heap {
         (self.base + ptr) as *mut u8
     }
 
-    unsafe fn dealloc(&mut self, _ptr: *mut u8, _layout: Layout) {
-    }
+    unsafe fn dealloc(&mut self, _ptr: *mut u8, _layout: Layout) {}
 }
 
 #[alloc_error_handler]
@@ -51,11 +50,7 @@ static SYSTEM_ALLOC: SystemAlloc = SystemAlloc;
 static HEAP: InitOnce<IrqSafeNullLock<Heap>> = InitOnce::new();
 
 pub unsafe fn init(base: usize, size: usize) {
-    let heap = Heap {
-        base,
-        size,
-        ptr: 0
-    };
+    let heap = Heap { base, size, ptr: 0 };
 
     debugln!("Kernel heap: {:#x}..{:#x}", base, base + size);
 

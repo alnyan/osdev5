@@ -38,9 +38,7 @@ pub(super) struct Gicc {
 
 impl Gicc {
     pub const unsafe fn new(regs: DeviceMemoryIo<GiccRegs>) -> Self {
-        Self {
-            regs,
-        }
+        Self { regs }
     }
 
     pub unsafe fn enable(&self) {
