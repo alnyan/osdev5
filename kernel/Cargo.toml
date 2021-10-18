@@ -20,6 +20,9 @@ bitflags = "^1.3.0"
 cortex-a = { version = "6.x.x" }
 
 [features]
-mach_qemu = []
+pl011 = []
+pl031 = []
+
+mach_qemu = ["pl011", "pl031"]
 mach_orangepi3 = []
 mach_rpi3 = []

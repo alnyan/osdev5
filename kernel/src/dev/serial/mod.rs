@@ -3,6 +3,7 @@
 use crate::dev::Device;
 use error::Errno;
 
+#[cfg(feature = "pl011")]
 pub mod pl011;
 
 /// Generic interface for serial devices

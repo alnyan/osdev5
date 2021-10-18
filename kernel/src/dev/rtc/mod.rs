@@ -2,6 +2,7 @@
 
 use crate::dev::Device;
 
+#[cfg(feature = "pl031")]
 pub mod pl031;
 
 // TODO define what RTC devices can do
