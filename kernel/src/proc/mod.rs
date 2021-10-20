@@ -1,13 +1,17 @@
 //! Process and thread manipulation facilities
 
+use crate::mem;
 use crate::sync::IrqSafeNullLock;
 use crate::util::InitOnce;
-use alloc::{rc::Rc, collections::{BTreeMap, VecDeque}};
-use error::Errno;
+use alloc::{
+    boxed::Box,
+    collections::{BTreeMap, VecDeque},
+    rc::Rc,
+};
 
 pub mod elf;
 pub mod process;
-pub use process::{Process, ProcessRef, Pid, State as ProcessState};
+pub use process::{Pid, Process, ProcessRef, State as ProcessState};
 
 struct SchedulerInner {
     queue: VecDeque<Pid>,
@@ -21,8 +25,6 @@ pub struct Scheduler {
 }
 
 impl SchedulerInner {
-    const USTACK_VIRT_TOP: usize = 0x100000000;
-
     fn new() -> Self {
         let mut this = Self {
             queue: VecDeque::new(),
@@ -30,7 +32,7 @@ impl SchedulerInner {
             current: None,
         };
 
-        this.idle = Some(unsafe { (*Process::new_kernel(idle_fn, 0).unwrap().get()).id() });
+        this.idle = Some(Process::new_kernel(idle_fn, 0).unwrap().id());
 
         this
     }
@@ -50,6 +52,11 @@ impl Scheduler {
         self.inner.get().lock().queue.push_back(pid);
     }
 
+    ///
+    pub fn dequeue(&self, pid: Pid) {
+        self.inner.get().lock().queue.retain(|&p| p != pid)
+    }
+
     /// Performs initial process entry.
     ///
     /// # Safety
@@ -65,12 +72,21 @@ impl Scheduler {
             };
 
             inner.current = Some(id);
-            let proc = PROCESSES.lock().get(&id).unwrap().clone();
-            (*proc.get()).state = ProcessState::Running;
-            proc
+            PROCESSES.lock().get(&id).unwrap().clone()
         };
 
-        (*thread.get()).enter();
+        asm!("msr daifclr, #2");
+        Process::enter(thread)
+    }
+
+    /// This hack is required to be called from execve() when downgrading current
+    /// process from kernel to user.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe: only allowed to be called from Process::execve()
+    pub unsafe fn hack_current_pid(&self, new: Pid) {
+        self.inner.get().lock().current = Some(new);
     }
 
     /// Switches to the next task scheduled for execution. If there're
@@ -96,28 +112,17 @@ impl Scheduler {
                 let lock = PROCESSES.lock();
                 (
                     lock.get(&current).unwrap().clone(),
-                    lock.get(&next).unwrap().clone()
+                    lock.get(&next).unwrap().clone(),
                 )
             };
-
-            if !discard {
-                unsafe {
-                    assert_eq!((*from.get()).state, ProcessState::Running);
-                    (*from.get()).state = ProcessState::Ready;
-                }
-            }
-            unsafe {
-                assert_eq!((*to.get()).state, ProcessState::Ready);
-                (*to.get()).state = ProcessState::Running;
-            }
 
             (from, to)
         };
 
         if !Rc::ptr_eq(&from, &to) {
-            // FIXME This is ugly
             unsafe {
-                (*from.get()).switch_to(to.get());
+                asm!("msr daifclr, #2");
+                Process::switch(from, to, discard);
             }
         }
     }
@@ -132,20 +137,25 @@ impl Scheduler {
 
 #[inline(never)]
 extern "C" fn idle_fn(_a: usize) -> ! {
-    loop {}
+    loop {
+        cortex_a::asm::wfi();
+    }
 }
 
 macro_rules! spawn {
     (fn ($dst_arg:ident : usize) $body:block, $src_arg:expr) => {{
         #[inline(never)]
         extern "C" fn __inner_func($dst_arg : usize) -> ! {
-            $body;
-            #[allow(unreachable_code)]
-            unsafe { (*SCHED.current_process().get()).exit() }
+            let __res = $body;
+            {
+                #![allow(unreachable_code)]
+                SCHED.current_process().exit(__res);
+                panic!();
+            }
         }
 
         let __proc = $crate::proc::Process::new_kernel(__inner_func, $src_arg).unwrap();
-        $crate::proc::SCHED.enqueue(unsafe { (*__proc.get()).id() });
+        $crate::proc::SCHED.enqueue(__proc.id());
     }};
 
     (fn () $body:block) => (spawn!(fn (_arg: usize) $body, 0usize))
@@ -158,13 +168,15 @@ pub fn switch() {
     SCHED.switch(false);
 }
 
-///
+// TODO maybe move this into a per-CPU struct
+/// Global scheduler struct
 pub static SCHED: Scheduler = Scheduler {
     inner: InitOnce::new(),
 };
 
-///
-pub static PROCESSES: IrqSafeNullLock<BTreeMap<Pid, ProcessRef>> = IrqSafeNullLock::new(BTreeMap::new());
+/// Global list of all processes in the system
+pub static PROCESSES: IrqSafeNullLock<BTreeMap<Pid, ProcessRef>> =
+    IrqSafeNullLock::new(BTreeMap::new());
 
 /// Sets up initial process and enters it.
 ///
@@ -175,21 +187,32 @@ pub static PROCESSES: IrqSafeNullLock<BTreeMap<Pid, ProcessRef>> = IrqSafeNullLo
 /// Unsafe: May only be called once.
 pub unsafe fn enter(initrd: Option<(usize, usize)>) -> ! {
     SCHED.init();
-    spawn!(fn () {
-        debugln!("Henlo");
-    });
-    // if let Some((start, end)) = initrd {
-    //     let initrd = Box::into_raw(Box::new((mem::virtualize(start), mem::virtualize(end))));
+    if let Some((start, end)) = initrd {
+        let initrd = Box::into_raw(Box::new((mem::virtualize(start), mem::virtualize(end))));
 
-    //     spawn!(fn (initrd_ptr: usize) {
-    //         debugln!("Running kernel init process");
+        spawn!(fn (initrd_ptr: usize) {
+            debugln!("Running kernel init process");
 
-    //         let (start, _end) = unsafe { *(initrd_ptr as *const (usize, usize)) };
-    //         let proc = unsafe { &mut *SCHED.current_process().get() };
-    //         proc.execve(|space| elf::load_elf(space, start as *const u8), 0)
-    //             .unwrap();
-    //         panic!("This code should not run");
-    //     }, initrd as usize);
-    // }
+            let (start, _end) = unsafe { *(initrd_ptr as *const (usize, usize)) };
+            Process::execve(|space| elf::load_elf(space, start as *const u8), 0).unwrap();
+            panic!("This code should not run");
+        }, initrd as usize);
+
+        spawn!(fn () {
+            debugln!("Terminator process started");
+
+            for _ in 0..2000000 {
+                cortex_a::asm::nop();
+            }
+
+            let pid = Pid::user(1);
+            debugln!("Killing {}", pid);
+            PROCESSES.lock().get(&pid).unwrap().exit(123);
+            let status = Process::waitpid(pid).unwrap();
+            debugln!("{} exit status was {:?}", pid, status);
+
+            1
+        });
+    }
     SCHED.enter();
 }
