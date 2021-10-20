@@ -1,8 +1,8 @@
 //! aarch64 common boot logic
 
-use crate::arch::{aarch64::reg::CPACR_EL1, machine};
+use crate::arch::{aarch64::reg::{CPACR_EL1, CNTKCTL_EL1}, machine};
 use crate::dev::{fdt::DeviceTree, irq::IntSource, Device};
-use crate::debug::Level;
+//use crate::debug::Level;
 use crate::mem::{
     self, heap,
     phys::{self, PageUsage},
@@ -17,6 +17,9 @@ use tock_registers::interfaces::{ReadWriteable, Writeable};
 extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
     // Disable FP instruction trapping
     CPACR_EL1.modify(CPACR_EL1::FPEN::TrapNone);
+
+    // Disable CNTPCT and CNTFRQ trapping from EL0
+    CNTKCTL_EL1.modify(CNTKCTL_EL1::EL0PCTEN::SET);
 
     extern "C" {
         static aa64_el1_vectors: u8;

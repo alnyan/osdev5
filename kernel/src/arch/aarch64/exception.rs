@@ -1,15 +1,17 @@
 //! AArch64 exception handling
 
 use crate::arch::machine;
+use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
 use tock_registers::interfaces::Readable;
-use crate::debug::Level;
 
 /// Trapped SIMD/FP functionality
 pub const EC_FP_TRAP: u64 = 0b000111;
 /// Data Abort at current EL
 pub const EC_DATA_ABORT_ELX: u64 = 0b100101;
+/// Data Abort at lower EL
+pub const EC_DATA_ABORT_EL0: u64 = 0b100100;
 /// SVC instruction in AA64 state
 pub const EC_SVC_AA64: u64 = 0b010101;
 
@@ -74,7 +76,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
 
     #[allow(clippy::single_match)]
     match err_code {
-        EC_DATA_ABORT_ELX => {
+        EC_DATA_ABORT_ELX | EC_DATA_ABORT_EL0 => {
             let far = FAR_EL1.get();
             dump_data_abort(Level::Error, esr, far);
         }
@@ -87,11 +89,11 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
     }
 
     errorln!(
-        "Unhandled exception at ELR={:#018x}, ESR={:#010x}, exc ctx @ {:p}",
+        "Unhandled exception at ELR={:#018x}, ESR={:#010x}",
         exc.elr_el1,
         esr,
-        exc
     );
+    errorln!("Error code: {:#08b}", err_code);
 
     panic!("Unhandled exception");
 }

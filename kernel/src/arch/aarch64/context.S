@@ -5,23 +5,29 @@
 
 .set PT_REGS_SIZE, 16 * 6
 
-__aa64_ctx_enter_kernel:
+__aa64_ctx_enter_user:
     ldp x0, x1, [sp, #0]
     msr sp_el0, x0
     msr ttbr0_el1, x1
 
-    tst x0, x0
-    mov x0, #5
-    bne 1f
-    b 2f
-1:
-    mov x0, #4
-2:
-
-    msr spsr_el1, x0
+    msr spsr_el1, xzr
     ldp x0, x1, [sp, #16]
     msr elr_el1, x1
     add sp, sp, #32
+
+    mov x1, xzr
+__return_to_user:
+    eret
+
+__aa64_ctx_enter_kernel:
+    msr sp_el0, xzr
+    msr ttbr0_el1, xzr
+
+    mov x0, #5
+    msr spsr_el1, x0
+    ldp x0, x1, [sp, #0]
+    msr elr_el1, x1
+    add sp, sp, #16
 
     mov x1, xzr
     eret

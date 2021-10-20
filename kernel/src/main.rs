@@ -33,6 +33,10 @@ pub mod util;
 
 #[panic_handler]
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {
+    unsafe {
+        asm!("msr daifset, #2");
+    }
+
     errorln!("Panic: {:?}", pi);
     // TODO
     loop {}

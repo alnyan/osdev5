@@ -44,8 +44,11 @@ bitflags! {
         const PXN = 1 << 53;
 
         // AP field
+        // Default behavior is: read-write for EL1, no access for EL0
         /// If set, the page referred to by this entry is read-only for both EL0/EL1
         const AP_BOTH_READONLY = 3 << 6;
+        /// If set, the page referred to by this entry is read-write for both EL0/EL1
+        const AP_BOTH_READWRITE = 1 << 6;
     }
 }
 

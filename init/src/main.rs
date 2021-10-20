@@ -4,25 +4,14 @@
 
 use core::panic::PanicInfo;
 
-static RODATA: [u8; 4] = [1, 2, 3, 4];
-static mut WDATA: [u8; 4] = [1, 2, 3, 4];
-static mut WBSS: [u8; 16] = [0; 16];
-
 #[link_section = ".text._start"]
 #[no_mangle]
-extern "C" fn _start(_arg: usize) -> ! {
-    let mut c0;
-
-    unsafe {
-        let d: &mut [u8; 4] = &mut *(&WBSS as *const _ as *mut _);
-        d[0] = 2;
-    }
-
-    c0 = unsafe { &mut WDATA as *mut _ as usize };
-    c0 = unsafe { &mut WBSS as *mut _ as usize };
-    let mut c1 = 1u64;
+extern "C" fn _start(arg: usize) -> ! {
+    let mut c0 = arg;
+    let mut c1: usize;
     loop {
         unsafe {
+            asm!("mrs {}, cntpct_el0", out(reg) c1);
             asm!("svc #0", inout("x0") c0, in("x1") c1);
         }
 

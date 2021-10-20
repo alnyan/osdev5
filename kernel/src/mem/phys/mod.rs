@@ -28,7 +28,7 @@ pub enum PageUsage {
     /// Translation tables
     Paging,
     /// Userspace page
-    UserStack,
+    UserPrivate,
 }
 
 /// Data structure representing a single physical memory page

@@ -61,110 +61,62 @@ struct Phdr<E: Elf> {
     align: E::Xword,
 }
 
-unsafe fn load_bytes(
-    space: &mut Space,
-    dst_virt: usize,
-    src: *const u8,
-    size: usize,
-    flags: usize,
-) -> Result<(), Errno> {
-    let mut off = 0usize;
-    let mut rem = size;
+fn map_flags(elf_flags: usize) -> MapAttributes {
+    let mut dst_flags = MapAttributes::NOT_GLOBAL | MapAttributes::SH_OUTER;
 
-    // TODO unaligned loads
-    assert!(dst_virt & 0xFFF == 0);
-
-    while rem != 0 {
-        let page_idx = off / mem::PAGE_SIZE;
-        let page_off = off % mem::PAGE_SIZE;
-        let count = core::cmp::min(rem, mem::PAGE_SIZE - page_off);
-
-        let page = phys::alloc_page(PageUsage::Kernel)?;
-        let mut dst_flags = MapAttributes::NOT_GLOBAL | MapAttributes::SH_OUTER;
-
-        if flags & (1 << 0) /* PF_X */ == 0 {
-            dst_flags |= MapAttributes::UXN | MapAttributes::PXN;
-        }
-
-        match (flags & (3 << 1)) >> 1 {
-            // No access: not sure if such mapping should exist at all
-            0 => todo!(),
-            // Write-only: not sure if such mapping should exist at all
-            1 => todo!(),
-            // Read-only
-            2 => dst_flags |= MapAttributes::AP_BOTH_READONLY,
-            // Read+Write
-            3 => {}
-            _ => unreachable!(),
-        };
-
-        debugln!(
-            "Mapping {:#x} {:?}",
-            dst_virt + page_idx * mem::PAGE_SIZE,
-            dst_flags
-        );
-        space.map(dst_virt + page_idx * mem::PAGE_SIZE, page, dst_flags)?;
-
-        let dst =
-            core::slice::from_raw_parts_mut(mem::virtualize(page + page_off) as *mut u8, count);
-        let src = core::slice::from_raw_parts(src.add(off), count);
-
-        dst.copy_from_slice(src);
-
-        rem -= count;
-        off += count;
+    if elf_flags & (1 << 0) /* PF_X */ == 0 {
+        dst_flags |= MapAttributes::UXN | MapAttributes::PXN;
     }
 
-    Ok(())
+    match (elf_flags & (3 << 1)) >> 1 {
+        // No access: not sure if such mapping should exist at all
+        0 => todo!(),
+        // Write-only: not sure if such mapping should exist at all
+        1 => todo!(),
+        // Read-only
+        2 => dst_flags |= MapAttributes::AP_BOTH_READONLY,
+        // Read+Write
+        3 => dst_flags |= MapAttributes::AP_BOTH_READWRITE,
+        _ => unreachable!(),
+    };
+
+    dst_flags
 }
 
-unsafe fn zero_bytes(
+unsafe fn load_bytes<F>(
     space: &mut Space,
     dst_virt: usize,
+    read: F,
     size: usize,
     flags: usize,
-) -> Result<(), Errno> {
+) -> Result<(), Errno>
+where
+    F: Fn(usize, &mut [u8]) -> Result<(), Errno>,
+{
+    let dst_page_off = dst_virt & 0xFFF;
+    let dst_page = dst_virt & !0xFFF;
     let mut off = 0usize;
     let mut rem = size;
 
     while rem != 0 {
-        let page_idx = (dst_virt + off - (dst_virt & !0xFFF)) / mem::PAGE_SIZE;
-        let page_off = (dst_virt + off) % mem::PAGE_SIZE;
+        let page_idx = (dst_page_off + off) / mem::PAGE_SIZE;
+        let page_off = (dst_page_off + off) % mem::PAGE_SIZE;
         let count = core::cmp::min(rem, mem::PAGE_SIZE - page_off);
 
         let page = phys::alloc_page(PageUsage::Kernel)?;
-        let mut dst_flags = MapAttributes::NOT_GLOBAL | MapAttributes::SH_OUTER;
 
-        if flags & (1 << 0) /* PF_X */ == 0 {
-            dst_flags |= MapAttributes::UXN | MapAttributes::PXN;
-        }
-
-        match (flags & (3 << 1)) >> 1 {
-            // No access: not sure if such mapping should exist at all
-            0 => todo!(),
-            // Write-only: not sure if such mapping should exist at all
-            1 => todo!(),
-            // Read-only
-            2 => dst_flags |= MapAttributes::AP_BOTH_READONLY,
-            // Read+Write
-            3 => {}
-            _ => unreachable!(),
-        };
-
-        debugln!(
-            "Mapping {:#x} {:?}",
-            dst_virt + page_idx * mem::PAGE_SIZE,
-            dst_flags
-        );
-        if let Err(e) = space.map(dst_virt + page_idx * mem::PAGE_SIZE, page, dst_flags) {
+        // TODO fetch existing mapping and test flag equality instead
+        //      if flags differ, bail out
+        if let Err(e) = space.map(dst_page + page_idx * mem::PAGE_SIZE, page, map_flags(flags)) {
             if e != Errno::AlreadyExists {
                 return Err(e);
             }
         }
 
-        let dst =
-            core::slice::from_raw_parts_mut(mem::virtualize(page + page_off) as *mut u8, count);
-        dst.fill(0);
+        let dst_page_virt = mem::virtualize(page + page_off);
+        let dst = core::slice::from_raw_parts_mut(dst_page_virt as *mut u8, count);
+
+        read(off, dst)?;
 
         rem -= count;
         off += count;
@@ -201,7 +153,13 @@ pub fn load_elf(space: &mut Space, elf_base: *const u8) -> Result<usize, Errno> 
                     load_bytes(
                         space,
                         phdr.vaddr as usize,
-                        elf_base.add(phdr.offset as usize),
+                        |off, dst| {
+                            let src = elf_base.add(phdr.offset as usize + off);
+                            assert!(off + dst.len() <= phdr.filesz as usize);
+                            let src_slice = core::slice::from_raw_parts(src, dst.len());
+                            dst.copy_from_slice(src_slice);
+                            Ok(())
+                        },
                         phdr.filesz as usize,
                         phdr.flags as usize,
                     )?;
@@ -211,9 +169,13 @@ pub fn load_elf(space: &mut Space, elf_base: *const u8) -> Result<usize, Errno> 
             if phdr.memsz > phdr.filesz {
                 let len = (phdr.memsz - phdr.filesz) as usize;
                 unsafe {
-                    zero_bytes(
+                    load_bytes(
                         space,
                         phdr.vaddr as usize + phdr.filesz as usize,
+                        |_, dst| {
+                            dst.fill(0);
+                            Ok(())
+                        },
                         len,
                         phdr.flags as usize,
                     )?;
