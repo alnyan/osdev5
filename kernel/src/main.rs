@@ -9,7 +9,8 @@
     const_fn_trait_bound,
     const_panic,
     panic_info_message,
-    alloc_error_handler
+    alloc_error_handler,
+    const_btree_new,
 )]
 #![no_std]
 #![no_main]

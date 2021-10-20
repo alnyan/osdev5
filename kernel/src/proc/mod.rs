@@ -1,59 +1,15 @@
 //! Process and thread manipulation facilities
 
-use crate::mem::{
-    self,
-    phys::{self, PageUsage},
-    virt::{MapAttributes, Space},
-};
 use crate::sync::IrqSafeNullLock;
 use crate::util::InitOnce;
-use alloc::boxed::Box;
-use alloc::collections::{BTreeMap, VecDeque};
-use alloc::rc::Rc;
-use core::cell::UnsafeCell;
-use core::fmt;
-use core::sync::atomic::{AtomicU32, Ordering};
+use alloc::{rc::Rc, collections::{BTreeMap, VecDeque}};
 use error::Errno;
 
-pub use crate::arch::platform::context::{self, Context};
-
 pub mod elf;
-
-/// Wrapper type for a process struct reference
-pub type ProcessRef = Rc<UnsafeCell<Process>>;
-
-/// Wrapper type for process ID
-#[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
-#[repr(transparent)]
-pub struct Pid(u32);
-
-/// List of possible process states
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ProcessState {
-    /// Process is ready to be executed and/or is scheduled for it
-    Ready,
-    /// Process is currently running or is in system call/interrupt handler
-    Running,
-    /// Process has finished execution and is waiting to be reaped
-    Finished,
-    /// Process is waiting for some external event
-    Waiting,
-}
-
-/// Structure describing an operating system process
-#[allow(dead_code)]
-pub struct Process {
-    ctx: Context,
-    // TODO move to Option<Box<>>ed user data struct
-    space: Option<&'static mut Space>,
-    state: ProcessState,
-    id: Pid,
-}
+pub mod process;
+pub use process::{Process, ProcessRef, Pid, State as ProcessState};
 
 struct SchedulerInner {
-    // TODO the process list itself is not a scheduler-related thing so maybe
-    //      move it outside?
-    processes: BTreeMap<Pid, ProcessRef>,
     queue: VecDeque<Pid>,
     idle: Option<Pid>,
     current: Option<Pid>,
@@ -64,99 +20,23 @@ pub struct Scheduler {
     inner: InitOnce<IrqSafeNullLock<SchedulerInner>>,
 }
 
-impl Pid {
-    /// Kernel idle process always has PID of zero
-    pub const IDLE: Self = Self(0 | Self::KERNEL_BIT);
-
-    const KERNEL_BIT: u32 = 1 << 31;
-
-    /// Allocates a new kernel-space PID
-    pub fn new_kernel() -> Self {
-        static LAST: AtomicU32 = AtomicU32::new(0);
-        let id = LAST.fetch_add(1, Ordering::Relaxed);
-        assert!(id & Self::KERNEL_BIT == 0, "Out of kernel PIDs");
-        Self(id | Self::KERNEL_BIT)
-    }
-
-    /// Allocates a new user-space PID.
-    ///
-    /// First user PID is #1.
-    pub fn new_user() -> Self {
-        static LAST: AtomicU32 = AtomicU32::new(1);
-        let id = LAST.fetch_add(1, Ordering::Relaxed);
-        assert!(id < 256, "Out of user PIDs");
-        Self(id)
-    }
-
-    /// Returns `true` if this PID belongs to a kernel process
-    pub fn is_kernel(self) -> bool {
-        self.0 & Self::KERNEL_BIT != 0
-    }
-
-    /// Returns address space ID of a user-space process.
-    ///
-    /// Panics if called on kernel process PID.
-    pub fn asid(self) -> u8 {
-        assert!(!self.is_kernel());
-        self.0 as u8
-    }
-}
-
-impl fmt::Display for Pid {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Pid(#{}{})",
-            if self.is_kernel() { "K" } else { "U" },
-            self.0 & !Self::KERNEL_BIT
-        )
-    }
-}
-
 impl SchedulerInner {
     const USTACK_VIRT_TOP: usize = 0x100000000;
 
-    fn new_kernel(&mut self, entry: extern "C" fn(usize) -> !, arg: usize) -> Pid {
-        let id = Pid::new_kernel();
-
-        let proc = Process {
-            ctx: Context::kernel(entry as usize, arg),
-            space: None,
-            state: ProcessState::Ready,
-            id,
-        };
-        debugln!("Created kernel process: {}", id);
-
-        assert!(self
-            .processes
-            .insert(id, Rc::new(UnsafeCell::new(proc)))
-            .is_none());
-
-        id
-    }
-
     fn new() -> Self {
         let mut this = Self {
-            processes: BTreeMap::new(),
             queue: VecDeque::new(),
             idle: None,
             current: None,
         };
 
-        this.idle = Some(this.new_kernel(idle_fn, 0));
+        this.idle = Some(unsafe { (*Process::new_kernel(idle_fn, 0).unwrap().get()).id() });
 
         this
     }
 }
 
 impl Scheduler {
-    /// Constructs a new kernel-space process with `entry` and `arg`.
-    /// Returns resulting process ID
-    // TODO see the first TODO here
-    pub fn new_kernel(&self, entry: extern "C" fn(usize) -> !, arg: usize) -> Pid {
-        self.inner.get().lock().new_kernel(entry, arg)
-    }
-
     /// Initializes inner data structure:
     ///
     /// * idle thread
@@ -185,12 +65,12 @@ impl Scheduler {
             };
 
             inner.current = Some(id);
-            let proc = inner.processes.get(&id).unwrap().clone();
+            let proc = PROCESSES.lock().get(&id).unwrap().clone();
             (*proc.get()).state = ProcessState::Running;
             proc
         };
 
-        (*thread.get()).ctx.enter();
+        (*thread.get()).enter();
     }
 
     /// Switches to the next task scheduled for execution. If there're
@@ -212,8 +92,13 @@ impl Scheduler {
             };
 
             inner.current = Some(next);
-            let from = inner.processes.get(&current).unwrap().clone();
-            let to = inner.processes.get(&next).unwrap().clone();
+            let (from, to) = {
+                let lock = PROCESSES.lock();
+                (
+                    lock.get(&current).unwrap().clone(),
+                    lock.get(&next).unwrap().clone()
+                )
+            };
 
             if !discard {
                 unsafe {
@@ -232,7 +117,7 @@ impl Scheduler {
         if !Rc::ptr_eq(&from, &to) {
             // FIXME This is ugly
             unsafe {
-                (*from.get()).ctx.switch(&mut (*to.get()).ctx);
+                (*from.get()).switch_to(to.get());
             }
         }
     }
@@ -241,85 +126,7 @@ impl Scheduler {
     pub fn current_process(&self) -> ProcessRef {
         let inner = self.inner.get().lock();
         let current = inner.current.unwrap();
-        inner.processes.get(&current).unwrap().clone()
-    }
-}
-
-impl Process {
-    /// Returns current process Rc-reference.
-    ///
-    /// See [Scheduler::current_process].
-    #[inline]
-    pub fn this() -> ProcessRef {
-        SCHED.current_process()
-    }
-
-    /// Terminates a process.
-    ///
-    /// # Safety
-    ///
-    /// Unsafe: only allowed to be called on "self" process at this moment.
-    pub unsafe fn exit(&mut self) -> ! {
-        self.state = ProcessState::Finished;
-        SCHED.switch(true);
-        panic!("This code should never run");
-    }
-
-    /// Loads a new program into process address space
-    pub fn execve<F: FnOnce(&mut Space) -> Result<usize, Errno>>(
-        &mut self,
-        loader: F,
-        arg: usize,
-    ) -> Result<(), Errno> {
-        unsafe {
-            // Run with interrupts disabled
-            asm!("msr daifset, #2");
-        }
-
-        let id = if self.id.is_kernel() {
-            let r = Pid::new_user();
-            debugln!(
-                "Process downgrades from kernel to user: {} -> {}",
-                self.id,
-                r
-            );
-            r
-        } else {
-            self.id
-        };
-
-        let ustack_pages = 4;
-        let new_space = Space::alloc_empty()?;
-        let new_space_phys = (new_space as *mut _ as usize) - mem::KERNEL_OFFSET;
-
-        let ustack_virt_bottom = SchedulerInner::USTACK_VIRT_TOP - ustack_pages * mem::PAGE_SIZE;
-        for i in 0..ustack_pages {
-            let page = phys::alloc_page(PageUsage::UserPrivate).unwrap();
-            let flags = MapAttributes::SH_OUTER
-                | MapAttributes::NOT_GLOBAL
-                | MapAttributes::UXN
-                | MapAttributes::PXN
-                | MapAttributes::AP_BOTH_READWRITE;
-            new_space
-                .map(ustack_virt_bottom + i * mem::PAGE_SIZE, page, flags)
-                .unwrap();
-        }
-
-        let entry = loader(new_space)?;
-
-        debugln!("Will now enter at {:#x}", entry);
-        self.ctx = Context::user(
-            entry,
-            arg,
-            new_space_phys | ((id.asid() as usize) << 48),
-            SchedulerInner::USTACK_VIRT_TOP,
-        );
-        self.space = Some(new_space);
-        // TODO drop old address space
-
-        unsafe {
-            self.ctx.enter();
-        }
+        PROCESSES.lock().get(&current).unwrap().clone()
     }
 }
 
@@ -334,10 +141,11 @@ macro_rules! spawn {
         extern "C" fn __inner_func($dst_arg : usize) -> ! {
             $body;
             #[allow(unreachable_code)]
-            unsafe { (*Process::this().get()).exit() }
+            unsafe { (*SCHED.current_process().get()).exit() }
         }
 
-        $crate::proc::SCHED.enqueue($crate::proc::SCHED.new_kernel(__inner_func, $src_arg));
+        let __proc = $crate::proc::Process::new_kernel(__inner_func, $src_arg).unwrap();
+        $crate::proc::SCHED.enqueue(unsafe { (*__proc.get()).id() });
     }};
 
     (fn () $body:block) => (spawn!(fn (_arg: usize) $body, 0usize))
@@ -355,6 +163,9 @@ pub static SCHED: Scheduler = Scheduler {
     inner: InitOnce::new(),
 };
 
+///
+pub static PROCESSES: IrqSafeNullLock<BTreeMap<Pid, ProcessRef>> = IrqSafeNullLock::new(BTreeMap::new());
+
 /// Sets up initial process and enters it.
 ///
 /// See [Scheduler::enter]
@@ -364,18 +175,21 @@ pub static SCHED: Scheduler = Scheduler {
 /// Unsafe: May only be called once.
 pub unsafe fn enter(initrd: Option<(usize, usize)>) -> ! {
     SCHED.init();
-    if let Some((start, end)) = initrd {
-        let initrd = Box::into_raw(Box::new((mem::virtualize(start), mem::virtualize(end))));
+    spawn!(fn () {
+        debugln!("Henlo");
+    });
+    // if let Some((start, end)) = initrd {
+    //     let initrd = Box::into_raw(Box::new((mem::virtualize(start), mem::virtualize(end))));
 
-        spawn!(fn (initrd_ptr: usize) {
-            debugln!("Running kernel init process");
+    //     spawn!(fn (initrd_ptr: usize) {
+    //         debugln!("Running kernel init process");
 
-            let (start, _end) = unsafe { *(initrd_ptr as *const (usize, usize)) };
-            let proc = unsafe { &mut *SCHED.current_process().get() };
-            proc.execve(|space| elf::load_elf(space, start as *const u8), 0)
-                .unwrap();
-            panic!("This code should not run");
-        }, initrd as usize);
-    }
+    //         let (start, _end) = unsafe { *(initrd_ptr as *const (usize, usize)) };
+    //         let proc = unsafe { &mut *SCHED.current_process().get() };
+    //         proc.execve(|space| elf::load_elf(space, start as *const u8), 0)
+    //             .unwrap();
+    //         panic!("This code should not run");
+    //     }, initrd as usize);
+    // }
     SCHED.enter();
 }
