@@ -70,24 +70,15 @@ pub unsafe extern "C" fn memcmp(a: *mut u8, b: *mut u8, mut len: usize) -> isize
 /// validation.
 #[no_mangle]
 pub unsafe extern "C" fn memmove(dst: *mut u8, src: *mut u8, len: usize) -> *mut u8 {
-    if dst == src {
-        return dst;
-    }
-
-    if src.add(len) <= dst || dst.add(len) <= src {
-        return memcpy(dst, src, len);
-    }
-
     if dst < src {
-        let a = src as usize - dst as usize;
-        memcpy(dst, src, a);
-        memcpy(src, src.add(a), len - a);
+        for i in 0..len {
+            *dst.add(i) = *src.add(i);
+        }
     } else {
-        let a = dst as usize - src as usize;
-        memcpy(dst.add(a), dst, len - a);
-        memcpy(dst, src, len);
+        for i in 0..len {
+            *dst.add(len - (i + 1)) = *src.add(len - (i + 1));
+        }
     }
-
     dst
 }
 
