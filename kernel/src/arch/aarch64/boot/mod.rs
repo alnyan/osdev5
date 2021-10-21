@@ -85,17 +85,17 @@ fn cpu_setup_common() {
         dsb(barrier::SY);
         isb(barrier::SY);
     }
+
+    unsafe {
+        cpu::init_self();
+    }
 }
 
 #[no_mangle]
 extern "C" fn __aa64_secondary_main() -> ! {
     cpu_setup_common();
 
-    infoln!("cpu{} is online!", MPIDR_EL1.get() & 0xF);
-
     unsafe {
-        cpu::init_self();
-
         use crate::dev::irq::IntController;
         machine::local_timer().enable().unwrap();
         machine::intc().enable_secondary();
@@ -139,8 +139,6 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
     infoln!("Machine init finished");
 
     unsafe {
-        cpu::init_bsp();
-
         machine::local_timer().enable().unwrap();
         machine::local_timer().init_irqs().unwrap();
 

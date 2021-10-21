@@ -74,8 +74,18 @@ __aa\bits\()_el\el\ht\()_\kind:
 
     EXC_SAVE_STATE
     mov x0, sp
+.if \el == 0
+    sub sp, sp, #16
+    stp fp, lr, [sp, #0]
+.else
     mov lr, xzr
+.endif
     bl __aa64_exc_\kind\()_handler
+
+.if \el == 0
+    add sp, sp, #16
+.endif
+
     EXC_RESTORE_STATE
     eret
 .endm

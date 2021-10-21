@@ -168,6 +168,9 @@ impl Process {
         proc.cpu.store(cpu, Ordering::SeqCst);
         let ctx = proc.ctx.get();
 
+        // I don't think this is bad: process can't be dropped fully unless
+        // it's been reaped (and this function won't run for such process)
+        // drop(proc);
         (&mut *ctx).enter()
     }
 
@@ -205,6 +208,10 @@ impl Process {
 
         let src_ctx = src.ctx.get();
         let dst_ctx = dst.ctx.get();
+
+        // See "drop" note in Process::enter()
+        // drop(src);
+        // drop(dst);
 
         (&mut *src_ctx).switch(&mut *dst_ctx);
     }
@@ -260,7 +267,7 @@ impl Process {
                 wait_flag: false,
                 state: State::Ready,
             }),
-            cpu: AtomicU32::new(Self::CPU_NONE)
+            cpu: AtomicU32::new(Self::CPU_NONE),
         });
         debugln!("New kernel process: {}", id);
         assert!(PROCESSES.lock().insert(id, res.clone()).is_none());
@@ -320,7 +327,6 @@ impl Process {
             self.io.lock().handle_exit();
 
             sched::dequeue(lock.id);
-
             drop
         };
         self.exit_wait.wakeup_all();

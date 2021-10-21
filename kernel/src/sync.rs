@@ -6,12 +6,14 @@ use crate::arch::platform::{irq_mask_save, irq_restore};
 use core::cell::UnsafeCell;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicUsize, Ordering};
+use cortex_a::registers::MPIDR_EL1;
+use tock_registers::interfaces::Readable;
 
 /// Lock structure ensuring IRQs are disabled when inner value is accessed
 pub struct IrqSafeSpinLock<T> {
     value: UnsafeCell<T>,
-    state: AtomicBool,
+    state: AtomicUsize,
 }
 
 /// Guard-structure wrapping a reference to value owned by [IrqSafeSpinLock].
@@ -27,28 +29,25 @@ impl<T> IrqSafeSpinLock<T> {
     pub const fn new(value: T) -> Self {
         Self {
             value: UnsafeCell::new(value),
-            state: AtomicBool::new(false),
+            state: AtomicUsize::new(usize::MAX),
         }
-    }
-
-    #[inline(always)]
-    fn try_lock(&self) -> Result<bool, bool> {
-        self.state
-            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
-    }
-
-    #[inline(always)]
-    unsafe fn force_release(&self) {
-        self.state.store(false, Ordering::Release);
-        cortex_a::asm::sev();
     }
 
     /// Returns [IrqSafeSpinLockGuard] for this lock
     #[inline]
     pub fn lock(&self) -> IrqSafeSpinLockGuard<T> {
         let irq_state = unsafe { irq_mask_save() };
+        let id = MPIDR_EL1.get() & 0xF;
 
-        while self.try_lock().is_err() {
+       while let Err(e) = self.state.compare_exchange_weak(
+           usize::MAX,
+           id as usize,
+           Ordering::Acquire,
+           Ordering::Relaxed,
+       ) {
+           if e == id as usize {
+               break;
+           }
             cortex_a::asm::wfe();
         }
 
@@ -56,6 +55,11 @@ impl<T> IrqSafeSpinLock<T> {
             lock: self,
             irq_state,
         }
+    }
+
+    pub unsafe fn force_release(&self) {
+        self.state.store(usize::MAX, Ordering::Release);
+        cortex_a::asm::sev();
     }
 }
 

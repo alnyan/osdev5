@@ -26,10 +26,6 @@ pub enum PsciError {
 
 const SECONDARY_STACK_PAGES: usize = 4;
 
-pub fn get_cpu_id() -> usize {
-    (MPIDR_EL1.get() & 0xF) as usize
-}
-
 unsafe fn call_smc(mut x0: usize, x1: usize, x2: usize, x3: usize) -> usize {
     asm!("smc #0", inout("x0") x0, in("x1") x1, in("x2") x2, in("x3") x3);
     x0

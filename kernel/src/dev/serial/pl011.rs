@@ -132,7 +132,6 @@ impl IntSource for Pl011 {
     fn handle_irq(&self) -> Result<(), Errno> {
         let inner = self.inner.get().lock();
         inner.regs.ICR.write(ICR::ALL::CLEAR);
-
         let byte = inner.regs.DR.get();
         drop(inner);
 

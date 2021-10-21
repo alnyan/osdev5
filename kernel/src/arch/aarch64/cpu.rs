@@ -13,25 +13,23 @@ pub struct Cpu {
     active_context: *mut Context,           // 0x00
     counter: AtomicUsize,                   // 0x08
 
+    id: usize,
     scheduler: Scheduler
 }
 
 impl Cpu {
-    pub fn new() -> Self {
+    pub fn new(id: usize) -> Self {
         Self {
             active_context: null_mut(),
             counter: AtomicUsize::new(0),
 
+            id,
             scheduler: Scheduler::new()
         }
     }
 
-    pub fn tick(&self) {
-        self.counter.fetch_add(1, Ordering::SeqCst);
-        if self.counter.load(Ordering::Acquire) >= 100 {
-            debugln!("{} TICK", MPIDR_EL1.get() & 0xF);
-            self.counter.store(0, Ordering::Release);
-        }
+    pub fn id(&self) -> usize {
+        self.id
     }
 
     pub fn scheduler(&mut self) -> &Scheduler {
@@ -60,19 +58,14 @@ pub fn count() -> usize {
     CPU_COUNT.load(Ordering::Acquire)
 }
 
-static CPU_COUNT: AtomicUsize = AtomicUsize::new(1);
+static CPU_COUNT: AtomicUsize = AtomicUsize::new(0);
 static mut CPUS: [MaybeUninit<Cpu>; 8] = MaybeUninit::uninit_array();
-
-pub unsafe fn init_bsp() {
-    // TODO cpu id different than 0?
-    CPUS[0].write(Cpu::new());
-    CPUS[0].assume_init_mut().set();
-}
 
 pub unsafe fn init_self() {
     let cpu_index = CPU_COUNT.load(Ordering::Acquire);
+    let mpidr_id = (MPIDR_EL1.get() & 0xF) as usize;
 
-    CPUS[cpu_index].write(Cpu::new());
+    CPUS[cpu_index].write(Cpu::new(mpidr_id));
     CPUS[cpu_index].assume_init_mut().set();
 
     CPU_COUNT.store(cpu_index + 1, Ordering::Release);
