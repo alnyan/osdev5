@@ -7,7 +7,7 @@ use crate::dev::{
     Device,
 };
 use crate::mem::virt::DeviceMemoryIo;
-use crate::sync::IrqSafeNullLock;
+use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use core::fmt;
 use error::Errno;
@@ -77,7 +77,7 @@ struct Pl011Inner {
 
 /// Device struct for PL011
 pub struct Pl011 {
-    inner: InitOnce<IrqSafeNullLock<Pl011Inner>>,
+    inner: InitOnce<IrqSafeSpinLock<Pl011Inner>>,
     base: usize,
     irq: IrqNumber,
 }
@@ -134,6 +134,7 @@ impl IntSource for Pl011 {
         inner.regs.ICR.write(ICR::ALL::CLEAR);
 
         let byte = inner.regs.DR.get();
+        drop(inner);
         debugln!("irq byte = {:#04x}", byte);
 
         Ok(())
@@ -176,7 +177,7 @@ impl Device for Pl011 {
         };
         inner.enable();
 
-        self.inner.init(IrqSafeNullLock::new(inner));
+        self.inner.init(IrqSafeSpinLock::new(inner));
 
         Ok(())
     }

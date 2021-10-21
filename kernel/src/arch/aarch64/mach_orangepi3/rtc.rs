@@ -5,7 +5,7 @@ use crate::dev::{
     Device,
 };
 use crate::mem::virt::DeviceMemoryIo;
-use crate::sync::IrqSafeNullLock;
+use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use error::Errno;
 use tock_registers::{
@@ -47,7 +47,7 @@ register_structs! {
 }
 
 pub struct Rtc {
-    regs: InitOnce<IrqSafeNullLock<DeviceMemoryIo<Regs>>>,
+    regs: InitOnce<IrqSafeSpinLock<DeviceMemoryIo<Regs>>>,
     base: usize,
     irq: IrqNumber,
 }
@@ -90,7 +90,7 @@ impl Device for Rtc {
     }
 
     unsafe fn enable(&self) -> Result<(), Errno> {
-        self.regs.init(IrqSafeNullLock::new(DeviceMemoryIo::map(
+        self.regs.init(IrqSafeSpinLock::new(DeviceMemoryIo::map(
             self.name(),
             self.base,
             1,

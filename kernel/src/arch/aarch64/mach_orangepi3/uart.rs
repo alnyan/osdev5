@@ -5,7 +5,7 @@ use crate::dev::{
     Device,
 };
 use crate::mem::virt::DeviceMemoryIo;
-use crate::sync::IrqSafeNullLock;
+use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use error::Errno;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -77,7 +77,7 @@ struct UartInner {
 }
 
 pub(super) struct Uart {
-    inner: InitOnce<IrqSafeNullLock<UartInner>>,
+    inner: InitOnce<IrqSafeSpinLock<UartInner>>,
     base: usize,
     irq: IrqNumber,
 }
@@ -92,7 +92,7 @@ impl Device for Uart {
             regs: DeviceMemoryIo::map(self.name(), self.base, 1)?,
         };
         // TODO
-        self.inner.init(IrqSafeNullLock::new(inner));
+        self.inner.init(IrqSafeSpinLock::new(inner));
         Ok(())
     }
 }

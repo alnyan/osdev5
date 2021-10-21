@@ -1,6 +1,6 @@
 //! Kernel heap allocation facilities
 
-use crate::sync::IrqSafeNullLock;
+use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::null_mut;
@@ -49,7 +49,7 @@ fn alloc_error_handler(layout: Layout) -> ! {
 #[global_allocator]
 static SYSTEM_ALLOC: SystemAlloc = SystemAlloc;
 
-static HEAP: InitOnce<IrqSafeNullLock<Heap>> = InitOnce::new();
+static HEAP: InitOnce<IrqSafeSpinLock<Heap>> = InitOnce::new();
 
 /// Initializes kernel heap with virtual `base` address and `size`.
 ///
@@ -61,5 +61,5 @@ pub unsafe fn init(base: usize, size: usize) {
 
     infoln!("Kernel heap: {:#x}..{:#x}", base, base + size);
 
-    HEAP.init(IrqSafeNullLock::new(heap));
+    HEAP.init(IrqSafeSpinLock::new(heap));
 }

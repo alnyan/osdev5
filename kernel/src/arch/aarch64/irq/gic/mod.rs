@@ -5,7 +5,7 @@ use crate::dev::{
     Device,
 };
 use crate::mem::virt::{DeviceMemory, DeviceMemoryIo};
-use crate::sync::IrqSafeNullLock;
+use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use error::Errno;
 
@@ -29,7 +29,7 @@ pub struct Gic {
     gicd_base: usize,
     gicc_base: usize,
     scheduler_irq: IrqNumber,
-    table: IrqSafeNullLock<[Option<&'static (dyn IntSource + Sync)>; MAX_IRQ]>,
+    table: IrqSafeSpinLock<[Option<&'static (dyn IntSource + Sync)>; MAX_IRQ]>,
 }
 
 impl IrqNumber {
@@ -94,7 +94,10 @@ impl IntController for Gic {
             let table = self.table.lock();
             match table[irq_number] {
                 None => panic!("No handler registered for irq{}", irq_number),
-                Some(handler) => handler.handle_irq().expect("irq handler failed"),
+                Some(handler) => {
+                    drop(table);
+                    handler.handle_irq().expect("irq handler failed")
+                },
             }
         }
 
@@ -132,7 +135,7 @@ impl Gic {
             gicd_base,
             gicc_base,
             scheduler_irq,
-            table: IrqSafeNullLock::new([None; MAX_IRQ]),
+            table: IrqSafeSpinLock::new([None; MAX_IRQ]),
         }
     }
 }

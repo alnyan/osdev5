@@ -1,6 +1,6 @@
 use super::{PageInfo, PageUsage};
 use crate::mem::{virtualize, PAGE_SIZE};
-use crate::sync::IrqSafeNullLock;
+use crate::sync::IrqSafeSpinLock;
 use core::mem;
 use error::Errno;
 
@@ -73,4 +73,4 @@ unsafe impl Manager for SimpleManager {
     }
 }
 
-pub(super) static MANAGER: IrqSafeNullLock<Option<SimpleManager>> = IrqSafeNullLock::new(None);
+pub(super) static MANAGER: IrqSafeSpinLock<Option<SimpleManager>> = IrqSafeSpinLock::new(None);

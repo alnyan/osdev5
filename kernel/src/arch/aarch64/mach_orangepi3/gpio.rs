@@ -10,7 +10,7 @@ use crate::dev::{
     Device,
 };
 use crate::mem::virt::DeviceMemoryIo;
-use crate::sync::IrqSafeNullLock;
+use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use error::Errno;
 use tock_registers::interfaces::{Readable, Writeable};
@@ -33,7 +33,7 @@ struct CpuxGpio {
 }
 
 pub struct Gpio {
-    cpux: InitOnce<IrqSafeNullLock<CpuxGpio>>,
+    cpux: InitOnce<IrqSafeSpinLock<CpuxGpio>>,
     cpux_base: usize,
 }
 
@@ -144,7 +144,7 @@ impl Device for Gpio {
     }
 
     unsafe fn enable(&self) -> Result<(), Errno> {
-        self.cpux.init(IrqSafeNullLock::new(CpuxGpio {
+        self.cpux.init(IrqSafeSpinLock::new(CpuxGpio {
             regs: DeviceMemoryIo::map(self.name(), self.cpux_base, 1)?,
         }));
         Ok(())

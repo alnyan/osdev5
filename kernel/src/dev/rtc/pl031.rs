@@ -6,7 +6,7 @@ use crate::dev::{
     Device,
 };
 use crate::mem::virt::DeviceMemoryIo;
-use crate::sync::IrqSafeNullLock;
+use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use error::Errno;
 use tock_registers::{
@@ -49,7 +49,7 @@ struct Pl031Inner {
 
 /// Device struct for PL031
 pub struct Pl031 {
-    inner: InitOnce<IrqSafeNullLock<Pl031Inner>>,
+    inner: InitOnce<IrqSafeSpinLock<Pl031Inner>>,
     base: usize,
     irq: IrqNumber,
 }
@@ -88,7 +88,7 @@ impl Device for Pl031 {
         inner.regs.MR.set(inner.regs.DR.get() + 1);
         inner.regs.CR.modify(CR::RTCStart::SET);
 
-        self.inner.init(IrqSafeNullLock::new(inner));
+        self.inner.init(IrqSafeSpinLock::new(inner));
 
         Ok(())
     }

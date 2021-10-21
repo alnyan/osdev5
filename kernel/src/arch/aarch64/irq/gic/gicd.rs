@@ -1,5 +1,5 @@
 use crate::mem::virt::DeviceMemoryIo;
-use crate::sync::IrqSafeNullLock;
+use crate::sync::IrqSafeSpinLock;
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::registers::{ReadOnly, ReadWrite};
 use tock_registers::{register_bitfields, register_structs};
@@ -63,7 +63,7 @@ impl GicdSharedRegs {
 }
 
 pub(super) struct Gicd {
-    shared_regs: IrqSafeNullLock<DeviceMemoryIo<GicdSharedRegs>>,
+    shared_regs: IrqSafeSpinLock<DeviceMemoryIo<GicdSharedRegs>>,
     banked_regs: DeviceMemoryIo<GicdBankedRegs>,
 }
 
@@ -73,7 +73,7 @@ impl Gicd {
         banked_mmio: DeviceMemoryIo<GicdBankedRegs>,
     ) -> Self {
         Self {
-            shared_regs: IrqSafeNullLock::new(shared_mmio),
+            shared_regs: IrqSafeSpinLock::new(shared_mmio),
             banked_regs: banked_mmio,
         }
     }

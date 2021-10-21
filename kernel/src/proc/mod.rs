@@ -1,7 +1,7 @@
 //! Process and thread manipulation facilities
 
 use crate::mem;
-use crate::sync::IrqSafeNullLock;
+use crate::sync::IrqSafeSpinLock;
 use alloc::{
     boxed::Box,
     collections::{BTreeMap},
@@ -42,8 +42,8 @@ pub fn switch() {
 }
 
 /// Global list of all processes in the system
-pub(self) static PROCESSES: IrqSafeNullLock<BTreeMap<Pid, ProcessRef>> =
-    IrqSafeNullLock::new(BTreeMap::new());
+pub(self) static PROCESSES: IrqSafeSpinLock<BTreeMap<Pid, ProcessRef>> =
+    IrqSafeSpinLock::new(BTreeMap::new());
 
 /// Sets up initial process and enters it.
 ///

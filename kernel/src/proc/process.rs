@@ -5,7 +5,7 @@ use crate::mem::{
     virt::{MapAttributes, Space},
 };
 use crate::proc::{PROCESSES, SCHED};
-use crate::sync::IrqSafeNullLock;
+use crate::sync::IrqSafeSpinLock;
 use alloc::rc::Rc;
 use core::cell::UnsafeCell;
 use core::fmt;
@@ -51,7 +51,7 @@ struct ProcessInner {
 #[allow(dead_code)]
 pub struct Process {
     ctx: UnsafeCell<Context>,
-    inner: IrqSafeNullLock<ProcessInner>,
+    inner: IrqSafeSpinLock<ProcessInner>,
 }
 
 impl From<i32> for ExitCode {
@@ -141,9 +141,6 @@ impl Process {
         proc.inner.lock().state = State::Running;
         let ctx = proc.ctx.get();
 
-        // I don't think this is bad: process can't be dropped fully unless
-        // it's been reaped (and this function won't run for such process)
-        drop(proc);
         (&mut *ctx).enter()
     }
 
@@ -171,10 +168,6 @@ impl Process {
         let src_ctx = src.ctx.get();
         let dst_ctx = dst.ctx.get();
 
-        // See "drop" note in Process::enter()
-        drop(src);
-        drop(dst);
-
         (&mut *src_ctx).switch(&mut *dst_ctx);
     }
 
@@ -188,7 +181,7 @@ impl Process {
         let id = Pid::new_kernel();
         let res = Rc::new(Self {
             ctx: UnsafeCell::new(Context::kernel(entry as usize, arg)),
-            inner: IrqSafeNullLock::new(ProcessInner {
+            inner: IrqSafeSpinLock::new(ProcessInner {
                 id,
                 exit: None,
                 space: None,
@@ -238,7 +231,6 @@ impl Process {
                 debugln!("r = {}", Rc::strong_count(&proc));
                 return Ok(r);
             } else {
-                drop(proc);
                 cortex_a::asm::wfi();
             }
         }
@@ -312,7 +304,6 @@ impl Process {
 
             drop(lock);
 
-            drop(proc);
             (*ctx).enter();
         }
     }

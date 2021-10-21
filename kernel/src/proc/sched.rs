@@ -1,7 +1,7 @@
 //!
 use crate::proc::{Pid, Process, ProcessRef, PROCESSES};
 use crate::util::InitOnce;
-use crate::sync::IrqSafeNullLock;
+use crate::sync::IrqSafeSpinLock;
 use alloc::{rc::Rc, collections::VecDeque};
 
 struct SchedulerInner {
@@ -12,7 +12,7 @@ struct SchedulerInner {
 
 /// Process scheduler state and queues
 pub struct Scheduler {
-    inner: InitOnce<IrqSafeNullLock<SchedulerInner>>,
+    inner: InitOnce<IrqSafeSpinLock<SchedulerInner>>,
 }
 
 impl SchedulerInner {
@@ -35,7 +35,7 @@ impl Scheduler {
     /// * idle thread
     /// * process list/queue data structs
     pub fn init(&self) {
-        self.inner.init(IrqSafeNullLock::new(SchedulerInner::new()));
+        self.inner.init(IrqSafeSpinLock::new(SchedulerInner::new()));
     }
 
     /// Schedules a thread for execution
