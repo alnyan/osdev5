@@ -34,6 +34,7 @@ QEMU_OPTS+=-kernel $(O)/kernel.bin \
 		   -m 512 \
 		   -serial chardev:serial1 \
 		   -device qemu-xhci \
+		   -display none \
 		   -net none
 endif
 ifeq ($(MACH),rpi3)
