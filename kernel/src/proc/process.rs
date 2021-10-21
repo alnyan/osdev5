@@ -125,6 +125,11 @@ impl Process {
     const USTACK_VIRT_TOP: usize = 0x100000000;
     const USTACK_PAGES: usize = 4;
 
+    /// Returns currently executing process
+    pub fn current() -> ProcessRef {
+        SCHED.current_process()
+    }
+
     /// Schedules an initial thread for execution
     ///
     /// # Safety
@@ -190,6 +195,7 @@ impl Process {
                 state: State::Ready,
             }),
         });
+        debugln!("New kernel process: {}", id);
         assert!(PROCESSES.lock().insert(id, res.clone()).is_none());
         Ok(res)
     }
@@ -263,10 +269,7 @@ impl Process {
                 old_pid,
                 lock.id
             );
-            assert!(
-                proc_lock.insert(lock.id, proc.clone()).is_none(),
-                "Failed to downgrade kernel process (add user pid)"
-            );
+            assert!(proc_lock.insert(lock.id, proc.clone()).is_none());
             unsafe {
                 SCHED.hack_current_pid(lock.id);
             }

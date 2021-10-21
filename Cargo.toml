@@ -10,6 +10,7 @@ edition = "2018"
 [workspace]
 members = [
     "kernel",
+    "libusr",
     "init",
     "error"
 ]

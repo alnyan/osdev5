@@ -66,7 +66,7 @@ impl Scheduler {
             PROCESSES.lock().get(&id).unwrap().clone()
         };
 
-        asm!("msr daifclr, #2");
+        asm!("msr daifset, #2");
         Process::enter(thread)
     }
 
@@ -103,7 +103,7 @@ impl Scheduler {
                 let lock = PROCESSES.lock();
                 (
                     lock.get(&current).unwrap().clone(),
-                    lock.get(&next).unwrap().clone(),
+                    lock.get(&next).unwrap().clone()
                 )
             };
 
@@ -112,7 +112,7 @@ impl Scheduler {
 
         if !Rc::ptr_eq(&from, &to) {
             unsafe {
-                asm!("msr daifclr, #2");
+                asm!("msr daifset, #2");
                 Process::switch(from, to, discard);
             }
         }

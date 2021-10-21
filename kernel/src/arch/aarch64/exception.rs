@@ -3,6 +3,7 @@
 use crate::arch::machine;
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
+use crate::syscall;
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
 use tock_registers::interfaces::Readable;
 
@@ -18,7 +19,7 @@ pub const EC_SVC_AA64: u64 = 0b010101;
 #[derive(Debug)]
 #[repr(C)]
 struct ExceptionFrame {
-    x: [u64; 32],
+    x: [usize; 32],
     spsr_el1: u64,
     elr_el1: u64,
     sp_el0: u64,
@@ -81,8 +82,12 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
             dump_data_abort(Level::Error, esr, far);
         }
         EC_SVC_AA64 => {
-            infoln!("{:#x} {:#x}", exc.x[0], exc.x[1]);
-            exc.x[0] += 1;
+            unsafe {
+                match syscall::syscall(exc.x[8], &exc.x[..6]) {
+                    Ok(val) => exc.x[0] = val,
+                    Err(_) => exc.x[0] = usize::MAX,
+                }
+            }
             return;
         }
         _ => {}

@@ -58,7 +58,7 @@ all: kernel
 
 kernel:
 	cd kernel && cargo build $(CARGO_BUILD_OPTS)
-	cd init && cargo build --target=../etc/$(ARCH)-osdev5.json -Z build-std=core
+	cd init && cargo build --target=../etc/$(ARCH)-osdev5.json -Z build-std=core,alloc,compiler_builtins
 	cp target/$(ARCH)-osdev5/debug/init $(O)/initrd.img
 ifeq ($(ARCH),aarch64)
 	$(LLVM_BASE)/llvm-strip -o $(O)/kernel.strip $(O)/kernel

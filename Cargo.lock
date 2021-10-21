@@ -64,6 +64,9 @@ dependencies = [
 [[package]]
 name = "init"
 version = "0.1.0"
+dependencies = [
+ "libusr",
+]
 
 [[package]]
 name = "kernel"
@@ -76,6 +79,10 @@ dependencies = [
  "fdt-rs",
  "tock-registers",
 ]
+
+[[package]]
+name = "libusr"
+version = "0.1.0"
 
 [[package]]
 name = "memoffset"

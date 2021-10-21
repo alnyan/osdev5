@@ -31,6 +31,8 @@ pub mod mem;
 pub mod proc;
 pub mod sync;
 pub mod util;
+#[allow(missing_docs)]
+pub mod syscall;
 
 #[panic_handler]
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {
