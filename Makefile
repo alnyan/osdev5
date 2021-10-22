@@ -66,7 +66,7 @@ endif
 all: kernel initrd
 
 kernel:
-	cd kernel && cargo build $(CARGO_BUILD_OPTS)
+	cd kernel && ARCH=$(ARCH) MACH=$(MACH) cargo build $(CARGO_BUILD_OPTS)
 ifeq ($(ARCH),aarch64)
 	$(LLVM_BASE)/llvm-strip -o $(O)/kernel.strip $(O)/kernel
 	$(LLVM_BASE)/llvm-size $(O)/kernel.strip
