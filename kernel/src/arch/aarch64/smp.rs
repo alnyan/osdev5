@@ -1,7 +1,10 @@
 #![allow(missing_docs)]
 
-use crate::dev::fdt::{self, DeviceTree};
-use crate::arch::aarch64::cpu;
+use crate::arch::{aarch64::cpu, machine};
+use crate::dev::{
+    fdt::{self, DeviceTree},
+    irq::IpiSender,
+};
 use crate::mem::{
     self,
     phys::{self, PageUsage},
@@ -10,6 +13,8 @@ use cortex_a::registers::MPIDR_EL1;
 use error::Errno;
 use fdt_rs::prelude::*;
 use tock_registers::interfaces::Readable;
+
+pub type NodeAddress = u32;
 
 #[derive(Clone, Copy, Debug)]
 pub enum PsciError {
@@ -22,29 +27,6 @@ pub enum PsciError {
     NotPresent,
     Disabled,
     InvalidAddress,
-}
-
-const SECONDARY_STACK_PAGES: usize = 4;
-
-unsafe fn call_smc(mut x0: usize, x1: usize, x2: usize, x3: usize) -> usize {
-    asm!("smc #0", inout("x0") x0, in("x1") x1, in("x2") x2, in("x3") x3);
-    x0
-}
-
-fn wrap_psci_ok(a: usize) -> Result<(), PsciError> {
-    const NOT_SUPPORTED: isize = -1;
-    const INVALID_PARAMETERS: isize = -2;
-    const DENIED: isize = -3;
-    const ALREADY_ON: isize = -4;
-
-    match a as isize {
-        0 => Ok(()),
-        NOT_SUPPORTED => Err(PsciError::NotSupported),
-        INVALID_PARAMETERS => Err(PsciError::InvalidParameters),
-        DENIED => Err(PsciError::Denied),
-        ALREADY_ON => Err(PsciError::AlreadyOn),
-        _ => unimplemented!(),
-    }
 }
 
 struct Psci {
@@ -80,6 +62,33 @@ impl Psci {
             entry_point_address,
             context_id,
         ))
+    }
+}
+
+const SECONDARY_STACK_PAGES: usize = 4;
+
+unsafe fn call_smc(mut x0: usize, x1: usize, x2: usize, x3: usize) -> usize {
+    asm!("smc #0", inout("x0") x0, in("x1") x1, in("x2") x2, in("x3") x3);
+    x0
+}
+
+pub unsafe fn send_ipi(exclude_self: bool, target_mask: u32, data: u64) {
+    machine::ipi_sender().send_to_mask(exclude_self, target_mask, data);
+}
+
+fn wrap_psci_ok(a: usize) -> Result<(), PsciError> {
+    const NOT_SUPPORTED: isize = -1;
+    const INVALID_PARAMETERS: isize = -2;
+    const DENIED: isize = -3;
+    const ALREADY_ON: isize = -4;
+
+    match a as isize {
+        0 => Ok(()),
+        NOT_SUPPORTED => Err(PsciError::NotSupported),
+        INVALID_PARAMETERS => Err(PsciError::InvalidParameters),
+        DENIED => Err(PsciError::Denied),
+        ALREADY_ON => Err(PsciError::AlreadyOn),
+        _ => unimplemented!(),
     }
 }
 

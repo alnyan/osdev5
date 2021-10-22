@@ -1,7 +1,7 @@
 //! ARM Generic Interrupt Controller
 
 use crate::dev::{
-    irq::{IntController, IntSource, IrqContext},
+    irq::{IntController, IntSource, IrqContext, IpiSender},
     Device,
 };
 use crate::mem::virt::{DeviceMemory, DeviceMemoryIo};
@@ -16,6 +16,8 @@ use gicd::Gicd;
 
 /// Maximum available IRQ number
 pub const MAX_IRQ: usize = 300;
+
+const SGI_IRQ: u32 = 2;
 
 /// Range-checked IRQ number type
 #[repr(transparent)]
@@ -87,6 +89,12 @@ impl IntController for Gic {
             return;
         }
 
+        if irq_number == 1 {
+            gicc.clear_irq(irq_number as u32, ic);
+            debugln!("Received IPI");
+            loop {}
+        }
+
         if self.scheduler_irq.0 == irq_number {
             use crate::proc::sched;
             use cortex_a::registers::{CNTP_TVAL_EL0, CNTP_CTL_EL0};
@@ -129,6 +137,12 @@ impl IntController for Gic {
         table[irq] = Some(handler);
 
         Ok(())
+    }
+}
+
+impl IpiSender for Gic {
+    fn send_to_mask(&self, exclude_self: bool, target: u32, data: u64) {
+        self.gicd.get().set_sgir(exclude_self, target, 1);
     }
 }
 

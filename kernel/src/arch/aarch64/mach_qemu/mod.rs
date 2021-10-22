@@ -76,6 +76,12 @@ pub fn intc() -> &'static Gic {
     &GIC
 }
 
+/// Returns CPU's IPI sender device
+#[inline]
+pub fn ipi_sender() -> &'static Gic {
+    &GIC
+}
+
 static UART0: Pl011 = unsafe { Pl011::new(UART0_BASE, UART0_IRQ) };
 static RTC: Pl031 = unsafe { Pl031::new(RTC_BASE, RTC_IRQ) };
 static GIC: Gic = unsafe { Gic::new(GICD_BASE, GICC_BASE, LOCAL_TIMER_IRQ) };

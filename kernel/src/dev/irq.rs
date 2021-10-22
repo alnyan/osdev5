@@ -1,4 +1,5 @@
 //! Interrupt controller and handler interfaces
+use crate::arch::platform::smp::NodeAddress;
 use crate::dev::Device;
 use core::marker::PhantomData;
 use error::Errno;
@@ -25,6 +26,12 @@ pub trait IntController: Device {
 
     /// Handles all pending IRQs for this interrupt controller
     fn handle_pending_irqs<'irq_context>(&'irq_context self, ic: &IrqContext<'irq_context>);
+}
+
+/// Inter-processor interrupt delivery method
+pub trait IpiSender: Device {
+    /// Raise an IPI for the target CPU mask, optionally excluding source CPU
+    fn send_to_mask(&self, except_self: bool, target: u32, data: u64);
 }
 
 /// Interface for peripherals capable of emitting IRQs

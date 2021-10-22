@@ -13,7 +13,7 @@
     alloc_error_handler,
     linked_list_cursors,
     const_btree_new,
-    maybe_uninit_uninit_array,
+    maybe_uninit_uninit_array
 )]
 #![no_std]
 #![no_main]
@@ -43,9 +43,19 @@ pub mod util;
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {
     unsafe {
         asm!("msr daifset, #2");
+        use crate::arch::platform::cpu::{self, Cpu};
+
+        crate::arch::platform::smp::send_ipi(true, (1 << cpu::count()) - 1, 0);
     }
 
-    errorln!("Panic: {:?}", pi);
+    use cortex_a::registers::MPIDR_EL1;
+    use tock_registers::interfaces::Readable;
+
+    errorln!("Panic on node{}: {:?}", MPIDR_EL1.get() & 0xF, pi);
     // TODO
-    loop {}
+    loop {
+        unsafe {
+            asm!("wfe");
+        }
+    }
 }

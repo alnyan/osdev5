@@ -1,7 +1,7 @@
 use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeSpinLock;
 use tock_registers::interfaces::{Readable, Writeable};
-use tock_registers::registers::{ReadOnly, ReadWrite};
+use tock_registers::registers::{ReadOnly, WriteOnly, ReadWrite};
 use tock_registers::{register_bitfields, register_structs};
 
 register_bitfields! {
@@ -31,7 +31,9 @@ register_structs! {
         (0x820 => ITARGETSR: [ReadWrite<u32, ITARGETSR::Register>; 248]),
         (0xC00 => _res2),
         (0xC08 => ICFGR: [ReadWrite<u32>; 62]),
-        (0xC0C => @END),
+        (0xD00 => _res3),
+        (0xF00 => SGIR: WriteOnly<u32>),
+        (0xF04 => @END),
     }
 }
 
@@ -101,6 +103,14 @@ impl Gicd {
                 reg.set(reg.get() | bit);
             }
         }
+    }
+
+    pub fn set_sgir(&self, filter: bool, mask: u32, intid: u32) {
+        let mut value = (mask << 16) | intid;
+        if filter {
+            value |= 1 << 24;
+        }
+        self.shared_regs.lock().SGIR.set(value);
     }
 
     pub fn enable_irq(&self, irq: super::IrqNumber) {

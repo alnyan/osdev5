@@ -1,7 +1,5 @@
 //! Synchronization facilities module
 
-#![allow(missing_docs)]
-
 use crate::arch::platform::{irq_mask_save, irq_restore};
 use core::cell::UnsafeCell;
 use core::fmt;
@@ -39,15 +37,15 @@ impl<T> IrqSafeSpinLock<T> {
         let irq_state = unsafe { irq_mask_save() };
         let id = MPIDR_EL1.get() & 0xF;
 
-       while let Err(e) = self.state.compare_exchange_weak(
-           usize::MAX,
-           id as usize,
-           Ordering::Acquire,
-           Ordering::Relaxed,
-       ) {
-           if e == id as usize {
-               break;
-           }
+        while let Err(e) = self.state.compare_exchange_weak(
+            usize::MAX,
+            id as usize,
+            Ordering::Acquire,
+            Ordering::Relaxed,
+        ) {
+            // if e == id as usize {
+            //     break;
+            // }
             cortex_a::asm::wfe();
         }
 
