@@ -1,6 +1,7 @@
+use crate::{File, FileMode, Filesystem};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{RefCell, RefMut};
-use crate::{Filesystem, FileMode};
+use core::fmt;
 use error::Errno;
 
 pub type VnodeRef = Rc<Vnode>;
@@ -40,6 +41,12 @@ pub struct Vnode {
 pub trait VnodeImpl {
     fn create(&mut self, at: VnodeRef, node: VnodeRef) -> Result<(), Errno>;
     fn remove(&mut self, at: VnodeRef, name: &str) -> Result<(), Errno>;
+
+    fn open(&mut self, node: VnodeRef /* TODO open mode */) -> Result<usize, Errno>;
+    fn close(&mut self, node: VnodeRef) -> Result<(), Errno>;
+
+    fn read(&mut self, node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno>;
+    fn write(&mut self, node: VnodeRef, pos: usize, data: &[u8]) -> Result<usize, Errno>;
 }
 
 impl Vnode {
@@ -66,9 +73,13 @@ impl Vnode {
         self.data.borrow_mut()
     }
 
+    pub fn is_directory(&self) -> bool {
+        self.kind == VnodeKind::Directory
+    }
+
     // Tree operations
 
-    fn attach(self: &VnodeRef, child: VnodeRef) {
+    pub fn attach(self: &VnodeRef, child: VnodeRef) {
         let parent_clone = self.clone();
         let mut parent_borrow = self.tree.borrow_mut();
         assert!(child
@@ -110,6 +121,10 @@ impl Vnode {
             return Err(Errno::NotADirectory);
         }
 
+        if self.lookup(name).is_some() {
+            return Err(Errno::AlreadyExists);
+        }
+
         if let Some(ref mut data) = *self.data.borrow_mut() {
             let vnode = data.fs.clone().create_node(name, VnodeKind::Directory)?;
 
@@ -148,6 +163,37 @@ impl Vnode {
             Err(Errno::NotImplemented)
         }
     }
+
+    pub fn open(self: &VnodeRef) -> Result<File, Errno> {
+        if self.kind != VnodeKind::Regular {
+            return Err(Errno::IsADirectory);
+        }
+
+        if let Some(ref mut data) = *self.data.borrow_mut() {
+            let pos = data.node.open(self.clone())?;
+            Ok(File::normal(self.clone(), pos))
+        } else {
+            Err(Errno::NotImplemented)
+        }
+    }
+
+    pub fn read(self: &VnodeRef, pos: usize, buf: &mut [u8]) -> Result<usize, Errno> {
+        if self.kind != VnodeKind::Regular {
+            return Err(Errno::IsADirectory);
+        }
+
+        if let Some(ref mut data) = *self.data.borrow_mut() {
+            data.node.read(self.clone(), pos, buf)
+        } else {
+            Err(Errno::NotImplemented)
+        }
+    }
+}
+
+impl fmt::Debug for Vnode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Vnode({:?})", self.name)
+    }
 }
 
 #[cfg(test)]
@@ -164,6 +210,22 @@ mod tests {
         }
 
         fn remove(&mut self, _at: VnodeRef, _name: &str) -> Result<(), Errno> {
+            Err(Errno::NotImplemented)
+        }
+
+        fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
+            Err(Errno::NotImplemented)
+        }
+
+        fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
+            Err(Errno::NotImplemented)
+        }
+
+        fn read(&mut self, _node: VnodeRef, _pos: usize, _data: &mut [u8]) -> Result<usize, Errno> {
+            Err(Errno::NotImplemented)
+        }
+
+        fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
             Err(Errno::NotImplemented)
         }
     }
@@ -205,6 +267,11 @@ mod tests {
         });
 
         let node = root.mkdir("test", FileMode::default_dir()).unwrap();
+
+        assert_eq!(
+            root.mkdir("test", FileMode::default_dir()).unwrap_err(),
+            Errno::AlreadyExists
+        );
 
         assert_eq!(node.props.borrow().mode, FileMode::default_dir());
         assert!(Rc::ptr_eq(&node, &root.lookup("test").unwrap()));

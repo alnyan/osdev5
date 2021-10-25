@@ -5,6 +5,7 @@ pub enum Errno {
     InvalidArgument,
     DoesNotExist,
     NotADirectory,
+    IsADirectory,
     OutOfMemory,
     WouldBlock,
     AlreadyExists,
