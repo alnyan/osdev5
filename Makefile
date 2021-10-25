@@ -60,7 +60,8 @@ all: kernel
 kernel:
 	cd kernel && cargo build $(CARGO_BUILD_OPTS)
 	cd init && cargo build --target=../etc/$(ARCH)-osdev5.json -Z build-std=core,alloc,compiler_builtins
-	cp target/$(ARCH)-osdev5/debug/init $(O)/initrd.img
+	echo "This is a test file" >$(O)/test.txt
+	cd $(O) && tar cf initrd.img test.txt
 ifeq ($(ARCH),aarch64)
 	$(LLVM_BASE)/llvm-strip -o $(O)/kernel.strip $(O)/kernel
 	$(LLVM_BASE)/llvm-size $(O)/kernel.strip
@@ -78,6 +79,10 @@ ifeq ($(MACH),orangepi3)
 		-d $(O)/kernel.bin \
 		$(O)/uImage
 endif
+
+test:
+	cd fs/vfs && cargo test
+	cd fs/memfs && cargo test
 
 clean:
 	cargo clean

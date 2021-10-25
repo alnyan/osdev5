@@ -102,6 +102,10 @@ mod tests {
         fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
             Err(Errno::NotImplemented)
         }
+
+        fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
+            Err(Errno::NotImplemented)
+        }
     }
 
     impl Filesystem for DummyFs {

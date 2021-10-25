@@ -45,6 +45,7 @@ pub trait VnodeImpl {
     fn open(&mut self, node: VnodeRef /* TODO open mode */) -> Result<usize, Errno>;
     fn close(&mut self, node: VnodeRef) -> Result<(), Errno>;
 
+    fn truncate(&mut self, node: VnodeRef, size: usize) -> Result<(), Errno>;
     fn read(&mut self, node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno>;
     fn write(&mut self, node: VnodeRef, pos: usize, data: &[u8]) -> Result<usize, Errno>;
 }
@@ -75,6 +76,11 @@ impl Vnode {
 
     pub fn is_directory(&self) -> bool {
         self.kind == VnodeKind::Directory
+    }
+
+    #[inline(always)]
+    pub const fn kind(&self) -> VnodeKind {
+        self.kind
     }
 
     // Tree operations
@@ -188,6 +194,30 @@ impl Vnode {
             Err(Errno::NotImplemented)
         }
     }
+
+    pub fn write(self: &VnodeRef, pos: usize, buf: &[u8]) -> Result<usize, Errno> {
+        if self.kind != VnodeKind::Regular {
+            return Err(Errno::IsADirectory);
+        }
+
+        if let Some(ref mut data) = *self.data.borrow_mut() {
+            data.node.write(self.clone(), pos, buf)
+        } else {
+            Err(Errno::NotImplemented)
+        }
+    }
+
+    pub fn truncate(self: &VnodeRef, size: usize) -> Result<(), Errno> {
+        if self.kind != VnodeKind::Regular {
+            return Err(Errno::IsADirectory);
+        }
+
+        if let Some(ref mut data) = *self.data.borrow_mut() {
+            data.node.truncate(self.clone(), size)
+        } else {
+            Err(Errno::NotImplemented)
+        }
+    }
 }
 
 impl fmt::Debug for Vnode {
@@ -226,6 +256,10 @@ mod tests {
         }
 
         fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
+            Err(Errno::NotImplemented)
+        }
+
+        fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
             Err(Errno::NotImplemented)
         }
     }

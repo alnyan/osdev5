@@ -10,7 +10,7 @@
     const_panic,
     panic_info_message,
     alloc_error_handler,
-    const_btree_new,
+    const_btree_new
 )]
 #![no_std]
 #![no_main]
@@ -27,12 +27,13 @@ pub mod debug;
 
 pub mod arch;
 pub mod dev;
+pub mod fs;
 pub mod mem;
 pub mod proc;
 pub mod sync;
-pub mod util;
 #[allow(missing_docs)]
 pub mod syscall;
+pub mod util;
 
 #[panic_handler]
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {

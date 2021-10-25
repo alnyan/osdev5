@@ -57,15 +57,31 @@ pub unsafe fn enter(initrd: Option<(usize, usize)>) -> ! {
     if let Some((start, end)) = initrd {
         let initrd = Box::into_raw(Box::new((mem::virtualize(start), mem::virtualize(end))));
 
-        for _ in 0..4 {
-            spawn!(fn (initrd_ptr: usize) {
-                debugln!("Running kernel init process");
+        spawn!(fn (initrd_ptr: usize) {
+            use memfs::Ramfs;
+            use vfs::{Filesystem, Ioctx};
+            use crate::fs::MemfsBlockAlloc;
+            debugln!("Running kernel init process");
 
-                let (start, _end) = unsafe { *(initrd_ptr as *const (usize, usize)) };
-                Process::execve(|space| elf::load_elf(space, start as *const u8), 0).unwrap();
-                panic!("This code should not run");
-            }, initrd as usize);
-        }
+            let (start, end) = unsafe { *(initrd_ptr as *const (usize, usize)) };
+            let size = end - start;
+
+            let fs = Ramfs::open(start as *mut u8, size, MemfsBlockAlloc {}).unwrap();
+            let root = fs.root().unwrap();
+            let ioctx = Ioctx::new(root);
+
+            // Open a test file
+            let node = ioctx.find(None, "/test.txt").unwrap();
+            let mut file = node.open().unwrap();
+            let mut buf = [0u8; 16];
+
+            while let Ok(count) = file.read(&mut buf) {
+                if count == 0 {
+                    break;
+                }
+                debugln!("Read {} bytes: {:?}", count, &buf[0..count]);
+            }
+        }, initrd as usize);
     }
     SCHED.enter();
 }
