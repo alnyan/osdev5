@@ -5,7 +5,9 @@ use crate::mem::{
     phys::{self, PageUsage},
     virt::{MapAttributes, Space},
 };
+use core::mem::{size_of, MaybeUninit};
 use error::Errno;
+use libcommon::{Read, Seek, SeekDir};
 
 trait Elf {
     type Addr;
@@ -86,12 +88,12 @@ fn map_flags(elf_flags: usize) -> MapAttributes {
 unsafe fn load_bytes<F>(
     space: &mut Space,
     dst_virt: usize,
-    read: F,
+    mut read: F,
     size: usize,
     flags: usize,
 ) -> Result<(), Errno>
 where
-    F: Fn(usize, &mut [u8]) -> Result<(), Errno>,
+    F: FnMut(usize, &mut [u8]) -> Result<(), Errno>,
 {
     let dst_page_off = dst_virt & 0xFFF;
     let dst_page = dst_virt & !0xFFF;
@@ -125,17 +127,32 @@ where
     Ok(())
 }
 
+unsafe fn read_struct<T, F: Seek + Read>(src: &mut F, pos: usize) -> Result<T, Errno> {
+    let mut storage: MaybeUninit<T> = MaybeUninit::uninit();
+    let size = size_of::<T>();
+    src.seek(pos as isize, SeekDir::Set)?;
+    let res = src.read(core::slice::from_raw_parts_mut(
+        storage.as_mut_ptr() as *mut u8,
+        size,
+    ))?;
+    if res != size {
+        Err(Errno::InvalidArgument)
+    } else {
+        Ok(storage.assume_init())
+    }
+}
+
 ///
-pub fn load_elf(space: &mut Space, elf_base: *const u8) -> Result<usize, Errno> {
-    let ehdr: &Ehdr<Elf64> = unsafe { &*(elf_base as *const _) };
+pub fn load_elf<F: Seek + Read>(space: &mut Space, source: &mut F) -> Result<usize, Errno> {
+    let ehdr: Ehdr<Elf64> = unsafe { read_struct(source, 0).unwrap() };
 
     if &ehdr.ident[0..4] != b"\x7FELF" {
         return Err(Errno::InvalidArgument);
     }
 
     for i in 0..(ehdr.phnum as usize) {
-        let phdr: &Phdr<Elf64> = unsafe {
-            &*(elf_base.add(ehdr.phoff as usize + ehdr.phentsize as usize * i) as *const _)
+        let phdr: Phdr<Elf64> = unsafe {
+            read_struct(source, ehdr.phoff as usize + ehdr.phentsize as usize * i).unwrap()
         };
 
         if phdr.typ == 1
@@ -154,11 +171,12 @@ pub fn load_elf(space: &mut Space, elf_base: *const u8) -> Result<usize, Errno> 
                         space,
                         phdr.vaddr as usize,
                         |off, dst| {
-                            let src = elf_base.add(phdr.offset as usize + off);
-                            assert!(off + dst.len() <= phdr.filesz as usize);
-                            let src_slice = core::slice::from_raw_parts(src, dst.len());
-                            dst.copy_from_slice(src_slice);
-                            Ok(())
+                            source.seek(phdr.offset as isize + off as isize, SeekDir::Set)?;
+                            if source.read(dst)? == dst.len() {
+                                Ok(())
+                            } else {
+                                Err(Errno::InvalidArgument)
+                            }
                         },
                         phdr.filesz as usize,
                         phdr.flags as usize,

@@ -13,4 +13,3 @@ pub mod ioctx;
 pub use ioctx::Ioctx;
 pub mod file;
 pub use file::File;
-pub mod util;

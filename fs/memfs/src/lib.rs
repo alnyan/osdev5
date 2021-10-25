@@ -13,7 +13,9 @@ extern crate std;
 
 use alloc::{boxed::Box, rc::Rc};
 use core::cell::RefCell;
+use core::ffi::c_void;
 use error::Errno;
+use libcommon::path_component_left;
 use vfs::{node::VnodeData, Filesystem, Vnode, VnodeImpl, VnodeKind, VnodeRef};
 
 pub mod block;
@@ -34,6 +36,12 @@ pub struct FileInode<'a, A: BlockAllocator + Copy + 'static> {
 
 pub struct DirInode;
 
+struct SetupFileParam {
+    data: &'static [u8]
+}
+
+const FILE_SETUP_COW: u64 = 0x1001;
+
 impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
     fn create(&mut self, _parent: VnodeRef, _node: VnodeRef) -> Result<(), Errno> {
         panic!()
@@ -51,16 +59,34 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
         Ok(())
     }
 
-    fn read(&mut self, node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno> {
+    fn read(&mut self, _node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno> {
         self.data.read(pos, data)
     }
 
-    fn write(&mut self, node: VnodeRef, pos: usize, data: &[u8]) -> Result<usize, Errno> {
+    fn write(&mut self, _node: VnodeRef, pos: usize, data: &[u8]) -> Result<usize, Errno> {
         self.data.write(pos, data)
     }
 
     fn truncate(&mut self, _node: VnodeRef, size: usize) -> Result<(), Errno> {
         self.data.resize((size + 4095) / 4096)
+    }
+
+    fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
+        Ok(self.data.size())
+    }
+
+    fn ioctl(&mut self, node: VnodeRef, cmd: u64, value: *mut c_void) -> Result<isize, Errno> {
+        match cmd {
+            #[cfg(feature = "cow")]
+            FILE_SETUP_COW => {
+                let data = unsafe { (value as *mut SetupFileParam).as_ref().unwrap() };
+                unsafe {
+                    self.data.setup_cow(data.data.as_ptr(), data.data.len());
+                }
+                Ok(0)
+            },
+            _ => Err(Errno::InvalidArgument)
+        }
     }
 }
 
@@ -92,6 +118,14 @@ impl VnodeImpl for DirInode {
     fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
         todo!()
     }
+
+    fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
+        todo!()
+    }
+
+    fn ioctl(&mut self, node: VnodeRef, cmd: u64, value: *mut c_void) -> Result<isize, Errno> {
+        todo!()
+    }
 }
 
 impl<A: BlockAllocator + Copy + 'static> Filesystem for Ramfs<A> {
@@ -100,7 +134,7 @@ impl<A: BlockAllocator + Copy + 'static> Filesystem for Ramfs<A> {
     }
 
     fn create_node(self: Rc<Self>, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
-        let mut node = Vnode::new(name, kind);
+        let mut node = Vnode::new(name, kind, Vnode::SEEKABLE);
         let data: Box<dyn VnodeImpl> = match kind {
             VnodeKind::Regular => Box::new(FileInode {
                 data: Bvec::new(self.alloc),
@@ -134,7 +168,7 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
         kind: VnodeKind,
         do_create: bool,
     ) -> Result<VnodeRef, Errno> {
-        let (element, rest) = vfs::util::path_component_left(path);
+        let (element, rest) = path_component_left(path);
         assert!(!element.is_empty());
 
         let node_kind = if rest.is_empty() {
@@ -177,7 +211,6 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
         // 2. Setup data blocks
         for block in TarIterator::new(base, base.add(size)) {
             if block.is_file() {
-                let size = block.size();
                 let node = self.clone().make_path(
                     root.clone(),
                     block.path()?,
@@ -185,10 +218,20 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
                     false,
                 )?;
 
-                node.truncate(size).unwrap();
-                let res = node.write(0, block.data()).unwrap();
-                if res != size {
-                    panic!("Expected to write {}B, got {}B", size, res);
+                #[cfg(feature = "cow")]
+                {
+                    let mut param = SetupFileParam {
+                        data: block.data()
+                    };
+                    node.ioctl(FILE_SETUP_COW, &mut param as *mut _ as *mut _)?;
+                }
+                #[cfg(not(feature = "cow"))]
+                {
+                    let size = block.size();
+                    node.truncate(size)?;
+                    if node.write(0, block.data())? != size {
+                        return Err(Errno::InvalidArgument);
+                    }
                 }
             }
         }

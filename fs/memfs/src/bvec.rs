@@ -12,6 +12,8 @@ pub struct Bvec<'a, A: BlockAllocator + Copy> {
     l0: [MaybeUninit<BlockRef<'a, A>>; L0_BLOCKS],
     l1: [MaybeUninit<BlockRef<'a, A>>; L1_BLOCKS],
     l2: MaybeUninit<BlockRef<'a, A>>,
+    #[cfg(feature = "cow")]
+    cow_source: *const u8,
     alloc: A,
 }
 impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
@@ -23,6 +25,8 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
             l1: MaybeUninit::uninit_array(),
             l2: MaybeUninit::uninit(),
             alloc,
+            #[cfg(feature = "cow")]
+            cow_source: core::ptr::null_mut()
         };
         for it in res.l0.iter_mut() {
             it.write(BlockRef::null());
@@ -33,7 +37,31 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
         res.l2.write(BlockRef::null());
         res
     }
+
+    #[cfg(feature = "cow")]
+    pub unsafe fn setup_cow(&mut self, src: *const u8, size: usize) {
+        self.cow_source = src;
+        self.size = size;
+    }
+
+    pub const fn size(&self) -> usize {
+        self.size
+    }
+
+    #[cfg(feature = "cow")]
+    pub fn drop_cow(&mut self) {
+        assert!(!self.cow_source.is_null());
+        let src_slice = unsafe { core::slice::from_raw_parts(self.cow_source, self.size) };
+        self.cow_source = core::ptr::null_mut();
+
+        self.resize((self.size + 4095) / 4096).unwrap();
+        self.write(0, src_slice).unwrap();
+    }
+
     pub fn resize(&mut self, cap: usize) -> Result<(), Errno> {
+        #[cfg(feature = "cow")]
+        assert!(self.cow_source.is_null());
+
         if cap <= self.capacity {
             let mut curr = self.capacity;
             while curr != cap {
@@ -126,6 +154,12 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
         if pos > self.size {
             return Err(Errno::InvalidArgument);
         }
+
+        #[cfg(feature = "cow")]
+        if !self.cow_source.is_null() {
+            self.drop_cow();
+        }
+
         let mut rem = data.len();
         let mut doff = 0usize;
         if pos + rem > self.size {
@@ -150,7 +184,16 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
         if pos > self.size {
             return Err(Errno::InvalidArgument);
         }
+
         let mut rem = min(self.size - pos, data.len());
+
+        #[cfg(feature = "cow")]
+        if !self.cow_source.is_null() {
+            let cow_data = unsafe { core::slice::from_raw_parts(self.cow_source, self.size) };
+            data[..rem].copy_from_slice(&cow_data[pos..pos + rem]);
+            return Ok(rem);
+        }
+
         let mut doff = 0usize;
         while rem > 0 {
             let index = pos / block::SIZE;

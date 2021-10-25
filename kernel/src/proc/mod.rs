@@ -66,21 +66,17 @@ pub unsafe fn enter(initrd: Option<(usize, usize)>) -> ! {
             let (start, end) = unsafe { *(initrd_ptr as *const (usize, usize)) };
             let size = end - start;
 
+            infoln!("Constructing initrd filesystem in memory, this may take a while...");
             let fs = Ramfs::open(start as *mut u8, size, MemfsBlockAlloc {}).unwrap();
+            infoln!("Done constructing ramfs");
             let root = fs.root().unwrap();
             let ioctx = Ioctx::new(root);
 
             // Open a test file
-            let node = ioctx.find(None, "/test.txt").unwrap();
+            let node = ioctx.find(None, "/init").unwrap();
             let mut file = node.open().unwrap();
-            let mut buf = [0u8; 16];
 
-            while let Ok(count) = file.read(&mut buf) {
-                if count == 0 {
-                    break;
-                }
-                debugln!("Read {} bytes: {:?}", count, &buf[0..count]);
-            }
+            Process::execve(|space| elf::load_elf(space, &mut file), 0).unwrap();
         }, initrd as usize);
     }
     SCHED.enter();

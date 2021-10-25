@@ -108,6 +108,7 @@ dependencies = [
  "cortex-a",
  "error",
  "fdt-rs",
+ "libcommon",
  "memfs",
  "tock-registers",
  "vfs",
@@ -120,6 +121,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b2f96d100e1cf1929e7719b7edb3b90ab5298072638fccd77be9ce942ecdfce"
 
 [[package]]
+name = "libcommon"
+version = "0.1.0"
+dependencies = [
+ "error",
+]
+
+[[package]]
 name = "libusr"
 version = "0.1.0"
 
@@ -128,6 +136,7 @@ name = "memfs"
 version = "0.1.0"
 dependencies = [
  "error",
+ "libcommon",
  "vfs",
 ]
 
@@ -259,6 +268,7 @@ version = "0.1.0"
 dependencies = [
  "error",
  "hashbrown",
+ "libcommon",
 ]
 
 [[package]]

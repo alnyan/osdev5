@@ -1,11 +1,11 @@
 use crate::debug::Level;
-use crate::util;
 use error::Errno;
 use fdt_rs::prelude::*;
 use fdt_rs::{
     base::DevTree,
     index::{DevTreeIndex, DevTreeIndexNode, DevTreeIndexProp},
 };
+use libcommon::path_component_left;
 
 #[repr(align(16))]
 struct Wrap {
@@ -74,7 +74,7 @@ fn dump_node(level: Level, node: &INode, depth: usize) {
 }
 
 fn find_node<'a>(at: INode<'a>, path: &str) -> Option<INode<'a>> {
-    let (item, path) = util::path_component_left(path);
+    let (item, path) = path_component_left(path);
     if item == "" {
         assert_eq!(path, "");
         Some(at)

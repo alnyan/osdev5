@@ -51,12 +51,3 @@ impl<T> InitOnce<T> {
 }
 
 unsafe impl<T> Sync for InitOnce<T> {}
-
-///
-pub fn path_component_left(path: &str) -> (&str, &str) {
-    if let Some((left, right)) = path.split_once('/') {
-        (left, right.trim_start_matches('/'))
-    } else {
-        (path, "")
-    }
-}

@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 error = { path = "../../error" }
+libcommon = { path = "../../libcommon" }
 hashbrown = "0.11.*"

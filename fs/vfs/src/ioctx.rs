@@ -1,5 +1,6 @@
-use crate::{util, FileMode, VnodeRef};
+use crate::{FileMode, VnodeRef};
 use error::Errno;
+use libcommon::{path_component_left, path_component_right};
 
 pub struct Ioctx {
     root: VnodeRef,
@@ -19,7 +20,7 @@ impl Ioctx {
         let mut rest = path;
 
         loop {
-            (element, rest) = util::path_component_left(rest);
+            (element, rest) = path_component_left(rest);
 
             if !at.is_directory() {
                 return Err(Errno::NotADirectory);
@@ -62,7 +63,7 @@ impl Ioctx {
     }
 
     pub fn mkdir(&self, at: Option<VnodeRef>, path: &str, mode: FileMode) -> Result<(), Errno> {
-        let (parent, name) = util::path_component_right(path);
+        let (parent, name) = path_component_right(path);
         let parent_node = self.find(at, parent)?;
 
         parent_node.mkdir(name, mode).map(|_| ())

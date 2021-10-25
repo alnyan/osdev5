@@ -1,6 +1,7 @@
 use crate::{File, FileMode, Filesystem};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{RefCell, RefMut};
+use core::ffi::c_void;
 use core::fmt;
 use error::Errno;
 
@@ -34,6 +35,7 @@ pub struct Vnode {
     props: RefCell<VnodeProps>,
 
     kind: VnodeKind,
+    flags: u32,
 
     pub data: RefCell<Option<VnodeData>>,
 }
@@ -48,13 +50,19 @@ pub trait VnodeImpl {
     fn truncate(&mut self, node: VnodeRef, size: usize) -> Result<(), Errno>;
     fn read(&mut self, node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno>;
     fn write(&mut self, node: VnodeRef, pos: usize, data: &[u8]) -> Result<usize, Errno>;
+
+    fn size(&mut self, node: VnodeRef) -> Result<usize, Errno>;
+    fn ioctl(&mut self, node: VnodeRef, cmd: u64, value: *mut c_void) -> Result<isize, Errno>;
 }
 
 impl Vnode {
-    pub fn new(name: &str, kind: VnodeKind) -> VnodeRef {
+    pub const SEEKABLE: u32 = 1 << 0;
+
+    pub fn new(name: &str, kind: VnodeKind, flags: u32) -> VnodeRef {
         Rc::new(Self {
             name: name.to_owned(),
             kind,
+            flags,
             props: RefCell::new(VnodeProps {
                 mode: FileMode::empty(),
             }),
@@ -76,6 +84,10 @@ impl Vnode {
 
     pub fn is_directory(&self) -> bool {
         self.kind == VnodeKind::Directory
+    }
+
+    pub fn is_seekable(&self) -> bool {
+        self.flags & Self::SEEKABLE != 0
     }
 
     #[inline(always)]
@@ -218,6 +230,22 @@ impl Vnode {
             Err(Errno::NotImplemented)
         }
     }
+
+    pub fn size(self: &VnodeRef) -> Result<usize, Errno> {
+        if let Some(ref mut data) = *self.data.borrow_mut() {
+            data.node.size(self.clone())
+        } else {
+            Err(Errno::NotImplemented)
+        }
+    }
+
+    pub fn ioctl(self: &VnodeRef, cmd: u64, value: *mut c_void) -> Result<isize, Errno> {
+        if let Some(ref mut data) = *self.data.borrow_mut() {
+            data.node.ioctl(self.clone(), cmd, value)
+        } else {
+            Err(Errno::NotImplemented)
+        }
+    }
 }
 
 impl fmt::Debug for Vnode {
@@ -260,6 +288,24 @@ mod tests {
         }
 
         fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
+            Err(Errno::NotImplemented)
+        }
+
+        fn ioctl(
+            &mut self,
+            _node: VnodeRef,
+            _cmd: u64,
+            _value: *mut c_void,
+        ) -> Result<isize, Errno> {
+            Err(Errno::NotImplemented)
+        }
+
+        fn seek(
+            &mut self,
+            _node: VnodeRef,
+            _pos: usize,
+            _whence: SeekWhence,
+        ) -> Result<usize, Errno> {
             Err(Errno::NotImplemented)
         }
     }

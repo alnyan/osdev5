@@ -1,7 +1,9 @@
 use crate::VnodeRef;
 use alloc::rc::Rc;
 use core::cell::RefCell;
+use core::cmp::min;
 use error::Errno;
+use libcommon::{Read, Seek, SeekDir, Write};
 
 struct NormalFile {
     vnode: VnodeRef,
@@ -16,14 +18,8 @@ pub struct File {
     inner: FileInner,
 }
 
-impl File {
-    pub fn normal(vnode: VnodeRef, pos: usize) -> Self {
-        Self {
-            inner: FileInner::Normal(NormalFile { vnode, pos }),
-        }
-    }
-
-    pub fn read(&mut self, data: &mut [u8]) -> Result<usize, Errno> {
+impl Read for File {
+    fn read(&mut self, data: &mut [u8]) -> Result<usize, Errno> {
         match &mut self.inner {
             FileInner::Normal(inner) => {
                 let count = inner.vnode.read(inner.pos, data)?;
@@ -31,6 +27,37 @@ impl File {
                 Ok(count)
             }
             _ => unimplemented!(),
+        }
+    }
+}
+
+impl Seek for File {
+    fn seek(&mut self, off: isize, whence: SeekDir) -> Result<usize, Errno> {
+        match &mut self.inner {
+            FileInner::Normal(inner) => {
+                if !inner.vnode.is_seekable() {
+                    return Err(Errno::InvalidArgument);
+                }
+
+                let size = inner.vnode.size()?;
+                let pos = match whence {
+                    SeekDir::Set => min(off as usize, size),
+                    _ => todo!(),
+                };
+
+                inner.pos = pos;
+
+                Ok(pos)
+            }
+            _ => unimplemented!(),
+        }
+    }
+}
+
+impl File {
+    pub fn normal(vnode: VnodeRef, pos: usize) -> Self {
+        Self {
+            inner: FileInner::Normal(NormalFile { vnode, pos }),
         }
     }
 }
