@@ -37,13 +37,6 @@ QEMU_OPTS+=-kernel $(O)/kernel.bin \
 		   -display none \
 		   -net none
 endif
-ifeq ($(MACH),rpi3)
-QEMU_OPTS+=-kernel $(O)/kernel.bin \
-		   -dtb etc/bcm2837-rpi-3-b-plus.dtb \
-		   -M raspi3b \
-		   -serial null \
-		   -serial chardev:serial1
-endif
 endif
 
 ifeq ($(QEMU_DINT),1)

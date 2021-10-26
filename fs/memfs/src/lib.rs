@@ -259,7 +259,7 @@ mod tests {
         unsafe impl Sync for A {}
 
         let data = include_str!("../test/test1.tar");
-        let fs = Ramfs::open(data.as_ptr(), data.bytes().len(), A {}).unwrap();
+        let fs = unsafe { Ramfs::open(data.as_ptr(), data.bytes().len(), A {}).unwrap() };
 
         let root = fs.root().unwrap();
         let ioctx = Ioctx::new(root.clone());
