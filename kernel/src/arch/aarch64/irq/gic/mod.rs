@@ -97,7 +97,7 @@ impl IntController for Gic {
                 Some(handler) => {
                     drop(table);
                     handler.handle_irq().expect("irq handler failed")
-                },
+                }
             }
         }
 

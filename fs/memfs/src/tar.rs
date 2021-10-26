@@ -1,5 +1,5 @@
-use vfs::VnodeKind;
 use error::Errno;
+use vfs::VnodeKind;
 
 #[repr(packed)]
 #[allow(dead_code)]
@@ -28,10 +28,7 @@ pub struct TarIterator {
 }
 
 impl TarIterator {
-    pub const fn new(
-        address: *const u8,
-        limit: *const u8,
-    ) -> Self {
+    pub const fn new(address: *const u8, limit: *const u8) -> Self {
         Self {
             address,
             limit,

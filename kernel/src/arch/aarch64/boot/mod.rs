@@ -1,6 +1,9 @@
 //! aarch64 common boot logic
 
-use crate::arch::{aarch64::reg::{CPACR_EL1, CNTKCTL_EL1}, machine};
+use crate::arch::{
+    aarch64::reg::{CNTKCTL_EL1, CPACR_EL1},
+    machine,
+};
 use crate::dev::{fdt::DeviceTree, irq::IntSource, Device};
 //use crate::debug::Level;
 use crate::mem::{

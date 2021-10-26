@@ -1,14 +1,11 @@
-#![feature(
-    asm,
-    alloc_error_handler,
-)]
+#![feature(asm, alloc_error_handler)]
 #![no_std]
 
 use core::panic::PanicInfo;
 
-mod sys;
 pub mod mem;
 pub mod os;
+mod sys;
 
 #[link_section = ".text._start"]
 #[no_mangle]

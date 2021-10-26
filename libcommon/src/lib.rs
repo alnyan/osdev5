@@ -38,5 +38,4 @@ pub fn path_component_right(path: &str) -> (&str, &str) {
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}

@@ -1,8 +1,8 @@
 //!
 use crate::proc::{Pid, Process, ProcessRef, PROCESSES};
-use crate::util::InitOnce;
 use crate::sync::IrqSafeSpinLock;
-use alloc::{rc::Rc, collections::VecDeque};
+use crate::util::InitOnce;
+use alloc::{collections::VecDeque, rc::Rc};
 
 struct SchedulerInner {
     queue: VecDeque<Pid>,
@@ -103,7 +103,7 @@ impl Scheduler {
                 let lock = PROCESSES.lock();
                 (
                     lock.get(&current).unwrap().clone(),
-                    lock.get(&next).unwrap().clone()
+                    lock.get(&next).unwrap().clone(),
                 )
             };
 

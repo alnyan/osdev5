@@ -2,10 +2,7 @@
 
 use crate::mem;
 use crate::sync::IrqSafeSpinLock;
-use alloc::{
-    boxed::Box,
-    collections::{BTreeMap},
-};
+use alloc::{boxed::Box, collections::BTreeMap};
 
 pub mod elf;
 pub mod process;

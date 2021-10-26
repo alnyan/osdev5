@@ -80,8 +80,8 @@ impl File {
 mod tests {
     use super::*;
     use crate::{node::VnodeData, Filesystem, Vnode, VnodeImpl, VnodeKind, VnodeRef};
-    use alloc::rc::Rc;
     use alloc::boxed::Box;
+    use alloc::rc::Rc;
     use core::ffi::c_void;
 
     pub struct DummyInode;

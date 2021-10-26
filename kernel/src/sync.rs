@@ -1,14 +1,14 @@
 //! Synchronization facilities module
 
 use crate::arch::platform::{irq_mask_save, irq_restore};
-use core::sync::atomic::{AtomicBool, Ordering};
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
+use core::sync::atomic::{AtomicBool, Ordering};
 
 /// Lock structure ensuring IRQs are disabled when inner value is accessed
 pub struct IrqSafeSpinLock<T> {
     value: UnsafeCell<T>,
-    state: AtomicBool
+    state: AtomicBool,
 }
 
 /// Guard-structure wrapping a reference to value owned by [IrqSafeSpinLock].
@@ -24,13 +24,14 @@ impl<T> IrqSafeSpinLock<T> {
     pub const fn new(value: T) -> Self {
         Self {
             value: UnsafeCell::new(value),
-            state: AtomicBool::new(false)
+            state: AtomicBool::new(false),
         }
     }
 
     #[inline(always)]
     fn try_lock(&self) -> Result<bool, bool> {
-        self.state.compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+        self.state
+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
     }
 
     #[inline(always)]
@@ -50,7 +51,7 @@ impl<T> IrqSafeSpinLock<T> {
 
         IrqSafeSpinLockGuard {
             lock: self,
-            irq_state
+            irq_state,
         }
     }
 }

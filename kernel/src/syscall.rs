@@ -15,7 +15,11 @@ fn translate(virt: usize) -> Option<usize> {
 
 fn validate_user_ptr(base: usize, len: usize) -> Result<(), Errno> {
     if base > mem::KERNEL_OFFSET || base + len > mem::KERNEL_OFFSET {
-        warnln!("User region refers to kernel memory: base={:#x}, len={:#x}", base, len);
+        warnln!(
+            "User region refers to kernel memory: base={:#x}, len={:#x}",
+            base,
+            len
+        );
         return Err(Errno::InvalidArgument);
     }
 

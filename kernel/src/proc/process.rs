@@ -44,7 +44,7 @@ struct ProcessInner {
     space: Option<&'static mut Space>,
     state: State,
     id: Pid,
-    exit: Option<ExitCode>
+    exit: Option<ExitCode>,
 }
 
 /// Structure describing an operating system process
@@ -224,7 +224,11 @@ impl Process {
     /// Waits for a process to finish and reaps it
     pub fn waitpid(pid: Pid) -> Result<ExitCode, Errno> {
         loop {
-            let proc = PROCESSES.lock().get(&pid).cloned().ok_or(Errno::DoesNotExist)?;
+            let proc = PROCESSES
+                .lock()
+                .get(&pid)
+                .cloned()
+                .ok_or(Errno::DoesNotExist)?;
 
             if let Some(r) = proc.collect() {
                 PROCESSES.lock().remove(&proc.id());
