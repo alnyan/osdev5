@@ -1,11 +1,12 @@
 use crate::{block, BlockAllocator, BlockRef};
-use core::cmp::{max, min};
-use core::marker::PhantomData;
+use core::cmp::min;
 use core::mem::MaybeUninit;
 use core::ops::{Index, IndexMut};
 use error::Errno;
+
 const L0_BLOCKS: usize = 32; // 128K
 const L1_BLOCKS: usize = 8; // 16M
+
 pub struct Bvec<'a, A: BlockAllocator + Copy> {
     capacity: usize,
     size: usize,
@@ -26,7 +27,7 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
             l2: MaybeUninit::uninit(),
             alloc,
             #[cfg(feature = "cow")]
-            cow_source: core::ptr::null_mut()
+            cow_source: core::ptr::null_mut(),
         };
         for it in res.l0.iter_mut() {
             it.write(BlockRef::null());
@@ -36,6 +37,11 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
         }
         res.l2.write(BlockRef::null());
         res
+    }
+
+    #[cfg(feature = "cow")]
+    pub fn is_cow(&self) -> bool {
+        !self.cow_source.is_null()
     }
 
     #[cfg(feature = "cow")]
@@ -50,7 +56,7 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
 
     #[cfg(feature = "cow")]
     pub fn drop_cow(&mut self) {
-        assert!(!self.cow_source.is_null());
+        assert!(self.is_cow());
         let src_slice = unsafe { core::slice::from_raw_parts(self.cow_source, self.size) };
         self.cow_source = core::ptr::null_mut();
 
@@ -60,7 +66,7 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
 
     pub fn resize(&mut self, cap: usize) -> Result<(), Errno> {
         #[cfg(feature = "cow")]
-        assert!(self.cow_source.is_null());
+        assert!(!self.is_cow());
 
         if cap <= self.capacity {
             let mut curr = self.capacity;
@@ -104,7 +110,6 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
                 assert!(!l0r.is_null());
                 *l0r = BlockRef::null();
                 continue;
-                unimplemented!();
             }
         } else {
             for mut index in self.capacity..cap {
@@ -156,7 +161,7 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
         }
 
         #[cfg(feature = "cow")]
-        if !self.cow_source.is_null() {
+        if self.is_cow() {
             self.drop_cow();
         }
 
@@ -188,7 +193,7 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
         let mut rem = min(self.size - pos, data.len());
 
         #[cfg(feature = "cow")]
-        if !self.cow_source.is_null() {
+        if self.is_cow() {
             let cow_data = unsafe { core::slice::from_raw_parts(self.cow_source, self.size) };
             data[..rem].copy_from_slice(&cow_data[pos..pos + rem]);
             return Ok(rem);
@@ -280,9 +285,91 @@ impl<'a, A: BlockAllocator + Copy> Drop for Bvec<'a, A> {
     }
 }
 
+#[cfg(feature = "cow")]
+#[cfg(test)]
+mod cow_tests {
+    use super::*;
+    use std::boxed::Box;
+
+    #[derive(Clone, Copy)]
+    struct TestAlloc;
+    unsafe impl BlockAllocator for TestAlloc {
+        fn alloc(&self) -> *mut u8 {
+            let b = Box::leak(Box::new([0; block::SIZE]));
+            b.as_mut_ptr() as *mut _
+        }
+        unsafe fn dealloc(&self, ptr: *mut u8) {
+            drop(Box::from_raw(ptr as *mut [u8; block::SIZE]));
+        }
+    }
+
+    #[test]
+    fn bvec_write_copy_simple() {
+        let mut bvec = Bvec::new(TestAlloc {});
+        let mut buf = [0u8; 512];
+        let source_data = b"This is initial data\n";
+        unsafe {
+            bvec.setup_cow(source_data.as_ptr(), source_data.len());
+        }
+        assert!(bvec.is_cow());
+        assert_eq!(bvec.size(), source_data.len());
+        assert_eq!(bvec.capacity, 0);
+
+        bvec.write(8, b"testing").unwrap();
+
+        assert!(!bvec.is_cow());
+        assert_eq!(bvec.size(), source_data.len());
+        assert_eq!(bvec.capacity, 1);
+
+        assert_eq!(bvec.read(0, &mut buf).unwrap(), source_data.len());
+        assert_eq!(&mut buf[..source_data.len()], b"This is testing data\n");
+    }
+
+    #[test]
+    fn bvec_write_copy_l0() {
+        let mut bvec = Bvec::new(TestAlloc {});
+        let mut source_data = [0u8; 4096 * 2 - 2];
+        let mut buf = [0u8; 512];
+        for i in 0..source_data.len() {
+            source_data[i] = (i & 0xFF) as u8;
+        }
+        unsafe {
+            bvec.setup_cow(source_data.as_ptr(), source_data.len());
+        }
+        assert!(bvec.is_cow());
+        assert_eq!(bvec.size(), source_data.len());
+        assert_eq!(bvec.capacity, 0);
+
+        bvec.write(0, b"test").unwrap();
+
+        assert!(!bvec.is_cow());
+        assert_eq!(bvec.size(), source_data.len());
+        assert_eq!(bvec.capacity, 2);
+
+        assert_eq!(bvec.read(0, &mut buf).unwrap(), 512);
+        assert_eq!(&buf[..4], b"test");
+        for i in 4..512 {
+            assert_eq!(buf[i], (i & 0xFF) as u8);
+        }
+        assert_eq!(bvec.read(512, &mut buf).unwrap(), 512);
+        for i in 0..512 {
+            assert_eq!(buf[i], ((i + 512) & 0xFF) as u8);
+        }
+
+        bvec.write(source_data.len(), b"test");
+        assert_eq!(bvec.size(), 4096 * 2 + 2);
+        assert_eq!(bvec.capacity, 3);
+
+        assert_eq!(bvec.read(4096 * 2, &mut buf).unwrap(), 2);
+        assert_eq!(&buf[..2], b"st");
+        assert_eq!(bvec.read(4096 * 2 - 2, &mut buf).unwrap(), 4);
+        assert_eq!(&buf[..4], b"test");
+    }
+}
+
 #[cfg(feature = "test_bvec")]
 #[cfg(test)]
-mod tests {
+mod bvec_tests {
     use super::*;
     use std::boxed::Box;
     use std::mem::MaybeUninit;

@@ -67,6 +67,7 @@ mod tests {
     use super::*;
     use crate::{node::VnodeData, Filesystem, Ioctx, Vnode, VnodeImpl, VnodeKind, VnodeRef};
     use alloc::boxed::Box;
+    use core::ffi::c_void;
 
     pub struct DummyInode;
     pub struct DummyFs;
@@ -107,6 +108,19 @@ mod tests {
         fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
             Err(Errno::NotImplemented)
         }
+
+        fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
+            Err(Errno::NotImplemented)
+        }
+
+        fn ioctl(
+            &mut self,
+            _node: VnodeRef,
+            _cmd: u64,
+            _value: *mut c_void,
+        ) -> Result<isize, Errno> {
+            Err(Errno::NotImplemented)
+        }
     }
 
     impl Filesystem for DummyFs {
@@ -115,7 +129,7 @@ mod tests {
         }
 
         fn create_node(self: Rc<Self>, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
-            let node = Vnode::new(name, kind);
+            let node = Vnode::new(name, kind, 0);
             node.set_data(VnodeData {
                 node: Box::new(DummyInode {}),
                 fs: self,

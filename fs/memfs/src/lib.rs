@@ -23,7 +23,7 @@ pub use block::{BlockAllocator, BlockRef};
 pub mod bvec;
 use bvec::Bvec;
 pub mod tar;
-use tar::{Tar, TarIterator};
+use tar::TarIterator;
 
 pub struct Ramfs<A: BlockAllocator + Copy + 'static> {
     root: RefCell<Option<VnodeRef>>,
@@ -37,7 +37,7 @@ pub struct FileInode<'a, A: BlockAllocator + Copy + 'static> {
 pub struct DirInode;
 
 struct SetupFileParam {
-    data: &'static [u8]
+    data: &'static [u8],
 }
 
 const FILE_SETUP_COW: u64 = 0x1001;
@@ -51,11 +51,11 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
         panic!()
     }
 
-    fn open(&mut self, node: VnodeRef) -> Result<usize, Errno> {
+    fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
         Ok(0)
     }
 
-    fn close(&mut self, node: VnodeRef) -> Result<(), Errno> {
+    fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
         Ok(())
     }
 
@@ -75,7 +75,7 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
         Ok(self.data.size())
     }
 
-    fn ioctl(&mut self, node: VnodeRef, cmd: u64, value: *mut c_void) -> Result<isize, Errno> {
+    fn ioctl(&mut self, _node: VnodeRef, cmd: u64, value: *mut c_void) -> Result<isize, Errno> {
         match cmd {
             #[cfg(feature = "cow")]
             FILE_SETUP_COW => {
@@ -84,8 +84,8 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
                     self.data.setup_cow(data.data.as_ptr(), data.data.len());
                 }
                 Ok(0)
-            },
-            _ => Err(Errno::InvalidArgument)
+            }
+            _ => Err(Errno::InvalidArgument),
         }
     }
 }
@@ -99,19 +99,19 @@ impl VnodeImpl for DirInode {
         Ok(())
     }
 
-    fn open(&mut self, node: VnodeRef) -> Result<usize, Errno> {
+    fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
         todo!()
     }
 
-    fn close(&mut self, node: VnodeRef) -> Result<(), Errno> {
+    fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
         todo!()
     }
 
-    fn read(&mut self, node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno> {
+    fn read(&mut self, _node: VnodeRef, _pos: usize, _data: &mut [u8]) -> Result<usize, Errno> {
         todo!()
     }
 
-    fn write(&mut self, node: VnodeRef, pos: usize, data: &[u8]) -> Result<usize, Errno> {
+    fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
         todo!()
     }
 
@@ -123,7 +123,7 @@ impl VnodeImpl for DirInode {
         todo!()
     }
 
-    fn ioctl(&mut self, node: VnodeRef, cmd: u64, value: *mut c_void) -> Result<isize, Errno> {
+    fn ioctl(&mut self, _node: VnodeRef, _cmd: u64, _value: *mut c_void) -> Result<isize, Errno> {
         todo!()
     }
 }
@@ -134,7 +134,7 @@ impl<A: BlockAllocator + Copy + 'static> Filesystem for Ramfs<A> {
     }
 
     fn create_node(self: Rc<Self>, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
-        let mut node = Vnode::new(name, kind, Vnode::SEEKABLE);
+        let node = Vnode::new(name, kind, Vnode::SEEKABLE);
         let data: Box<dyn VnodeImpl> = match kind {
             VnodeKind::Regular => Box::new(FileInode {
                 data: Bvec::new(self.alloc),
@@ -151,7 +151,7 @@ impl<A: BlockAllocator + Copy + 'static> Filesystem for Ramfs<A> {
 
 impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
     pub fn open(base: *const u8, size: usize, alloc: A) -> Result<Rc<Self>, Errno> {
-        let mut res = Rc::new(Self {
+        let res = Rc::new(Self {
             root: RefCell::new(None),
             alloc,
         });
@@ -220,9 +220,7 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
 
                 #[cfg(feature = "cow")]
                 {
-                    let mut param = SetupFileParam {
-                        data: block.data()
-                    };
+                    let mut param = SetupFileParam { data: block.data() };
                     node.ioctl(FILE_SETUP_COW, &mut param as *mut _ as *mut _)?;
                 }
                 #[cfg(not(feature = "cow"))]
@@ -244,6 +242,7 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
 mod tests {
     use super::*;
     use alloc::boxed::Box;
+    use libcommon::Read;
     use vfs::Ioctx;
 
     #[test]

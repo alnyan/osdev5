@@ -291,21 +291,16 @@ mod tests {
             Err(Errno::NotImplemented)
         }
 
+        fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
+            Err(Errno::NotImplemented)
+        }
+
         fn ioctl(
             &mut self,
             _node: VnodeRef,
             _cmd: u64,
             _value: *mut c_void,
         ) -> Result<isize, Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn seek(
-            &mut self,
-            _node: VnodeRef,
-            _pos: usize,
-            _whence: SeekWhence,
-        ) -> Result<usize, Errno> {
             Err(Errno::NotImplemented)
         }
     }
@@ -316,7 +311,7 @@ mod tests {
         }
 
         fn create_node(self: Rc<Self>, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
-            let node = Vnode::new(name, kind);
+            let node = Vnode::new(name, kind, 0);
             node.set_data(VnodeData {
                 node: Box::new(DummyInode {}),
                 fs: self,
@@ -327,8 +322,8 @@ mod tests {
 
     #[test]
     fn test_parent() {
-        let root = Vnode::new("", VnodeKind::Directory);
-        let node = Vnode::new("dir0", VnodeKind::Directory);
+        let root = Vnode::new("", VnodeKind::Directory, 0);
+        let node = Vnode::new("dir0", VnodeKind::Directory, 0);
 
         root.attach(node.clone());
 
@@ -339,7 +334,7 @@ mod tests {
     #[test]
     fn test_mkdir_unlink() {
         let fs = Rc::new(DummyFs {});
-        let root = Vnode::new("", VnodeKind::Directory);
+        let root = Vnode::new("", VnodeKind::Directory, 0);
 
         root.set_data(VnodeData {
             node: Box::new(DummyInode {}),
@@ -364,9 +359,9 @@ mod tests {
 
     #[test]
     fn test_lookup_attach_detach() {
-        let root = Vnode::new("", VnodeKind::Directory);
-        let dir0 = Vnode::new("dir0", VnodeKind::Directory);
-        let dir1 = Vnode::new("dir1", VnodeKind::Directory);
+        let root = Vnode::new("", VnodeKind::Directory, 0);
+        let dir0 = Vnode::new("dir0", VnodeKind::Directory, 0);
+        let dir1 = Vnode::new("dir1", VnodeKind::Directory, 0);
 
         root.attach(dir0.clone());
         root.attach(dir1.clone());

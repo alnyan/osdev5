@@ -75,6 +75,7 @@ mod tests {
     use super::*;
     use crate::{node::VnodeData, Filesystem, Vnode, VnodeImpl, VnodeKind};
     use alloc::{boxed::Box, rc::Rc};
+    use core::ffi::c_void;
 
     pub struct DummyInode;
     pub struct DummyFs;
@@ -107,6 +108,19 @@ mod tests {
         fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
             Err(Errno::NotImplemented)
         }
+
+        fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
+            Err(Errno::NotImplemented)
+        }
+
+        fn ioctl(
+            &mut self,
+            _node: VnodeRef,
+            _cmd: u64,
+            _value: *mut c_void,
+        ) -> Result<isize, Errno> {
+            Err(Errno::NotImplemented)
+        }
     }
 
     impl Filesystem for DummyFs {
@@ -115,7 +129,7 @@ mod tests {
         }
 
         fn create_node(self: Rc<Self>, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
-            let node = Vnode::new(name, kind);
+            let node = Vnode::new(name, kind, 0);
             node.set_data(VnodeData {
                 node: Box::new(DummyInode {}),
                 fs: self,
@@ -126,12 +140,12 @@ mod tests {
 
     #[test]
     fn test_find_existing_absolute() {
-        let root = Vnode::new("", VnodeKind::Directory);
-        let d0 = Vnode::new("dir0", VnodeKind::Directory);
-        let d1 = Vnode::new("dir1", VnodeKind::Directory);
-        let d0d0 = Vnode::new("dir0", VnodeKind::Directory);
-        let d0f0 = Vnode::new("file0", VnodeKind::Regular);
-        let d1f0 = Vnode::new("file0", VnodeKind::Regular);
+        let root = Vnode::new("", VnodeKind::Directory, 0);
+        let d0 = Vnode::new("dir0", VnodeKind::Directory, 0);
+        let d1 = Vnode::new("dir1", VnodeKind::Directory, 0);
+        let d0d0 = Vnode::new("dir0", VnodeKind::Directory, 0);
+        let d0f0 = Vnode::new("file0", VnodeKind::Regular, 0);
+        let d1f0 = Vnode::new("file0", VnodeKind::Regular, 0);
 
         root.attach(d0.clone());
         root.attach(d1.clone());
@@ -182,9 +196,9 @@ mod tests {
 
     #[test]
     fn test_find_rejects_file_dots() {
-        let root = Vnode::new("", VnodeKind::Directory);
-        let d0 = Vnode::new("dir0", VnodeKind::Directory);
-        let d0f0 = Vnode::new("file0", VnodeKind::Regular);
+        let root = Vnode::new("", VnodeKind::Directory, 0);
+        let d0 = Vnode::new("dir0", VnodeKind::Directory, 0);
+        let d0f0 = Vnode::new("file0", VnodeKind::Regular, 0);
 
         root.attach(d0.clone());
         d0.attach(d0f0.clone());
@@ -207,7 +221,7 @@ mod tests {
     #[test]
     fn test_mkdir() {
         let fs = Rc::new(DummyFs {});
-        let root = Vnode::new("", VnodeKind::Directory);
+        let root = Vnode::new("", VnodeKind::Directory, 0);
         let ioctx = Ioctx::new(root.clone());
 
         root.set_data(VnodeData {
