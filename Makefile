@@ -13,12 +13,15 @@ MKIMAGE?=mkimage
 PROFILE?=debug
 O=target/$(ARCH)-$(MACH)/$(PROFILE)
 
-CARGO_BUILD_OPTS=--target=../etc/$(ARCH)-$(MACH).json
+CARGO_COMMON_OPTS=
+ifeq ($(PROFILE),release)
+CARGO_COMMON_OPTS+=--release
+endif
+
+CARGO_BUILD_OPTS=$(CARGO_COMMON_OPTS) \
+				 --target=../etc/$(ARCH)-$(MACH).json
 ifneq ($(MACH),)
 CARGO_BUILD_OPTS+=--features mach_$(MACH)
-endif
-ifeq ($(PROFILE),release)
-CARGO_BUILD_OPTS+=--release
 endif
 
 QEMU_OPTS=-s \
@@ -71,9 +74,23 @@ ifeq ($(MACH),orangepi3)
 endif
 
 initrd:
-	cd init && cargo build --target=../etc/$(ARCH)-osdev5.json -Z build-std=core,alloc,compiler_builtins
-	cp target/$(ARCH)-osdev5/debug/init $(O)
+	cd init && cargo build \
+		--target=../etc/$(ARCH)-osdev5.json \
+		-Z build-std=core,alloc,compiler_builtins \
+		$(CARGO_COMMON_OPTS)
+	cp target/$(ARCH)-osdev5/$(PROFILE)/init $(O)
 	cd $(O) && tar cf initrd.img init
+ifeq ($(MACH),orangepi3)
+	$(MKIMAGE) \
+		-A arm64 \
+		-O linux \
+		-T ramdisk \
+		-C none \
+		-a 0x80000000 \
+		-n initrd \
+		-d $(O)/initrd.img \
+		$(O)/uRamdisk
+endif
 
 test:
 	cd fs/vfs && cargo test
