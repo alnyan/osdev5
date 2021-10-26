@@ -29,6 +29,8 @@ pub enum PageUsage {
     Paging,
     /// Userspace page
     UserPrivate,
+    /// Filesystem data and blocks
+    Filesystem,
 }
 
 /// Data structure representing a single physical memory page
@@ -77,6 +79,11 @@ pub fn alloc_contiguous_pages(pu: PageUsage, count: usize) -> Result<usize, Errn
 /// Allocates a single physical memory page.
 pub fn alloc_page(pu: PageUsage) -> Result<usize, Errno> {
     MANAGER.lock().as_mut().unwrap().alloc_page(pu)
+}
+
+/// Releases a single physical memory page back for further allocation.
+pub unsafe fn free_page(page: usize) -> Result<(), Errno> {
+    MANAGER.lock().as_mut().unwrap().free_page(page)
 }
 
 fn find_contiguous<T: Iterator<Item = MemoryRegion>>(iter: T, count: usize) -> Option<usize> {

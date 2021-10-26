@@ -19,9 +19,9 @@ impl SimpleManager {
         let pages: &'static mut [PageInfo] =
             core::slice::from_raw_parts_mut(virtualize(at) as *mut _, count);
         // Initialize uninit pages
-        for index in 0..count {
+        for entry in pages.iter_mut() {
             mem::forget(mem::replace(
-                &mut pages[index],
+                entry,
                 PageInfo {
                     refcount: 0,
                     usage: PageUsage::Reserved,

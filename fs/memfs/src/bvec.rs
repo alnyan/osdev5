@@ -356,7 +356,7 @@ mod cow_tests {
             assert_eq!(buf[i], ((i + 512) & 0xFF) as u8);
         }
 
-        bvec.write(source_data.len(), b"test");
+        bvec.write(source_data.len(), b"test").unwrap();
         assert_eq!(bvec.size(), 4096 * 2 + 2);
         assert_eq!(bvec.capacity, 3);
 

@@ -48,11 +48,9 @@ impl<T> IrqSafeSpinLock<T> {
             cortex_a::asm::wfe();
         }
 
-        unsafe {
-            IrqSafeSpinLockGuard {
-                lock: self,
-                irq_state
-            }
+        IrqSafeSpinLockGuard {
+            lock: self,
+            irq_state
         }
     }
 }

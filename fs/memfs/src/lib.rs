@@ -150,14 +150,12 @@ impl<A: BlockAllocator + Copy + 'static> Filesystem for Ramfs<A> {
 }
 
 impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
-    pub fn open(base: *const u8, size: usize, alloc: A) -> Result<Rc<Self>, Errno> {
+    pub unsafe fn open(base: *const u8, size: usize, alloc: A) -> Result<Rc<Self>, Errno> {
         let res = Rc::new(Self {
             root: RefCell::new(None),
             alloc,
         });
-        unsafe {
-            *res.root.borrow_mut() = Some(res.clone().load_tar(base, size)?);
-        }
+        *res.root.borrow_mut() = Some(res.clone().load_tar(base, size)?);
         Ok(res)
     }
 

@@ -1,6 +1,4 @@
 use crate::VnodeRef;
-use alloc::rc::Rc;
-use core::cell::RefCell;
 use core::cmp::min;
 use error::Errno;
 use libcommon::{Read, Seek, SeekDir, Write};
@@ -12,6 +10,9 @@ struct NormalFile {
 
 enum FileInner {
     Normal(NormalFile),
+    // TODO
+    #[allow(dead_code)]
+    Socket,
 }
 
 pub struct File {
@@ -23,6 +24,19 @@ impl Read for File {
         match &mut self.inner {
             FileInner::Normal(inner) => {
                 let count = inner.vnode.read(inner.pos, data)?;
+                inner.pos += count;
+                Ok(count)
+            }
+            _ => unimplemented!(),
+        }
+    }
+}
+
+impl Write for File {
+    fn write(&mut self, data: &[u8]) -> Result<usize, Errno> {
+        match &mut self.inner {
+            FileInner::Normal(inner) => {
+                let count = inner.vnode.write(inner.pos, data)?;
                 inner.pos += count;
                 Ok(count)
             }
@@ -65,7 +79,8 @@ impl File {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{node::VnodeData, Filesystem, Ioctx, Vnode, VnodeImpl, VnodeKind, VnodeRef};
+    use crate::{node::VnodeData, Filesystem, Vnode, VnodeImpl, VnodeKind, VnodeRef};
+    use alloc::rc::Rc;
     use alloc::boxed::Box;
     use core::ffi::c_void;
 

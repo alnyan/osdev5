@@ -116,7 +116,7 @@ impl Vnode {
         let index = parent_borrow
             .children
             .iter()
-            .position(|it| Rc::ptr_eq(&it, self))
+            .position(|it| Rc::ptr_eq(it, self))
             .unwrap();
         parent_borrow.children.remove(index);
     }

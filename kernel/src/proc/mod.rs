@@ -67,7 +67,9 @@ pub unsafe fn enter(initrd: Option<(usize, usize)>) -> ! {
             let size = end - start;
 
             infoln!("Constructing initrd filesystem in memory, this may take a while...");
-            let fs = Ramfs::open(start as *mut u8, size, MemfsBlockAlloc {}).unwrap();
+            let fs = unsafe {
+                Ramfs::open(start as *mut u8, size, MemfsBlockAlloc {}).unwrap()
+            };
             infoln!("Done constructing ramfs");
             let root = fs.root().unwrap();
             let ioctx = Ioctx::new(root);

@@ -75,12 +75,12 @@ fn dump_node(level: Level, node: &INode, depth: usize) {
 
 fn find_node<'a>(at: INode<'a>, path: &str) -> Option<INode<'a>> {
     let (item, path) = path_component_left(path);
-    if item == "" {
+    if item.is_empty() {
         assert_eq!(path, "");
         Some(at)
     } else {
         let child = at.children().find(|c| c.name().unwrap() == item)?;
-        if path == "" {
+        if path.is_empty() {
             Some(child)
         } else {
             find_node(child, path)
@@ -92,13 +92,13 @@ fn find_prop<'a>(at: INode<'a>, name: &str) -> Option<IProp<'a>> {
     at.props().find(|p| p.name().unwrap() == name)
 }
 
-fn read_cells(prop: &IProp, off: usize, cells: u32) -> Option<u64> {
-    Some(match cells {
-        1 => prop.u32(off).ok()? as u64,
-        2 => (prop.u32(off).ok()? as u64) | ((prop.u32(off + 1).ok()? as u64) << 32),
-        _ => todo!(),
-    })
-}
+// fn read_cells(prop: &IProp, off: usize, cells: u32) -> Option<u64> {
+//     Some(match cells {
+//         1 => prop.u32(off).ok()? as u64,
+//         2 => (prop.u32(off).ok()? as u64) | ((prop.u32(off + 1).ok()? as u64) << 32),
+//         _ => todo!(),
+//     })
+// }
 
 impl DeviceTree {
     pub fn dump(&self, level: Level) {
