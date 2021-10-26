@@ -62,7 +62,8 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
     if fdt_base != 0 {
         let fdt = DeviceTree::from_phys(fdt_base + 0xFFFFFF8000000000);
         if let Ok(fdt) = fdt {
-            // fdt.dump(Level::Debug);
+            use crate::debug::Level;
+            fdt.dump(Level::Debug);
             initrd = fdt.initrd();
         } else {
             initrd = None;

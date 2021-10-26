@@ -51,17 +51,18 @@ pub(self) static PROCESSES: IrqSafeSpinLock<BTreeMap<Pid, ProcessRef>> =
 /// Unsafe: May only be called once.
 pub unsafe fn enter(initrd: Option<(usize, usize)>) -> ! {
     SCHED.init();
-    if let Some((start, end)) = initrd {
-        let initrd = Box::into_raw(Box::new((mem::virtualize(start), mem::virtualize(end))));
+    let initrd = Box::into_raw(Box::new(initrd));
 
-        spawn!(fn (initrd_ptr: usize) {
-            use memfs::Ramfs;
-            use vfs::{Filesystem, Ioctx};
-            use crate::fs::MemfsBlockAlloc;
-            debugln!("Running kernel init process");
+    spawn!(fn (initrd_ptr: usize) {
+        use memfs::Ramfs;
+        use vfs::{Filesystem, Ioctx};
+        use crate::fs::MemfsBlockAlloc;
+        debugln!("Running kernel init process");
 
-            let (start, end) = unsafe { *(initrd_ptr as *const (usize, usize)) };
+        let initrd = unsafe { *(initrd_ptr as *const Option<(usize, usize)>) };
+        if let Some((start, end)) = initrd {
             let size = end - start;
+            let start = mem::virtualize(start);
 
             infoln!("Constructing initrd filesystem in memory, this may take a while...");
             let fs = unsafe {
@@ -76,7 +77,9 @@ pub unsafe fn enter(initrd: Option<(usize, usize)>) -> ! {
             let mut file = node.open().unwrap();
 
             Process::execve(|space| elf::load_elf(space, &mut file), 0).unwrap();
-        }, initrd as usize);
-    }
+        } else {
+            infoln!("No initrd, exiting!");
+        }
+    }, initrd as usize);
     SCHED.enter();
 }
