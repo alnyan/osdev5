@@ -50,6 +50,10 @@ QEMU_OPTS+=-kernel $(O)/kernel.bin \
 endif
 endif
 
+ifneq ($(QEMU_SDCARD),)
+QEMU_OPTS+=-drive if=sd,file=$(QEMU_SDCARD)
+endif
+
 ifeq ($(QEMU_DINT),1)
 QEMU_OPTS+=-d int
 endif
