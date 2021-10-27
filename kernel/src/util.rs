@@ -52,3 +52,24 @@ impl<T> InitOnce<T> {
 
 unsafe impl<T> Sync for InitOnce<T> {}
 
+///
+#[macro_export]
+macro_rules! block {
+    ($cond:expr, $timeout:expr, $failure:expr) => {{
+        use $crate::dev::timer::TimestampSource;
+        let __deadline = $crate::arch::machine::local_timer().timestamp().unwrap()
+            + core::time::Duration::from_micros($timeout);
+        loop {
+            if $cond {
+                break;
+            }
+            if $crate::arch::machine::local_timer().timestamp().unwrap() > __deadline {
+                $failure
+            }
+        }
+    }};
+
+    ($cond:expr, $timeout:expr) => {
+        crate::block!($cond, $timeout, return Err(error::Errno::TimedOut))
+    };
+}

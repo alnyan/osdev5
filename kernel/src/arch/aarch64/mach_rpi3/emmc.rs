@@ -8,29 +8,108 @@ use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use error::Errno;
+use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
+use tock_registers::registers::{ReadOnly, ReadWrite};
+use tock_registers::{register_bitfields, register_structs};
 use vfs::BlockDevice;
 
-use tock_registers::interfaces::{Readable, Writeable};
-use tock_registers::register_structs;
-use tock_registers::registers::{ReadOnly, ReadWrite};
+register_bitfields! {
+    u32,
+    BLKSIZECNT [
+        BLKCNT OFFSET(16) NUMBITS(16) [],
+        BLKSIZE OFFSET(0) NUMBITS(10) [],
+    ],
+    CMDTM [
+        CMD_INDEX OFFSET(24) NUMBITS(6) [],
+        CMD_TYPE OFFSET(22) NUMBITS(23) [
+            Normal = 0,
+            Suspend = 1,
+            Resume = 2,
+            Abort = 3,
+        ],
+        CMD_ISDATA OFFSET(21) NUMBITS(1) [],
+        CMD_IXCHK_EN OFFSET(20) NUMBITS(1) [],
+        CMD_CRCCHK_EN OFFSET(19) NUMBITS(1) [],
+        CMD_RSPNS_TYPE OFFSET(16) NUMBITS(2) [
+            None = 0,
+            Bits136 = 1,
+            Bits48 = 2,
+            Bits48Busy = 3
+        ],
+        TM_MULTI_BLOCK OFFSET(5) NUMBITS(1) [],
+        TM_DAT_DIR OFFSET(4) NUMBITS(1) [
+            HostToCard = 0,
+            CardToHost = 1,
+        ],
+        TM_AUDO_CMD_EN OFFSET(2) NUMBITS(2) [
+            None = 0,
+            Cmd12 = 1,
+            Cmd23 = 2
+        ],
+        TM_BLKCNT_EN OFFSET(1) NUMBITS(1) [],
+    ],
+    STATUS [
+        READ_TRANSFER OFFSET(9) NUMBITS(1) [],
+        WRITE_TRANSFER OFFSET(8) NUMBITS(1) [],
+        MISC_INSERTED OFFSET(16) NUMBITS(1) [],
+        DAT_ACTIVE OFFSET(2) NUMBITS(1) [],
+        DAT_INHIBIT OFFSET(1) NUMBITS(1) [],
+        CMD_INHIBIT OFFSET(0) NUMBITS(1) [],
+    ],
+    INTERRUPT [
+        ACMD_ERR 24,
+        DEND_ERR 22,
+        DCRC_ERR 21,
+        DTO_ERR 20,
+        CBAD_ERR 19,
+        CEND_ERR 18,
+        CCRC_ERR 17,
+        CTO_ERR 16,
+        ERR 15,
+        ENDBOOT 14,
+        BOOTACK 13,
+        RETUNE 12,
+        CARD 8,
+        READ_RDY 5,
+        WRITE_RDY 4,
+        BLOCK_GAP 2,
+        DATA_DONE 1,
+        CMD_DONE 0,
+    ],
+    CONTROL1 [
+        SRST_DATA OFFSET(26) NUMBITS(1) [],
+        SRST_CMD OFFSET(25) NUMBITS(1) [],
+        SRST_HC OFFSET(24) NUMBITS(1) [],
+        DATA_TOUNIT OFFSET(16) NUMBITS(4) [],
+        CLK_FREQ8 OFFSET(8) NUMBITS(8) [],
+        CLK_FREQ_MS2 OFFSET(6) NUMBITS(2) [],
+        CLK_GENSEL OFFSET(5) NUMBITS(1) [
+            Divided = 0,
+            Programmable = 1
+        ],
+        CLK_EN OFFSET(2) NUMBITS(1) [],
+        CLK_STABLE OFFSET(1) NUMBITS(1) [],
+        CLK_INTLEN OFFSET(0) NUMBITS(1) [],
+    ]
+}
 
 register_structs! {
     #[allow(non_snake_case)]
     Regs {
         (0x00 => ARG2: ReadWrite<u32>),
-        (0x04 => BLKSIZECNT: ReadWrite<u32>),
+        (0x04 => BLKSIZECNT: ReadWrite<u32, BLKSIZECNT::Register>),
         (0x08 => ARG1: ReadWrite<u32>),
-        (0x0C => CMDTM: ReadWrite<u32>),
+        (0x0C => CMDTM: ReadWrite<u32, CMDTM::Register>),
         (0x10 => RESP0: ReadOnly<u32>),
         (0x14 => RESP1: ReadOnly<u32>),
         (0x18 => RESP2: ReadOnly<u32>),
         (0x1C => RESP3: ReadOnly<u32>),
         (0x20 => DATA: ReadWrite<u32>),
-        (0x24 => STATUS: ReadOnly<u32>),
+        (0x24 => STATUS: ReadOnly<u32, STATUS::Register>),
         (0x28 => CONTROL0: ReadWrite<u32>),
-        (0x2C => CONTROL1: ReadWrite<u32>),
-        (0x30 => INTERRUPT: ReadWrite<u32>),
-        (0x34 => IRPT_MASK: ReadWrite<u32>),
+        (0x2C => CONTROL1: ReadWrite<u32, CONTROL1::Register>),
+        (0x30 => INTERRUPT: ReadWrite<u32, INTERRUPT::Register>),
+        (0x34 => IRPT_MASK: ReadWrite<u32, INTERRUPT::Register>),
         (0x38 => IRPT_EN: ReadWrite<u32>),
         (0x3C => CONTROL2: ReadWrite<u32>),
         (0x40 => _res0),
@@ -52,7 +131,7 @@ pub struct MassMediaController {
     base: usize,
 }
 
-fn clock_divider(f_base: u32, f_target: u32) -> Result<u32, Errno> {
+fn clock_divider(f_base: u32, f_target: u32) -> u32 {
     let mut target_div;
     let mut div = 0;
     if f_target <= f_base {
@@ -81,16 +160,13 @@ fn clock_divider(f_base: u32, f_target: u32) -> Result<u32, Errno> {
         div = 31;
     }
     if div != 0 {
-        div = 1 << (div - 1)
+        div = 1 << (div - 1);
     }
     if div >= 0x400 {
         div = 0x3FF;
     }
 
-    let f_sel = div & 0xFF;
-    let upper_bits = (div >> 8) & 0x3;
-
-    Ok((f_sel << 8) | (upper_bits << 6))
+    div
 }
 
 impl MmcInner {
@@ -105,61 +181,80 @@ impl MmcInner {
         machine::BCM_MBOX.clock_rate(Bcm283xMailbox::CLOCK_EMMC)
     }
 
+    // TODO generalize flag setting
     fn send_cmd_inner(&mut self, cmd: &mut SdCommand) -> Result<SdResponse, Errno> {
-        debugln!("send_cmd {:?}", cmd.number);
+        const TIMEOUT: u64 = 10000;
+        let info = cmd.info_struct();
+        let mut cmdtm = CMDTM::CMD_INDEX.val(cmd.number as u32);
 
-        while self.regs.STATUS.get() & 1 != 0 {
-            cortex_a::asm::nop();
-        }
+        // Wait until CMD lines free up
+        crate::block!(
+            self.regs.STATUS.matches_all(STATUS::CMD_INHIBIT::CLEAR),
+            TIMEOUT
+        );
 
-        let response_type = cmd.response_type();
-        if response_type.is_busy() {
+        if info.response_type.is_busy() {
             // TODO check if this is an ABORT command
-
-            while self.regs.STATUS.get() & 2 != 0 {
-                cortex_a::asm::nop();
-            }
+            // Wait until DAT lines free up after busy cmd
+            crate::block!(
+                self.regs.STATUS.matches_all(STATUS::DAT_INHIBIT::CLEAR),
+                TIMEOUT
+            );
         }
 
-        let (block_count, block_size, io_flags) = match &cmd.transfer {
+        let (block_count, block_size) = match &cmd.transfer {
             SdCommandTransfer::Write(buf, blk_size) => {
                 let sz = *blk_size as usize;
                 assert!(buf.len() % sz == 0);
-                ((buf.len() / sz) as u32, *blk_size, (1 << 21))
+                cmdtm += CMDTM::CMD_ISDATA::SET + CMDTM::TM_DAT_DIR::HostToCard;
+                ((buf.len() / sz) as u32, *blk_size)
             }
             SdCommandTransfer::Read(buf, blk_size) => {
                 let sz = *blk_size as usize;
                 assert!(buf.len() % sz == 0);
-                ((buf.len() / sz) as u32, *blk_size, (1 << 21) | (1 << 4))
+                cmdtm += CMDTM::CMD_ISDATA::SET + CMDTM::TM_DAT_DIR::CardToHost;
+                ((buf.len() / sz) as u32, *blk_size)
             }
-            SdCommandTransfer::None => (0, 512, 0),
+            SdCommandTransfer::None => (0, 512),
         };
 
-        let (size_136, size_flags) = match response_type {
-            SdResponseType::R2 | SdResponseType::R4 => (true, 1 << 16),
-            SdResponseType::R1b | SdResponseType::R5b => (false, 3 << 16),
-            SdResponseType::None => (false, 0),
-            _ => (false, 2 << 16),
+        let size_136 = match info.response_type {
+            SdResponseType::R2 | SdResponseType::R4 => {
+                cmdtm += CMDTM::CMD_RSPNS_TYPE::Bits136;
+                true
+            }
+            SdResponseType::R1b | SdResponseType::R5b => {
+                cmdtm += CMDTM::CMD_RSPNS_TYPE::Bits48Busy;
+                false
+            }
+            SdResponseType::None => false,
+            _ => {
+                cmdtm += CMDTM::CMD_RSPNS_TYPE::Bits48;
+                false
+            }
         };
 
-        debugln!("size_flags: {:#x}, io_flags: {:#x}", size_flags, io_flags);
-        self.regs
-            .BLKSIZECNT
-            .set((block_size as u32) | (block_count << 16));
+        self.regs.BLKSIZECNT.write(
+            BLKSIZECNT::BLKCNT.val(block_count) + BLKSIZECNT::BLKSIZE.val(block_size as u32),
+        );
         self.regs.ARG1.set(cmd.argument);
-        self.regs
-            .CMDTM
-            .set((cmd.number() << 24) | size_flags | io_flags);
-
-        while self.regs.INTERRUPT.get() & 0x8001 == 0 {
-            cortex_a::asm::nop();
-        }
+        self.regs.CMDTM.write(cmdtm);
+        crate::block!(
+            self.regs
+                .INTERRUPT
+                .matches_any(INTERRUPT::ERR::SET + INTERRUPT::CMD_DONE::SET),
+            10000
+        );
 
         let irq_status = self.regs.INTERRUPT.get();
         self.regs.INTERRUPT.set(0xFFFF0001);
 
-        if irq_status & 0xFFFF0001 != 1 {
+        if irq_status & 0xFFFF0000 != 0 {
             warnln!("SD error: irq_status={:#x}", irq_status);
+            return Err(Errno::InvalidArgument);
+        }
+        if !INTERRUPT::CMD_DONE.is_set(irq_status) {
+            warnln!("SD command did not report properly");
             return Err(Errno::InvalidArgument);
         }
 
@@ -181,14 +276,22 @@ impl MmcInner {
             SdCommandTransfer::Read(buf, _) => {
                 debugln!("Reading {} data blocks", block_count);
                 for i in 0..block_count {
-                    while self.regs.INTERRUPT.get() & (0x8000 | (1 << 5)) == 0 {
-                        cortex_a::asm::nop();
-                    }
+                    crate::block!(
+                        self.regs
+                            .INTERRUPT
+                            .matches_any(INTERRUPT::ERR::SET + INTERRUPT::READ_RDY::SET),
+                        10000
+                    );
                     let irq_status = self.regs.INTERRUPT.get();
                     self.regs.INTERRUPT.set(0xFFFF0000 | (1 << 5));
 
-                    if irq_status & (0xFFFF0000 | (1 << 5)) != (1 << 5) {
-                        todo!();
+                    if irq_status & 0xFFFF0000 != 0 {
+                        warnln!("SD error during data read: irq_status={:#x}", irq_status);
+                        return Err(Errno::InvalidArgument);
+                    }
+                    if !INTERRUPT::READ_RDY.is_set(irq_status) {
+                        warnln!("SD did not respond with data blocks");
+                        return Err(Errno::InvalidArgument);
                     }
 
                     assert!(block_size % 4 == 0);
@@ -211,37 +314,29 @@ impl MmcInner {
     fn phys_reset(&mut self) -> Result<(), Errno> {
         self.status.phys_inserted = false;
 
-        let mut tmp = self.regs.CONTROL1.get();
-        tmp |= 1 << 24;
-        // Disable clock
-        tmp &= !(1 << 2);
-        tmp &= !(1 << 0);
-        self.regs.CONTROL1.set(tmp);
+        self.regs
+            .CONTROL1
+            .modify(CONTROL1::SRST_HC::SET + CONTROL1::CLK_EN::CLEAR + CONTROL1::CLK_INTLEN::CLEAR);
+
+        // Wait for SRST_HC to clear
+        crate::block!(
+            self.regs.CONTROL1.matches_all(CONTROL1::SRST_HC::CLEAR),
+            10000
+        );
+
+        //let mut tmp;
 
         debugln!("Checking for a card");
-        let mut retry = 5;
-        let mut status = 0;
-
-        while retry > 0 {
-            status = self.regs.STATUS.get();
-            if status & 1 << 16 != 0 {
-                break;
+        crate::block!(
+            self.regs.STATUS.matches_all(STATUS::MISC_INSERTED::SET),
+            10000,
+            {
+                warnln!("No card inserted");
+                return Ok(());
             }
-
-            for _ in 0..100000 {
-                cortex_a::asm::nop();
-            }
-
-            retry -= 1;
-        }
-
-        if retry == 0 {
-            warnln!("No card inserted");
-            return Ok(());
-        }
+        );
 
         self.status.phys_inserted = true;
-        debugln!("A card is present: status={:#x}", status);
 
         self.regs.CONTROL2.set(0);
 
@@ -250,23 +345,31 @@ impl MmcInner {
             f_base = 100000000;
         }
 
-        let div = clock_divider(f_base, 400000)?;
-
+        let div = clock_divider(f_base, 400000);
         debugln!("Switching to ID frequency");
 
-        tmp = self.regs.CONTROL1.get();
-        tmp |= div;
-        tmp &= !(0xF << 16);
-        tmp |= 11 << 16;
-        tmp |= 4;
-        tmp |= 1;
-        self.regs.CONTROL1.set(tmp);
+        let div_lsb = div & 0xFF;
+        let div_msb = (div >> 8) & 0x3;
+        self.regs.CONTROL1.modify(
+            CONTROL1::CLK_FREQ8.val(div_lsb)
+                + CONTROL1::CLK_FREQ_MS2.val(div_msb)
+                + CONTROL1::DATA_TOUNIT.val(11)
+                + CONTROL1::CLK_EN::SET
+                + CONTROL1::CLK_INTLEN::SET,
+        );
 
-        while self.regs.CONTROL1.get() & 1 << 1 == 0 {
-            cortex_a::asm::nop();
-        }
+        crate::block!(
+            self.regs.CONTROL1.matches_all(CONTROL1::CLK_STABLE::SET),
+            100000,
+            {
+                warnln!("Controller clock did not stabilize in time");
+                return Err(Errno::TimedOut);
+            }
+        );
 
+        // Do not forward any IRQs to ARM side
         self.regs.IRPT_EN.set(0);
+        // Ack and unmask all interrupts to the controller
         self.regs.INTERRUPT.set(u32::MAX);
         self.regs.IRPT_MASK.set(u32::MAX);
 
@@ -327,17 +430,6 @@ impl SdHostController for MassMediaController {
 
     fn is_phys_inserted(&self) -> bool {
         self.inner.get().lock().status.phys_inserted
-    }
-
-    fn set_transfer_block_size(&self, blk: usize) -> Result<(), Errno> {
-        // TODO other block sizes?
-        assert_eq!(blk, 512);
-        let inner = self.inner.get().lock();
-        let mut tmp = inner.regs.BLKSIZECNT.get();
-        tmp &= !0xFFF;
-        tmp |= 0x200;
-        inner.regs.BLKSIZECNT.set(tmp);
-        Ok(())
     }
 
     fn set_card_address(&self, rca: u16) -> Result<(), Errno> {

@@ -10,4 +10,5 @@ pub enum Errno {
     WouldBlock,
     AlreadyExists,
     NotImplemented,
+    TimedOut,
 }

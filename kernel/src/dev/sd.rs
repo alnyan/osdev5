@@ -1,13 +1,12 @@
 use crate::dev::Device;
-use vfs::BlockDevice;
 use error::Errno;
+use vfs::BlockDevice;
 
 pub trait SdHostController: Device + BlockDevice {
     // Physical layer
     fn send_cmd(&self, cmd: &mut SdCommand) -> Result<SdResponse, Errno>;
     fn phys_reset(&self) -> Result<(), Errno>;
     fn is_phys_inserted(&self) -> bool;
-    fn set_transfer_block_size(&self, blk: usize) -> Result<(), Errno>;
 
     // Data layer
     fn set_card_address(&self, rca: u16) -> Result<(), Errno>;
@@ -21,22 +20,28 @@ pub trait SdHostController: Device + BlockDevice {
             transfer: SdCommandTransfer::None,
         })?;
 
-        if self.send_cmd(&mut SdCommand {
-            number: SdCommandNumber::Cmd8,
-            argument: 0x1AA,
-            transfer: SdCommandTransfer::None,
-        })?.unwrap_one() != 0x1AA {
+        if self
+            .send_cmd(&mut SdCommand {
+                number: SdCommandNumber::Cmd8,
+                argument: 0x1AA,
+                transfer: SdCommandTransfer::None,
+            })?
+            .unwrap_one()
+            != 0x1AA
+        {
             warnln!("Card did not respond to CMD8");
             return Err(Errno::InvalidArgument);
         }
 
         // Set operating conditions
         for _ in 0..10 {
-            let res = self.send_cmd(&mut SdCommand {
-                number: SdCommandNumber::Acmd41,
-                argument: 0x00FF8000,
-                transfer: SdCommandTransfer::None
-            })?.unwrap_one();
+            let res = self
+                .send_cmd(&mut SdCommand {
+                    number: SdCommandNumber::Acmd41,
+                    argument: 0x00FF8000,
+                    transfer: SdCommandTransfer::None,
+                })?
+                .unwrap_one();
 
             if res & (1 << 31) != 0 {
                 return Ok(());
@@ -68,17 +73,21 @@ pub trait SdHostController: Device + BlockDevice {
         self.reset_card_probe()?;
 
         // Perform init sequence
-        let cmd2 = self.send_cmd(&mut SdCommand {
-            number: SdCommandNumber::Cmd2,
-            argument: 0,
-            transfer: SdCommandTransfer::None,
-        })?.unwrap_four();
+        let cmd2 = self
+            .send_cmd(&mut SdCommand {
+                number: SdCommandNumber::Cmd2,
+                argument: 0,
+                transfer: SdCommandTransfer::None,
+            })?
+            .unwrap_four();
 
-        let cmd3 = self.send_cmd(&mut SdCommand {
-            number: SdCommandNumber::Cmd3,
-            argument: 0,
-            transfer: SdCommandTransfer::None,
-        })?.unwrap_one();
+        let cmd3 = self
+            .send_cmd(&mut SdCommand {
+                number: SdCommandNumber::Cmd3,
+                argument: 0,
+                transfer: SdCommandTransfer::None,
+            })?
+            .unwrap_one();
 
         let rca = (cmd3 >> 16) as u16;
 
@@ -96,11 +105,13 @@ pub trait SdHostController: Device + BlockDevice {
             warnln!("Card is not ready for data mode");
             return Err(Errno::InvalidArgument);
         }
-        let cmd9 = self.send_cmd(&mut SdCommand {
-            number: SdCommandNumber::Cmd9,
-            argument: cmd3 & 0xFFFF0000,
-            transfer: SdCommandTransfer::None,
-        })?.unwrap_four();
+        let cmd9 = self
+            .send_cmd(&mut SdCommand {
+                number: SdCommandNumber::Cmd9,
+                argument: cmd3 & 0xFFFF0000,
+                transfer: SdCommandTransfer::None,
+            })?
+            .unwrap_four();
 
         debugln!("cmd9 = {:#x?}", cmd9);
         let csd_structure = (cmd9[3] >> 16) & 0x3;
@@ -109,7 +120,7 @@ pub trait SdHostController: Device + BlockDevice {
                 let c_size = ((cmd9[2] & 0x3) << 10) | ((cmd9[1] >> 22) & 0x3FF);
                 let c_size_mult = (cmd9[1] >> 7) & 0x7;
                 ((c_size + 1) as u64) << (c_size_mult + 9 /* Block size is 512 */ + 2)
-            },
+            }
             1 => todo!(),
             _ => {
                 warnln!("Invalid CSD version: {}", csd_structure);
@@ -117,11 +128,13 @@ pub trait SdHostController: Device + BlockDevice {
             }
         };
 
-        let cmd7 = self.send_cmd(&mut SdCommand {
-            number: SdCommandNumber::Cmd7,
-            argument: cmd3 & 0xFFFF0000,
-            transfer: SdCommandTransfer::None,
-        })?.unwrap_one();
+        let cmd7 = self
+            .send_cmd(&mut SdCommand {
+                number: SdCommandNumber::Cmd7,
+                argument: cmd3 & 0xFFFF0000,
+                transfer: SdCommandTransfer::None,
+            })?
+            .unwrap_one();
 
         let status = (cmd7 >> 9) & 0xF;
         if status != 3 && status != 4 {
@@ -140,7 +153,7 @@ pub trait SdHostController: Device + BlockDevice {
         self.send_cmd(&mut SdCommand {
             number: SdCommandNumber::Acmd51,
             argument: 0,
-            transfer: SdCommandTransfer::Read(&mut buf[..8], 8)
+            transfer: SdCommandTransfer::Read(&mut buf[..8], 8),
         })?;
 
         let sd_spec = buf[0] & 0xF;
@@ -151,14 +164,14 @@ pub trait SdHostController: Device + BlockDevice {
             2 => {
                 // FIXME check for 3.0/4.0
                 SdCardVersion::Ver20
-            },
-            _ => panic!("Invalid version: {:#x}", sd_spec)
+            }
+            _ => panic!("Invalid version: {:#x}", sd_spec),
         };
 
         let card_id = SdCardIdentification {
             id: cmd2,
             version,
-            capacity
+            capacity,
         };
 
         self.set_card_identification(card_id)?;
@@ -254,10 +267,14 @@ pub enum SdCommandNumber {
     Cmd55 = 55,
 }
 
+pub struct SdCommandInfo {
+    pub response_type: SdResponseType,
+}
+
 pub enum SdCommandTransfer<'a> {
     None,
     Read(&'a mut [u8], u16),
-    Write(&'a [u8], u16)
+    Write(&'a [u8], u16),
 }
 
 pub struct SdCommand<'a> {
@@ -280,7 +297,7 @@ impl SdResponseType {
     pub const fn is_busy(self) -> bool {
         match self {
             Self::R1b | Self::R5b => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -289,40 +306,46 @@ impl SdResponse {
     pub fn unwrap_one(&self) -> u32 {
         match self {
             &SdResponse::One(v) => v,
-            _ => panic!("Unexpected response type")
+            _ => panic!("Unexpected response type"),
         }
     }
 
     pub fn unwrap_four(&self) -> [u32; 4] {
         match self {
             &SdResponse::Four(v) => v,
-            _ => panic!("Unexpected response type")
+            _ => panic!("Unexpected response type"),
         }
     }
 }
 
+impl SdCommandInfo {
+    pub const fn new(response_type: SdResponseType) -> Self {
+        Self { response_type }
+    }
+}
+
 impl SdCommand<'_> {
-    pub const fn response_type(&self) -> SdResponseType {
+    pub const fn info_struct(&self) -> SdCommandInfo {
         match self.number {
-            SdCommandNumber::Cmd0 => SdResponseType::None,
-            SdCommandNumber::Cmd2 => SdResponseType::R2,
-            SdCommandNumber::Cmd3 => SdResponseType::R6,
-            SdCommandNumber::Cmd6 => SdResponseType::R1,
-            SdCommandNumber::Cmd7 => SdResponseType::R1b,
-            SdCommandNumber::Cmd8 => SdResponseType::R7,
-            SdCommandNumber::Cmd9 => SdResponseType::R2,
-            SdCommandNumber::Cmd16 => SdResponseType::R1,
-            SdCommandNumber::Cmd17 => SdResponseType::R1,
-            SdCommandNumber::Acmd41 => SdResponseType::R3,
-            SdCommandNumber::Acmd51 => SdResponseType::R1,
-            SdCommandNumber::Cmd55 => SdResponseType::R1,
+            SdCommandNumber::Cmd0 => SdCommandInfo::new(SdResponseType::None),
+            SdCommandNumber::Cmd2 => SdCommandInfo::new(SdResponseType::R2),
+            SdCommandNumber::Cmd3 => SdCommandInfo::new(SdResponseType::R6),
+            SdCommandNumber::Cmd6 => SdCommandInfo::new(SdResponseType::R1),
+            SdCommandNumber::Cmd7 => SdCommandInfo::new(SdResponseType::R1b),
+            SdCommandNumber::Cmd8 => SdCommandInfo::new(SdResponseType::R7),
+            SdCommandNumber::Cmd9 => SdCommandInfo::new(SdResponseType::R2),
+            SdCommandNumber::Cmd16 => SdCommandInfo::new(SdResponseType::R1),
+            SdCommandNumber::Cmd17 => SdCommandInfo::new(SdResponseType::R1),
+            SdCommandNumber::Acmd41 => SdCommandInfo::new(SdResponseType::R3),
+            SdCommandNumber::Acmd51 => SdCommandInfo::new(SdResponseType::R1),
+            SdCommandNumber::Cmd55 => SdCommandInfo::new(SdResponseType::R1),
         }
     }
 
     pub const fn is_acmd(&self) -> bool {
         match self.number {
             SdCommandNumber::Acmd41 | SdCommandNumber::Acmd51 => true,
-            _ => false
+            _ => false,
         }
     }
 
