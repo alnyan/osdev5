@@ -51,3 +51,4 @@ impl<T> InitOnce<T> {
 }
 
 unsafe impl<T> Sync for InitOnce<T> {}
+

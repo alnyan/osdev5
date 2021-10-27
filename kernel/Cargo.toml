@@ -28,4 +28,4 @@ pl031 = []
 
 mach_qemu = ["pl011", "pl031"]
 mach_orangepi3 = []
-mach_rpi3 = []
+mach_rpi3 = ["pl011"]

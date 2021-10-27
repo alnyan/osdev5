@@ -3,6 +3,8 @@
 
 extern crate alloc;
 
+pub mod block;
+pub use block::BlockDevice;
 pub mod fs;
 pub use fs::Filesystem;
 pub mod stat;

@@ -7,6 +7,8 @@ use error::Errno;
 pub mod fdt;
 pub mod gpio;
 pub mod irq;
+#[allow(missing_docs)]
+pub mod sd;
 pub mod pci;
 pub mod rtc;
 pub mod serial;

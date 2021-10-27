@@ -40,6 +40,14 @@ QEMU_OPTS+=-kernel $(O)/kernel.bin \
 		   -display none \
 		   -net none
 endif
+ifeq ($(MACH),rpi3)
+QEMU_OPTS+=-kernel $(O)/kernel.bin \
+		   -initrd $(O)/initrd.img \
+		   -M raspi3b \
+		   -serial chardev:serial1 \
+		   -display none \
+		   -net none
+endif
 endif
 
 ifeq ($(QEMU_DINT),1)
