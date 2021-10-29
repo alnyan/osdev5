@@ -49,7 +49,7 @@ impl VnodeImpl for DirectoryInode {
             let bpb: &Bpb = fs_data.as_ref().and_then(|e| e.downcast_ref()).unwrap();
             let sector = bpb.cluster_base_sector(self.cluster);
 
-            FatIterator::new(dev, sector, bpb.sectors_per_cluster)
+            FatIterator::new(dev, sector, bpb.sectors_per_cluster())
                 .find(|ent| ent.name == name)
                 .ok_or(Errno::DoesNotExist)
         }?;
