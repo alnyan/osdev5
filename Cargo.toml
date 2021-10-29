@@ -11,6 +11,7 @@ edition = "2018"
 members = [
     "fs/vfs",
     "fs/memfs",
+    "fs/fat32",
     "libcommon",
     "kernel",
     "libusr",

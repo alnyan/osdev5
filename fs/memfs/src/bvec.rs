@@ -40,14 +40,16 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
     }
 
     #[cfg(feature = "cow")]
-    pub fn is_cow(&self) -> bool {
-        !self.cow_source.is_null()
+    pub unsafe fn new_copy_on_write(alloc: A, cow_source: *const u8, cow_len: usize) -> Self {
+        let mut res = Bvec::new(alloc);
+        res.cow_source = cow_source;
+        res.size = cow_len;
+        res
     }
 
     #[cfg(feature = "cow")]
-    pub unsafe fn setup_cow(&mut self, src: *const u8, size: usize) {
-        self.cow_source = src;
-        self.size = size;
+    pub fn is_cow(&self) -> bool {
+        !self.cow_source.is_null()
     }
 
     pub const fn size(&self) -> usize {
@@ -305,12 +307,13 @@ mod cow_tests {
 
     #[test]
     fn bvec_write_copy_simple() {
-        let mut bvec = Bvec::new(TestAlloc {});
+        //let mut bvec = Bvec::new(TestAlloc {});
         let mut buf = [0u8; 512];
         let source_data = b"This is initial data\n";
-        unsafe {
-            bvec.setup_cow(source_data.as_ptr(), source_data.len());
-        }
+        //unsafe {
+        //    bvec.setup_cow(source_data.as_ptr(), source_data.len());
+        //}
+        let mut bvec = unsafe { Bvec::new_copy_on_write(TestAlloc {}, source_data.as_ptr(), source_data.len()) };
         assert!(bvec.is_cow());
         assert_eq!(bvec.size(), source_data.len());
         assert_eq!(bvec.capacity, 0);
@@ -327,15 +330,12 @@ mod cow_tests {
 
     #[test]
     fn bvec_write_copy_l0() {
-        let mut bvec = Bvec::new(TestAlloc {});
         let mut source_data = [0u8; 4096 * 2 - 2];
         let mut buf = [0u8; 512];
         for i in 0..source_data.len() {
             source_data[i] = (i & 0xFF) as u8;
         }
-        unsafe {
-            bvec.setup_cow(source_data.as_ptr(), source_data.len());
-        }
+        let mut bvec = unsafe { Bvec::new_copy_on_write(TestAlloc {}, source_data.as_ptr(), source_data.len()) };
         assert!(bvec.is_cow());
         assert_eq!(bvec.size(), source_data.len());
         assert_eq!(bvec.capacity, 0);

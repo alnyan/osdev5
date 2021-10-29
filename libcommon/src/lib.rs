@@ -30,11 +30,19 @@ pub fn path_component_left(path: &str) -> (&str, &str) {
 }
 
 pub fn path_component_right(path: &str) -> (&str, &str) {
-    if let Some((left, right)) = path.rsplit_once('/') {
+    if let Some((left, right)) = path.trim_end_matches('/').rsplit_once('/') {
         (left.trim_end_matches('/'), right)
     } else {
-        (path, "")
+        ("", path)
     }
+}
+
+pub fn read_le32(src: &[u8]) -> u32 {
+    (src[0] as u32) | ((src[1] as u32) << 8) | ((src[2] as u32) << 16) | ((src[3] as u32) << 24)
+}
+
+pub fn read_le16(src: &[u8]) -> u16 {
+    (src[0] as u16) | ((src[1] as u16) << 8)
 }
 
 #[cfg(test)]

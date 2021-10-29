@@ -18,13 +18,6 @@ pub struct TreeNode {
     children: Vec<VnodeRef>,
 }
 
-pub struct VnodeData {
-    // Filesystem itself
-    pub fs: Rc<dyn Filesystem>,
-    // Something like "inode" struct + "ops" table
-    pub node: Box<dyn VnodeImpl>,
-}
-
 pub struct VnodeProps {
     mode: FileMode,
 }
@@ -37,12 +30,15 @@ pub struct Vnode {
     kind: VnodeKind,
     flags: u32,
 
-    pub data: RefCell<Option<VnodeData>>,
+    fs: RefCell<Option<Rc<dyn Filesystem>>>,
+    data: RefCell<Option<Box<dyn VnodeImpl>>>,
 }
 
 pub trait VnodeImpl {
-    fn create(&mut self, at: VnodeRef, node: VnodeRef) -> Result<(), Errno>;
+    // Directory-only operations
+    fn create(&mut self, at: VnodeRef, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno>;
     fn remove(&mut self, at: VnodeRef, name: &str) -> Result<(), Errno>;
+    fn lookup(&mut self, at: VnodeRef, name: &str) -> Result<VnodeRef, Errno>;
 
     fn open(&mut self, node: VnodeRef /* TODO open mode */) -> Result<usize, Errno>;
     fn close(&mut self, node: VnodeRef) -> Result<(), Errno>;
@@ -70,16 +66,25 @@ impl Vnode {
                 parent: None,
                 children: Vec::new(),
             }),
+            fs: RefCell::new(None),
             data: RefCell::new(None),
         })
     }
 
-    pub fn set_data(&self, data: VnodeData) {
+    pub fn set_data(&self, data: Box<dyn VnodeImpl>) {
         *self.data.borrow_mut() = Some(data);
     }
 
-    pub fn data(&self) -> RefMut<Option<VnodeData>> {
+    pub fn set_fs(&self, fs: Rc<dyn Filesystem>) {
+        *self.fs.borrow_mut() = Some(fs);
+    }
+
+    pub fn data(&self) -> RefMut<Option<Box<dyn VnodeImpl>>> {
         self.data.borrow_mut()
+    }
+
+    pub fn fs(&self) -> Option<Rc<dyn Filesystem>> {
+        self.fs.borrow().clone()
     }
 
     pub fn is_directory(&self) -> bool {
@@ -134,26 +139,40 @@ impl Vnode {
             .cloned()
     }
 
+    pub fn lookup_or_load(self: &VnodeRef, name: &str) -> Result<VnodeRef, Errno> {
+        if let Some(node) = self.lookup(name) {
+            return Ok(node);
+        }
+
+        if let Some(ref mut data) = *self.data() {
+            let vnode = data.lookup(self.clone(), name)?;
+            if let Some(fs) = self.fs() {
+                vnode.set_fs(fs);
+            }
+            self.attach(vnode.clone());
+            Ok(vnode)
+        } else {
+            Err(Errno::NotImplemented)
+        }
+    }
+
     pub fn mkdir(self: &VnodeRef, name: &str, mode: FileMode) -> Result<VnodeRef, Errno> {
         if self.kind != VnodeKind::Directory {
             return Err(Errno::NotADirectory);
         }
 
-        if self.lookup(name).is_some() {
-            return Err(Errno::AlreadyExists);
-        }
+        match self.lookup_or_load(name) {
+            Err(Errno::DoesNotExist) => {},
+            Ok(_) => return Err(Errno::AlreadyExists),
+            e => return e,
+        };
 
-        if let Some(ref mut data) = *self.data.borrow_mut() {
-            let vnode = data.fs.clone().create_node(name, VnodeKind::Directory)?;
-
-            vnode.props.borrow_mut().mode = mode;
-
-            if let Err(err) = data.node.create(self.clone(), vnode.clone()) {
-                if err != Errno::NotImplemented {
-                    return Err(err);
-                }
+        if let Some(ref mut data) = *self.data() {
+            let vnode = data.create(self.clone(), name, VnodeKind::Directory)?;
+            if let Some(fs) = self.fs() {
+                vnode.set_fs(fs);
             }
-
+            vnode.props.borrow_mut().mode = mode;
             self.attach(vnode.clone());
             Ok(vnode)
         } else {
@@ -166,15 +185,9 @@ impl Vnode {
             return Err(Errno::NotADirectory);
         }
 
-        if let Some(ref mut data) = *self.data.borrow_mut() {
+        if let Some(ref mut data) = *self.data() {
             let vnode = self.lookup(name).ok_or(Errno::DoesNotExist)?;
-
-            if let Err(err) = data.node.remove(self.clone(), name) {
-                if err != Errno::NotImplemented {
-                    return Err(err);
-                }
-            }
-
+            data.remove(self.clone(), name)?;
             vnode.detach();
             Ok(())
         } else {
@@ -187,8 +200,8 @@ impl Vnode {
             return Err(Errno::IsADirectory);
         }
 
-        if let Some(ref mut data) = *self.data.borrow_mut() {
-            let pos = data.node.open(self.clone())?;
+        if let Some(ref mut data) = *self.data() {
+            let pos = data.open(self.clone())?;
             Ok(File::normal(self.clone(), pos))
         } else {
             Err(Errno::NotImplemented)
@@ -200,8 +213,8 @@ impl Vnode {
             return Err(Errno::IsADirectory);
         }
 
-        if let Some(ref mut data) = *self.data.borrow_mut() {
-            data.node.read(self.clone(), pos, buf)
+        if let Some(ref mut data) = *self.data() {
+            data.read(self.clone(), pos, buf)
         } else {
             Err(Errno::NotImplemented)
         }
@@ -212,8 +225,8 @@ impl Vnode {
             return Err(Errno::IsADirectory);
         }
 
-        if let Some(ref mut data) = *self.data.borrow_mut() {
-            data.node.write(self.clone(), pos, buf)
+        if let Some(ref mut data) = *self.data() {
+            data.write(self.clone(), pos, buf)
         } else {
             Err(Errno::NotImplemented)
         }
@@ -224,24 +237,24 @@ impl Vnode {
             return Err(Errno::IsADirectory);
         }
 
-        if let Some(ref mut data) = *self.data.borrow_mut() {
-            data.node.truncate(self.clone(), size)
+        if let Some(ref mut data) = *self.data() {
+            data.truncate(self.clone(), size)
         } else {
             Err(Errno::NotImplemented)
         }
     }
 
     pub fn size(self: &VnodeRef) -> Result<usize, Errno> {
-        if let Some(ref mut data) = *self.data.borrow_mut() {
-            data.node.size(self.clone())
+        if let Some(ref mut data) = *self.data() {
+            data.size(self.clone())
         } else {
             Err(Errno::NotImplemented)
         }
     }
 
     pub fn ioctl(self: &VnodeRef, cmd: u64, value: *mut c_void) -> Result<isize, Errno> {
-        if let Some(ref mut data) = *self.data.borrow_mut() {
-            data.node.ioctl(self.clone(), cmd, value)
+        if let Some(ref mut data) = *self.data() {
+            data.ioctl(self.clone(), cmd, value)
         } else {
             Err(Errno::NotImplemented)
         }
@@ -257,18 +270,22 @@ impl fmt::Debug for Vnode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Filesystem;
 
     pub struct DummyInode;
-    pub struct DummyFs;
 
     impl VnodeImpl for DummyInode {
-        fn create(&mut self, _at: VnodeRef, _node: VnodeRef) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
+        fn create(&mut self, _at: VnodeRef, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
+            let node = Vnode::new(name, kind, 0);
+            node.set_data(Box::new(DummyInode {}));
+            Ok(node)
         }
 
         fn remove(&mut self, _at: VnodeRef, _name: &str) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
+            Ok(())
+        }
+
+        fn lookup(&mut self, _at: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
+            Err(Errno::DoesNotExist)
         }
 
         fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
@@ -305,21 +322,6 @@ mod tests {
         }
     }
 
-    impl Filesystem for DummyFs {
-        fn root(self: Rc<Self>) -> Result<VnodeRef, Errno> {
-            todo!()
-        }
-
-        fn create_node(self: Rc<Self>, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
-            let node = Vnode::new(name, kind, 0);
-            node.set_data(VnodeData {
-                node: Box::new(DummyInode {}),
-                fs: self,
-            });
-            Ok(node)
-        }
-    }
-
     #[test]
     fn test_parent() {
         let root = Vnode::new("", VnodeKind::Directory, 0);
@@ -333,13 +335,9 @@ mod tests {
 
     #[test]
     fn test_mkdir_unlink() {
-        let fs = Rc::new(DummyFs {});
         let root = Vnode::new("", VnodeKind::Directory, 0);
 
-        root.set_data(VnodeData {
-            node: Box::new(DummyInode {}),
-            fs: fs.clone(),
-        });
+        root.set_data(Box::new(DummyInode {}));
 
         let node = root.mkdir("test", FileMode::default_dir()).unwrap();
 

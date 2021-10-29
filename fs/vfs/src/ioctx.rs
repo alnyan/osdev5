@@ -40,7 +40,7 @@ impl Ioctx {
         }
         assert!(!element.is_empty());
 
-        let node = at.lookup(element).ok_or(Errno::DoesNotExist)?;
+        let node = at.lookup_or_load(element)?;
 
         if rest.is_empty() {
             Ok(node)
@@ -62,55 +62,58 @@ impl Ioctx {
         self._find(at, path)
     }
 
-    pub fn mkdir(&self, at: Option<VnodeRef>, path: &str, mode: FileMode) -> Result<(), Errno> {
+    pub fn mkdir(&self, at: Option<VnodeRef>, path: &str, mode: FileMode) -> Result<VnodeRef, Errno> {
         let (parent, name) = path_component_right(path);
-        let parent_node = self.find(at, parent)?;
-
-        parent_node.mkdir(name, mode).map(|_| ())
+        self.find(at, parent)?.mkdir(name, mode)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{node::VnodeData, Filesystem, Vnode, VnodeImpl, VnodeKind};
+    use crate::{Vnode, VnodeImpl, VnodeKind};
     use alloc::{boxed::Box, rc::Rc};
     use core::ffi::c_void;
 
     pub struct DummyInode;
-    pub struct DummyFs;
 
     impl VnodeImpl for DummyInode {
-        fn create(&mut self, _at: VnodeRef, _node: VnodeRef) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
+        fn create(&mut self, _at: VnodeRef, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
+            let vnode = Vnode::new(name, kind, 0);
+            vnode.set_data(Box::new(DummyInode {}));
+            Ok(vnode)
         }
 
         fn remove(&mut self, _at: VnodeRef, _name: &str) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
+            todo!()
+        }
+
+        fn lookup(&mut self, _at: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
+            Err(Errno::DoesNotExist)
         }
 
         fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
+            todo!()
         }
 
         fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
+            todo!()
         }
 
         fn read(&mut self, _node: VnodeRef, _pos: usize, _data: &mut [u8]) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
+            todo!()
         }
 
         fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
+            todo!()
         }
 
         fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
+            todo!()
         }
 
         fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
+            todo!()
         }
 
         fn ioctl(
@@ -119,22 +122,7 @@ mod tests {
             _cmd: u64,
             _value: *mut c_void,
         ) -> Result<isize, Errno> {
-            Err(Errno::NotImplemented)
-        }
-    }
-
-    impl Filesystem for DummyFs {
-        fn root(self: Rc<Self>) -> Result<VnodeRef, Errno> {
             todo!()
-        }
-
-        fn create_node(self: Rc<Self>, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
-            let node = Vnode::new(name, kind, 0);
-            node.set_data(VnodeData {
-                node: Box::new(DummyInode {}),
-                fs: self,
-            });
-            Ok(node)
         }
     }
 
@@ -220,14 +208,10 @@ mod tests {
 
     #[test]
     fn test_mkdir() {
-        let fs = Rc::new(DummyFs {});
         let root = Vnode::new("", VnodeKind::Directory, 0);
         let ioctx = Ioctx::new(root.clone());
 
-        root.set_data(VnodeData {
-            node: Box::new(DummyInode {}),
-            fs: fs.clone(),
-        });
+        root.set_data(Box::new(DummyInode {}));
 
         assert!(ioctx.mkdir(None, "/dir0", FileMode::default_dir()).is_ok());
         assert_eq!(

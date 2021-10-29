@@ -79,21 +79,26 @@ impl File {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{node::VnodeData, Filesystem, Vnode, VnodeImpl, VnodeKind, VnodeRef};
+    use crate::{Vnode, VnodeImpl, VnodeKind, VnodeRef};
     use alloc::boxed::Box;
     use alloc::rc::Rc;
     use core::ffi::c_void;
 
     pub struct DummyInode;
-    pub struct DummyFs;
 
     impl VnodeImpl for DummyInode {
-        fn create(&mut self, _at: VnodeRef, _node: VnodeRef) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
+        fn create(&mut self, _at: VnodeRef, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
+            let node = Vnode::new(name, kind, 0);
+            node.set_data(Box::new(DummyInode {}));
+            Ok(node)
         }
 
         fn remove(&mut self, _at: VnodeRef, _name: &str) -> Result<(), Errno> {
             Err(Errno::NotImplemented)
+        }
+
+        fn lookup(&mut self, _at: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
+            todo!()
         }
 
         fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
@@ -138,25 +143,10 @@ mod tests {
         }
     }
 
-    impl Filesystem for DummyFs {
-        fn root(self: Rc<Self>) -> Result<VnodeRef, Errno> {
-            todo!()
-        }
-
-        fn create_node(self: Rc<Self>, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
-            let node = Vnode::new(name, kind, 0);
-            node.set_data(VnodeData {
-                node: Box::new(DummyInode {}),
-                fs: self,
-            });
-            Ok(node)
-        }
-    }
-
     #[test]
     fn test_normal_read() {
-        let fs = Rc::new(DummyFs {});
-        let node = fs.create_node("", VnodeKind::Regular).unwrap();
+        let node = Vnode::new("", VnodeKind::Regular, 0);
+        node.set_data(Box::new(DummyInode {}));
         let mut file = node.open().unwrap();
 
         match &file.inner {

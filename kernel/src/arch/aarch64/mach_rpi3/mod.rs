@@ -59,7 +59,7 @@ pub fn local_timer() -> &'static GenericTimer {
 }
 
 static IRQCHIP: Bcm283xIrqchip = Bcm283xIrqchip::new();
-static EMMC: MassMediaController = unsafe { MassMediaController::new(EMMC_BASE) };
+pub static EMMC: MassMediaController = unsafe { MassMediaController::new(EMMC_BASE) };
 static UART: Pl011 = unsafe { Pl011::new(UART_BASE, UART_IRQ) };
 pub(self) static BCM_MBOX: Bcm283xMailbox = unsafe { Bcm283xMailbox::new(BCM_MBOX_BASE) };
 static LOCAL_TIMER: GenericTimer = GenericTimer::new(LOCAL_TIMER_IRQ);

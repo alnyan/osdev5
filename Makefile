@@ -107,6 +107,7 @@ endif
 test:
 	cd fs/vfs && cargo test
 	cd fs/memfs && cargo test
+	cd fs/fat32 && cargo test
 
 clean:
 	cargo clean

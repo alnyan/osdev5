@@ -12,11 +12,12 @@ extern crate alloc;
 extern crate std;
 
 use alloc::{boxed::Box, rc::Rc};
-use core::cell::RefCell;
+use core::cell::{RefCell, Ref};
 use core::ffi::c_void;
 use error::Errno;
-use libcommon::path_component_left;
-use vfs::{node::VnodeData, Filesystem, Vnode, VnodeImpl, VnodeKind, VnodeRef};
+use libcommon::*;
+use vfs::{Filesystem, Vnode, VnodeImpl, VnodeKind, VnodeRef, BlockDevice};
+use core::any::Any;
 
 pub mod block;
 pub use block::{BlockAllocator, BlockRef};
@@ -36,14 +37,17 @@ pub struct FileInode<'a, A: BlockAllocator + Copy + 'static> {
 
 pub struct DirInode;
 
-struct SetupFileParam {
-    data: &'static [u8],
-}
-
-const FILE_SETUP_COW: u64 = 0x1001;
-
 impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
-    fn create(&mut self, _parent: VnodeRef, _node: VnodeRef) -> Result<(), Errno> {
+    fn create(
+        &mut self,
+        _parent: VnodeRef,
+        _name: &str,
+        _kind: VnodeKind,
+    ) -> Result<VnodeRef, Errno> {
+        panic!()
+    }
+
+    fn lookup(&mut self, _parent: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
         panic!()
     }
 
@@ -75,24 +79,23 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
         Ok(self.data.size())
     }
 
-    fn ioctl(&mut self, _node: VnodeRef, cmd: u64, value: *mut c_void) -> Result<isize, Errno> {
-        match cmd {
-            #[cfg(feature = "cow")]
-            FILE_SETUP_COW => {
-                let data = unsafe { (value as *mut SetupFileParam).as_ref().unwrap() };
-                unsafe {
-                    self.data.setup_cow(data.data.as_ptr(), data.data.len());
-                }
-                Ok(0)
-            }
-            _ => Err(Errno::InvalidArgument),
-        }
+    fn ioctl(&mut self, _node: VnodeRef, _cmd: u64, _value: *mut c_void) -> Result<isize, Errno> {
+        todo!()
     }
 }
 
 impl VnodeImpl for DirInode {
-    fn create(&mut self, _parent: VnodeRef, _node: VnodeRef) -> Result<(), Errno> {
-        Ok(())
+    fn create(
+        &mut self,
+        _parent: VnodeRef,
+        _name: &str,
+        _kind: VnodeKind,
+    ) -> Result<VnodeRef, Errno> {
+        todo!()
+    }
+
+    fn lookup(&mut self, _parent: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
+        panic!()
     }
 
     fn remove(&mut self, _parent: VnodeRef, _name: &str) -> Result<(), Errno> {
@@ -133,20 +136,28 @@ impl<A: BlockAllocator + Copy + 'static> Filesystem for Ramfs<A> {
         self.root.borrow().clone().ok_or(Errno::DoesNotExist)
     }
 
-    fn create_node(self: Rc<Self>, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
-        let node = Vnode::new(name, kind, Vnode::SEEKABLE);
-        let data: Box<dyn VnodeImpl> = match kind {
-            VnodeKind::Regular => Box::new(FileInode {
-                data: Bvec::new(self.alloc),
-            }),
-            VnodeKind::Directory => Box::new(DirInode {}),
-        };
-        node.set_data(VnodeData {
-            fs: self,
-            node: data,
-        });
-        Ok(node)
+    fn data(&self) -> Option<Ref<dyn Any>> {
+        None
     }
+
+    fn dev(self: Rc<Self>) -> Option<&'static dyn BlockDevice> {
+        None
+    }
+
+    // fn create_node(self: Rc<Self>, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
+    //     let node = Vnode::new(name, kind, Vnode::SEEKABLE);
+    //     let data: Box<dyn VnodeImpl> = match kind {
+    //         VnodeKind::Regular => Box::new(FileInode {
+    //             data: Bvec::new(self.alloc),
+    //         }),
+    //         VnodeKind::Directory => Box::new(DirInode {}),
+    //     };
+    //     node.set_data(VnodeData {
+    //         fs: self,
+    //         node: data,
+    //     });
+    //     Ok(node)
+    // }
 }
 
 impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
@@ -159,21 +170,27 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
         Ok(res)
     }
 
+    fn create_node_initial(self: Rc<Self>, name: &str, kind: VnodeKind) -> VnodeRef {
+        let node = Vnode::new(name, kind, Vnode::SEEKABLE);
+        node.set_fs(self.clone());
+        match kind {
+            VnodeKind::Directory => node.set_data(Box::new(DirInode {})),
+            VnodeKind::Regular => {}
+        };
+        node
+    }
+
     fn make_path(
         self: Rc<Self>,
         at: VnodeRef,
         path: &str,
-        kind: VnodeKind,
         do_create: bool,
     ) -> Result<VnodeRef, Errno> {
+        if path.is_empty() {
+            return Ok(at);
+        }
         let (element, rest) = path_component_left(path);
         assert!(!element.is_empty());
-
-        let node_kind = if rest.is_empty() {
-            kind
-        } else {
-            VnodeKind::Directory
-        };
 
         let node = at.lookup(element);
         let node = match node {
@@ -182,7 +199,10 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
                 if !do_create {
                     return Err(Errno::DoesNotExist);
                 }
-                let node = self.clone().create_node(element, node_kind)?;
+                // TODO use at.create() instead?
+                let node = self
+                    .clone()
+                    .create_node_initial(element, VnodeKind::Directory);
                 at.attach(node.clone());
                 node
             }
@@ -191,38 +211,45 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
         if rest.is_empty() {
             Ok(node)
         } else {
-            self.make_path(node, rest, kind, do_create)
+            self.make_path(node, rest, do_create)
         }
     }
 
     unsafe fn load_tar(self: Rc<Self>, base: *const u8, size: usize) -> Result<VnodeRef, Errno> {
-        let root = self.clone().create_node("", VnodeKind::Directory)?;
+        let root = self.clone().create_node_initial("", VnodeKind::Directory);
 
         // 1. Create all the paths in TAR
         for block in TarIterator::new(base, base.add(size)) {
-            let node =
-                self.clone()
-                    .make_path(root.clone(), block.path()?, block.node_kind(), true)?;
+            let (dirname, basename) = path_component_right(block.path()?);
+
+            let parent = self.clone().make_path(root.clone(), dirname, true)?;
+            let node = self
+                .clone()
+                .create_node_initial(basename, block.node_kind());
             assert_eq!(node.kind(), block.node_kind());
+            parent.attach(node);
         }
 
         // 2. Setup data blocks
         for block in TarIterator::new(base, base.add(size)) {
             if block.is_file() {
-                let node = self.clone().make_path(
-                    root.clone(),
-                    block.path()?,
-                    block.node_kind(),
-                    false,
-                )?;
+                // Will not create any dirs
+                let node = self.clone().make_path(root.clone(), block.path()?, false)?;
+                assert_eq!(node.kind(), block.node_kind());
 
                 #[cfg(feature = "cow")]
                 {
-                    let mut param = SetupFileParam { data: block.data() };
-                    node.ioctl(FILE_SETUP_COW, &mut param as *mut _ as *mut _)?;
+                    let data = block.data();
+                    node.set_data(Box::new(FileInode {
+                        data: Bvec::new_copy_on_write(self.alloc, data.as_ptr(), data.len()),
+                    }));
                 }
                 #[cfg(not(feature = "cow"))]
                 {
+                    node.set_data(Box::new(FileInode {
+                        data: Bvec::new(self.alloc)
+                    }));
+
                     let size = block.size();
                     node.truncate(size)?;
                     if node.write(0, block.data())? != size {
