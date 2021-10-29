@@ -1,17 +1,19 @@
+//! Virtual filesystem API and facilities
+#![warn(missing_docs)]
 #![feature(destructuring_assignment)]
 #![no_std]
 
 extern crate alloc;
 
-pub mod block;
+mod block;
 pub use block::BlockDevice;
-pub mod fs;
+mod fs;
 pub use fs::Filesystem;
-pub mod stat;
+mod stat;
 pub use stat::FileMode;
-pub mod node;
+mod node;
 pub use node::{Vnode, VnodeImpl, VnodeKind, VnodeRef};
-pub mod ioctx;
+mod ioctx;
 pub use ioctx::Ioctx;
-pub mod file;
+mod file;
 pub use file::File;

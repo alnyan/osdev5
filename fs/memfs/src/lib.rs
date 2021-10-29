@@ -13,10 +13,9 @@ extern crate std;
 
 use alloc::{boxed::Box, rc::Rc};
 use core::cell::{RefCell, Ref};
-use core::ffi::c_void;
 use error::Errno;
 use libcommon::*;
-use vfs::{Filesystem, Vnode, VnodeImpl, VnodeKind, VnodeRef, BlockDevice};
+use vfs::{Filesystem, Vnode, VnodeImpl, VnodeKind, VnodeRef, BlockDevice, FileMode};
 use core::any::Any;
 
 pub mod block;
@@ -78,10 +77,6 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
     fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
         Ok(self.data.size())
     }
-
-    fn ioctl(&mut self, _node: VnodeRef, _cmd: u64, _value: *mut c_void) -> Result<isize, Errno> {
-        todo!()
-    }
 }
 
 impl VnodeImpl for DirInode {
@@ -123,10 +118,6 @@ impl VnodeImpl for DirInode {
     }
 
     fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-        todo!()
-    }
-
-    fn ioctl(&mut self, _node: VnodeRef, _cmd: u64, _value: *mut c_void) -> Result<isize, Errno> {
         todo!()
     }
 }
@@ -199,11 +190,8 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
                 if !do_create {
                     return Err(Errno::DoesNotExist);
                 }
-                // TODO use at.create() instead?
-                let node = self
-                    .clone()
-                    .create_node_initial(element, VnodeKind::Directory);
-                at.attach(node.clone());
+                // TODO file modes
+                let node = at.mkdir(element, FileMode::default_dir())?;
                 node
             }
         };

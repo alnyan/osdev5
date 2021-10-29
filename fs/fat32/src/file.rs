@@ -1,5 +1,4 @@
 use vfs::{VnodeImpl, VnodeRef, VnodeKind};
-use core::ffi::c_void;
 use error::Errno;
 use crate::Bpb;
 
@@ -71,10 +70,6 @@ impl VnodeImpl for FileInode {
     }
 
     fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-        todo!()
-    }
-
-    fn ioctl(&mut self, _node: VnodeRef, _cmd: u64, _value: *mut c_void) -> Result<isize, Errno> {
         todo!()
     }
 }

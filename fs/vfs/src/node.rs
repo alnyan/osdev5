@@ -1,27 +1,33 @@
 use crate::{File, FileMode, Filesystem};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{RefCell, RefMut};
-use core::ffi::c_void;
 use core::fmt;
 use error::Errno;
 
+/// Convenience type alias for [Rc<Vnode>]
 pub type VnodeRef = Rc<Vnode>;
 
+/// List of possible vnode types
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VnodeKind {
+    /// Node is a directory with create/lookup/remove operations
     Directory,
+    /// Node is a regular file
     Regular,
 }
 
-pub struct TreeNode {
+pub(crate) struct TreeNode {
     parent: Option<VnodeRef>,
     children: Vec<VnodeRef>,
 }
 
+/// File property cache struct
 pub struct VnodeProps {
     mode: FileMode,
 }
 
+/// Virtual filesystem node struct, generalizes access to
+/// underlying real filesystems
 pub struct Vnode {
     name: String,
     tree: RefCell<TreeNode>,
@@ -34,26 +40,42 @@ pub struct Vnode {
     data: RefCell<Option<Box<dyn VnodeImpl>>>,
 }
 
+/// Interface for "inode" of a real filesystem
 pub trait VnodeImpl {
     // Directory-only operations
+    /// Creates a new vnode, sets it up, attaches it (in real FS) to `at` with `name` and
+    /// returns it
     fn create(&mut self, at: VnodeRef, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno>;
+    /// Removes the filesystem inode from its parent by erasing its directory entry
     fn remove(&mut self, at: VnodeRef, name: &str) -> Result<(), Errno>;
+    /// Looks up a corresponding directory entry for `name`. If present, loads its inode from
+    /// storage medium and returns a new vnode associated with it.
     fn lookup(&mut self, at: VnodeRef, name: &str) -> Result<VnodeRef, Errno>;
 
+    /// Opens a vnode for access. Returns initial file position.
     fn open(&mut self, node: VnodeRef /* TODO open mode */) -> Result<usize, Errno>;
+    /// Closes a vnode
     fn close(&mut self, node: VnodeRef) -> Result<(), Errno>;
 
+    /// Changes file's underlying storage size
     fn truncate(&mut self, node: VnodeRef, size: usize) -> Result<(), Errno>;
+    /// Reads `data.len()` bytes into the buffer from file offset `pos`
     fn read(&mut self, node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno>;
+    /// Writes `data.len()` bytes from the buffer to file offset `pos`.
+    /// Resizes the file storage if necessary.
     fn write(&mut self, node: VnodeRef, pos: usize, data: &[u8]) -> Result<usize, Errno>;
 
+    /// Reports the size of this filesystem object in bytes
     fn size(&mut self, node: VnodeRef) -> Result<usize, Errno>;
-    fn ioctl(&mut self, node: VnodeRef, cmd: u64, value: *mut c_void) -> Result<isize, Errno>;
 }
 
 impl Vnode {
+    /// If set, allows [File] structures associated with a [Vnode] to
+    /// be seeked to arbitrary offsets
     pub const SEEKABLE: u32 = 1 << 0;
 
+    /// Constructs a new [Vnode], wrapping it in [Rc]. The resulting node
+    /// then needs to have [Vnode::set_data()] called on it to be usable.
     pub fn new(name: &str, kind: VnodeKind, flags: u32) -> VnodeRef {
         Rc::new(Self {
             name: name.to_owned(),
@@ -71,30 +93,37 @@ impl Vnode {
         })
     }
 
+    /// Sets an associated [VnodeImpl] for the [Vnode]
     pub fn set_data(&self, data: Box<dyn VnodeImpl>) {
         *self.data.borrow_mut() = Some(data);
     }
 
+    /// Sets an associated [Filesystem] for the [Vnode]
     pub fn set_fs(&self, fs: Rc<dyn Filesystem>) {
         *self.fs.borrow_mut() = Some(fs);
     }
 
+    /// Returns a reference to the associated [VnodeImpl]
     pub fn data(&self) -> RefMut<Option<Box<dyn VnodeImpl>>> {
         self.data.borrow_mut()
     }
 
+    /// Returns the associated [Fileystem]
     pub fn fs(&self) -> Option<Rc<dyn Filesystem>> {
         self.fs.borrow().clone()
     }
 
+    /// Returns `true` if the vnode represents a directory
     pub fn is_directory(&self) -> bool {
         self.kind == VnodeKind::Directory
     }
 
+    /// Returns `true` if the vnode allows arbitrary seeking
     pub fn is_seekable(&self) -> bool {
         self.flags & Self::SEEKABLE != 0
     }
 
+    /// Returns kind of the vnode
     #[inline(always)]
     pub const fn kind(&self) -> VnodeKind {
         self.kind
@@ -102,6 +131,9 @@ impl Vnode {
 
     // Tree operations
 
+    /// Attaches `child` vnode to `self` in in-memory tree. NOTE: does not
+    /// actually perform any real filesystem operations. Used to build
+    /// hierarchies for in-memory or volatile filesystems.
     pub fn attach(self: &VnodeRef, child: VnodeRef) {
         let parent_clone = self.clone();
         let mut parent_borrow = self.tree.borrow_mut();
@@ -126,11 +158,14 @@ impl Vnode {
         parent_borrow.children.remove(index);
     }
 
+    /// Returns this vnode's parent or itself if it has none
     pub fn parent(self: &VnodeRef) -> VnodeRef {
         self.tree.borrow().parent.as_ref().unwrap_or(self).clone()
     }
 
+    /// Looks up a child `name` in in-memory tree cache
     pub fn lookup(self: &VnodeRef, name: &str) -> Option<VnodeRef> {
+        assert!(self.is_directory());
         self.tree
             .borrow()
             .children
@@ -139,6 +174,8 @@ impl Vnode {
             .cloned()
     }
 
+    /// Looks up a child `name` in `self`. Will first try looking up a cached
+    /// vnode and will load it from disk if it's missing.
     pub fn lookup_or_load(self: &VnodeRef, name: &str) -> Result<VnodeRef, Errno> {
         if let Some(node) = self.lookup(name) {
             return Ok(node);
@@ -156,13 +193,14 @@ impl Vnode {
         }
     }
 
+    /// Creates a new directory `name` in `self`
     pub fn mkdir(self: &VnodeRef, name: &str, mode: FileMode) -> Result<VnodeRef, Errno> {
         if self.kind != VnodeKind::Directory {
             return Err(Errno::NotADirectory);
         }
 
         match self.lookup_or_load(name) {
-            Err(Errno::DoesNotExist) => {},
+            Err(Errno::DoesNotExist) => {}
             Ok(_) => return Err(Errno::AlreadyExists),
             e => return e,
         };
@@ -180,6 +218,7 @@ impl Vnode {
         }
     }
 
+    /// Removes a directory entry `name` from `self`
     pub fn unlink(self: &VnodeRef, name: &str) -> Result<(), Errno> {
         if self.kind != VnodeKind::Directory {
             return Err(Errno::NotADirectory);
@@ -195,6 +234,7 @@ impl Vnode {
         }
     }
 
+    /// Opens a vnode for access
     pub fn open(self: &VnodeRef) -> Result<File, Errno> {
         if self.kind != VnodeKind::Regular {
             return Err(Errno::IsADirectory);
@@ -208,6 +248,7 @@ impl Vnode {
         }
     }
 
+    /// Reads data from offset `pos` into `buf`
     pub fn read(self: &VnodeRef, pos: usize, buf: &mut [u8]) -> Result<usize, Errno> {
         if self.kind != VnodeKind::Regular {
             return Err(Errno::IsADirectory);
@@ -220,6 +261,7 @@ impl Vnode {
         }
     }
 
+    /// Writes data from `buf` to offset `pos`
     pub fn write(self: &VnodeRef, pos: usize, buf: &[u8]) -> Result<usize, Errno> {
         if self.kind != VnodeKind::Regular {
             return Err(Errno::IsADirectory);
@@ -232,6 +274,7 @@ impl Vnode {
         }
     }
 
+    /// Resizes the vnode data
     pub fn truncate(self: &VnodeRef, size: usize) -> Result<(), Errno> {
         if self.kind != VnodeKind::Regular {
             return Err(Errno::IsADirectory);
@@ -244,17 +287,10 @@ impl Vnode {
         }
     }
 
+    /// Returns current vnode data size
     pub fn size(self: &VnodeRef) -> Result<usize, Errno> {
         if let Some(ref mut data) = *self.data() {
             data.size(self.clone())
-        } else {
-            Err(Errno::NotImplemented)
-        }
-    }
-
-    pub fn ioctl(self: &VnodeRef, cmd: u64, value: *mut c_void) -> Result<isize, Errno> {
-        if let Some(ref mut data) = *self.data() {
-            data.ioctl(self.clone(), cmd, value)
         } else {
             Err(Errno::NotImplemented)
         }
@@ -274,7 +310,12 @@ mod tests {
     pub struct DummyInode;
 
     impl VnodeImpl for DummyInode {
-        fn create(&mut self, _at: VnodeRef, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
+        fn create(
+            &mut self,
+            _at: VnodeRef,
+            name: &str,
+            kind: VnodeKind,
+        ) -> Result<VnodeRef, Errno> {
             let node = Vnode::new(name, kind, 0);
             node.set_data(Box::new(DummyInode {}));
             Ok(node)
@@ -309,15 +350,6 @@ mod tests {
         }
 
         fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn ioctl(
-            &mut self,
-            _node: VnodeRef,
-            _cmd: u64,
-            _value: *mut c_void,
-        ) -> Result<isize, Errno> {
             Err(Errno::NotImplemented)
         }
     }

@@ -15,6 +15,7 @@ enum FileInner {
     Socket,
 }
 
+/// Structure representing a file/socket opened for access
 pub struct File {
     inner: FileInner,
 }
@@ -69,6 +70,7 @@ impl Seek for File {
 }
 
 impl File {
+    /// Constructs a new file handle for a regular file
     pub fn normal(vnode: VnodeRef, pos: usize) -> Self {
         Self {
             inner: FileInner::Normal(NormalFile { vnode, pos }),
@@ -82,9 +84,8 @@ mod tests {
     use crate::{Vnode, VnodeImpl, VnodeKind, VnodeRef};
     use alloc::boxed::Box;
     use alloc::rc::Rc;
-    use core::ffi::c_void;
 
-    pub struct DummyInode;
+    struct DummyInode;
 
     impl VnodeImpl for DummyInode {
         fn create(&mut self, _at: VnodeRef, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
@@ -130,15 +131,6 @@ mod tests {
         }
 
         fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn ioctl(
-            &mut self,
-            _node: VnodeRef,
-            _cmd: u64,
-            _value: *mut c_void,
-        ) -> Result<isize, Errno> {
             Err(Errno::NotImplemented)
         }
     }

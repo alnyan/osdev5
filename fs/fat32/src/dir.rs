@@ -1,6 +1,5 @@
 use crate::{Bpb, FileInode};
 use alloc::{borrow::ToOwned, boxed::Box, string::String};
-use core::ffi::c_void;
 use error::Errno;
 use libcommon::{read_le16, read_le32};
 use vfs::{BlockDevice, Vnode, VnodeImpl, VnodeKind, VnodeRef};
@@ -95,10 +94,6 @@ impl VnodeImpl for DirectoryInode {
     }
 
     fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-        todo!()
-    }
-
-    fn ioctl(&mut self, _node: VnodeRef, _cmd: u64, _value: *mut c_void) -> Result<isize, Errno> {
         todo!()
     }
 }

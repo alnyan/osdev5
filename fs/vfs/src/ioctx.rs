@@ -2,12 +2,14 @@ use crate::{FileMode, VnodeRef};
 use error::Errno;
 use libcommon::{path_component_left, path_component_right};
 
+/// I/O context structure
 pub struct Ioctx {
     root: VnodeRef,
     cwd: VnodeRef,
 }
 
 impl Ioctx {
+    /// Creates a new I/O context with given root node
     pub fn new(root: VnodeRef) -> Self {
         Self {
             cwd: root.clone(),
@@ -49,6 +51,7 @@ impl Ioctx {
         }
     }
 
+    /// Looks up a path in given ioctx
     pub fn find(&self, at: Option<VnodeRef>, mut path: &str) -> Result<VnodeRef, Errno> {
         let at = if path.starts_with('/') {
             path = path.trim_start_matches('/');
@@ -62,7 +65,13 @@ impl Ioctx {
         self._find(at, path)
     }
 
-    pub fn mkdir(&self, at: Option<VnodeRef>, path: &str, mode: FileMode) -> Result<VnodeRef, Errno> {
+    /// Creates a new directory
+    pub fn mkdir(
+        &self,
+        at: Option<VnodeRef>,
+        path: &str,
+        mode: FileMode,
+    ) -> Result<VnodeRef, Errno> {
         let (parent, name) = path_component_right(path);
         self.find(at, parent)?.mkdir(name, mode)
     }
@@ -73,12 +82,16 @@ mod tests {
     use super::*;
     use crate::{Vnode, VnodeImpl, VnodeKind};
     use alloc::{boxed::Box, rc::Rc};
-    use core::ffi::c_void;
 
     pub struct DummyInode;
 
     impl VnodeImpl for DummyInode {
-        fn create(&mut self, _at: VnodeRef, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
+        fn create(
+            &mut self,
+            _at: VnodeRef,
+            name: &str,
+            kind: VnodeKind,
+        ) -> Result<VnodeRef, Errno> {
             let vnode = Vnode::new(name, kind, 0);
             vnode.set_data(Box::new(DummyInode {}));
             Ok(vnode)
@@ -113,15 +126,6 @@ mod tests {
         }
 
         fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            todo!()
-        }
-
-        fn ioctl(
-            &mut self,
-            _node: VnodeRef,
-            _cmd: u64,
-            _value: *mut c_void,
-        ) -> Result<isize, Errno> {
             todo!()
         }
     }
