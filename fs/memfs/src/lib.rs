@@ -12,114 +12,26 @@ extern crate alloc;
 extern crate std;
 
 use alloc::{boxed::Box, rc::Rc};
-use core::cell::{RefCell, Ref};
+use core::any::Any;
+use core::cell::{Ref, RefCell};
 use error::Errno;
 use libcommon::*;
-use vfs::{Filesystem, Vnode, VnodeImpl, VnodeKind, VnodeRef, BlockDevice, FileMode};
-use core::any::Any;
+use vfs::{BlockDevice, FileMode, Filesystem, Vnode, VnodeKind, VnodeRef};
 
-pub mod block;
+mod block;
 pub use block::{BlockAllocator, BlockRef};
-pub mod bvec;
+mod bvec;
 use bvec::Bvec;
-pub mod tar;
+mod tar;
 use tar::TarIterator;
+mod file;
+use file::FileInode;
+mod dir;
+use dir::DirInode;
 
 pub struct Ramfs<A: BlockAllocator + Copy + 'static> {
     root: RefCell<Option<VnodeRef>>,
     alloc: A,
-}
-
-pub struct FileInode<'a, A: BlockAllocator + Copy + 'static> {
-    data: Bvec<'a, A>,
-}
-
-pub struct DirInode;
-
-impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
-    fn create(
-        &mut self,
-        _parent: VnodeRef,
-        _name: &str,
-        _kind: VnodeKind,
-    ) -> Result<VnodeRef, Errno> {
-        panic!()
-    }
-
-    fn lookup(&mut self, _parent: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
-        panic!()
-    }
-
-    fn remove(&mut self, _parent: VnodeRef, _name: &str) -> Result<(), Errno> {
-        panic!()
-    }
-
-    fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-        Ok(0)
-    }
-
-    fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
-        Ok(())
-    }
-
-    fn read(&mut self, _node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno> {
-        self.data.read(pos, data)
-    }
-
-    fn write(&mut self, _node: VnodeRef, pos: usize, data: &[u8]) -> Result<usize, Errno> {
-        self.data.write(pos, data)
-    }
-
-    fn truncate(&mut self, _node: VnodeRef, size: usize) -> Result<(), Errno> {
-        self.data.resize((size + 4095) / 4096)
-    }
-
-    fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-        Ok(self.data.size())
-    }
-}
-
-impl VnodeImpl for DirInode {
-    fn create(
-        &mut self,
-        _parent: VnodeRef,
-        _name: &str,
-        _kind: VnodeKind,
-    ) -> Result<VnodeRef, Errno> {
-        todo!()
-    }
-
-    fn lookup(&mut self, _parent: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
-        panic!()
-    }
-
-    fn remove(&mut self, _parent: VnodeRef, _name: &str) -> Result<(), Errno> {
-        Ok(())
-    }
-
-    fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-        todo!()
-    }
-
-    fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
-        todo!()
-    }
-
-    fn read(&mut self, _node: VnodeRef, _pos: usize, _data: &mut [u8]) -> Result<usize, Errno> {
-        todo!()
-    }
-
-    fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
-        todo!()
-    }
-
-    fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
-        todo!()
-    }
-
-    fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-        todo!()
-    }
 }
 
 impl<A: BlockAllocator + Copy + 'static> Filesystem for Ramfs<A> {
@@ -134,21 +46,6 @@ impl<A: BlockAllocator + Copy + 'static> Filesystem for Ramfs<A> {
     fn dev(self: Rc<Self>) -> Option<&'static dyn BlockDevice> {
         None
     }
-
-    // fn create_node(self: Rc<Self>, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
-    //     let node = Vnode::new(name, kind, Vnode::SEEKABLE);
-    //     let data: Box<dyn VnodeImpl> = match kind {
-    //         VnodeKind::Regular => Box::new(FileInode {
-    //             data: Bvec::new(self.alloc),
-    //         }),
-    //         VnodeKind::Directory => Box::new(DirInode {}),
-    //     };
-    //     node.set_data(VnodeData {
-    //         fs: self,
-    //         node: data,
-    //     });
-    //     Ok(node)
-    // }
 }
 
 impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
@@ -228,15 +125,15 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
                 #[cfg(feature = "cow")]
                 {
                     let data = block.data();
-                    node.set_data(Box::new(FileInode {
-                        data: Bvec::new_copy_on_write(self.alloc, data.as_ptr(), data.len()),
-                    }));
+                    node.set_data(Box::new(FileInode::new(Bvec::new_copy_on_write(
+                        self.alloc,
+                        data.as_ptr(),
+                        data.len(),
+                    ))));
                 }
                 #[cfg(not(feature = "cow"))]
                 {
-                    node.set_data(Box::new(FileInode {
-                        data: Bvec::new(self.alloc)
-                    }));
+                    node.set_data(Box::new(FileInode::new(Bvec::new(self.alloc))));
 
                     let size = block.size();
                     node.truncate(size)?;
