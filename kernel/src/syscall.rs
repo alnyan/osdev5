@@ -59,6 +59,15 @@ pub unsafe fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             println!(Level::Debug, "");
             Ok(args[1])
         }
+        // sys_ex_sleep
+        121 => {
+            use crate::proc::wait;
+            use core::time::Duration;
+
+            wait::sleep(Duration::from_nanos(args[0] as u64));
+
+            Ok(0)
+        }
         _ => panic!("Undefined system call: {}", num),
     }
 }

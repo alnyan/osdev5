@@ -35,6 +35,7 @@ impl IntSource for GenericTimer {
         CNTP_TVAL_EL0.set(TIMER_TICK);
         CNTP_CTL_EL0.write(CNTP_CTL_EL0::ENABLE::SET);
         use crate::proc;
+        proc::wait::tick();
         proc::switch();
         Ok(())
     }

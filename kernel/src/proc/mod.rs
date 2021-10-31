@@ -8,6 +8,9 @@ pub mod elf;
 pub mod process;
 pub use process::{Pid, Process, ProcessRef, State as ProcessState};
 
+#[allow(missing_docs)]
+pub mod wait;
+
 pub mod sched;
 pub use sched::Scheduler;
 pub(self) use sched::SCHED;
@@ -36,6 +39,11 @@ macro_rules! spawn {
 /// See [Scheduler::switch]
 pub fn switch() {
     SCHED.switch(false);
+}
+
+///
+pub fn process(id: Pid) -> ProcessRef {
+    PROCESSES.lock().get(&id).unwrap().clone()
 }
 
 /// Global list of all processes in the system

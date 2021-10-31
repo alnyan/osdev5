@@ -10,6 +10,7 @@
     const_panic,
     panic_info_message,
     alloc_error_handler,
+    linked_list_cursors,
     const_btree_new
 )]
 #![no_std]

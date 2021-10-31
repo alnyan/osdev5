@@ -44,6 +44,7 @@ struct ProcessInner {
     space: Option<&'static mut Space>,
     state: State,
     id: Pid,
+    wait_flag: bool,
     exit: Option<ExitCode>,
 }
 
@@ -161,7 +162,7 @@ impl Process {
                 assert_eq!(src_lock.state, State::Running);
                 src_lock.state = State::Ready;
             }
-            assert_eq!(dst_lock.state, State::Ready);
+            assert!(dst_lock.state == State::Ready || dst_lock.state == State::Waiting);
             dst_lock.state = State::Running;
         }
 
@@ -169,6 +170,30 @@ impl Process {
         let dst_ctx = dst.ctx.get();
 
         (&mut *src_ctx).switch(&mut *dst_ctx);
+    }
+
+    ///
+    pub fn enter_wait(&self) {
+        let drop = {
+            let mut lock = self.inner.lock();
+            let drop = lock.state == State::Running;
+            lock.state = State::Waiting;
+            SCHED.dequeue(lock.id);
+            drop
+        };
+        if drop {
+            SCHED.switch(true);
+        }
+    }
+
+    ///
+    pub fn set_wait_flag(&self, v: bool) {
+        self.inner.lock().wait_flag = v;
+    }
+
+    ///
+    pub fn wait_flag(&self) -> bool {
+        self.inner.lock().wait_flag
     }
 
     /// Returns the process ID
@@ -185,6 +210,7 @@ impl Process {
                 id,
                 exit: None,
                 space: None,
+                wait_flag: false,
                 state: State::Ready,
             }),
         });
