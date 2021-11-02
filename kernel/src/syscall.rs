@@ -115,25 +115,23 @@ pub unsafe fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             let proc = Process::current();
             let mut io = proc.io.lock();
 
-            let node = io.ioctx.as_ref().unwrap().find(None, path, true)?;
+            let node = io.ioctx().find(None, path, true)?;
             // TODO check access
-            io.files.push(node.open()?);
-
-            Ok(io.files.len() - 1)
+            io.place_file(node.open()?)
         }
         abi::SYS_READ => {
             let proc = Process::current();
             let mut io = proc.io.lock();
             let buf = validate_user_ptr(args[1], args[2])?;
 
-            io.files[args[0]].read(buf)
+            io.file(args[0])?.read(buf)
         }
         abi::SYS_WRITE => {
             let proc = Process::current();
             let mut io = proc.io.lock();
             let buf = validate_user_ptr(args[1], args[2])?;
 
-            io.files[args[0]].write(buf)
+            io.file(args[0])?.write(buf)
         }
 
         // Extra system calls

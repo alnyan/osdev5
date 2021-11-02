@@ -106,6 +106,7 @@ impl<const N: usize> CharRing<N> {
             };
 
             if byte == b'\n' || byte == b'\r' {
+                dev.write(true, b"\r\n").ok();
                 break;
             }
 

@@ -95,9 +95,9 @@ pub unsafe fn enter(initrd: Option<(usize, usize)>) -> ! {
             // Open stdout
             {
                 let mut io = proc.io.lock();
-                let node = io.ioctx.as_ref().unwrap().find(None, "/dev/uart0", true).unwrap();
+                let node = io.ioctx().find(None, "/dev/uart0", true).unwrap();
                 // TODO fd cloning?
-                io.files.push(node.open().unwrap());
+                io.place_file(node.open().unwrap()).unwrap();
             }
 
             Process::execve(|space| elf::load_elf(space, &mut file), 0).unwrap();

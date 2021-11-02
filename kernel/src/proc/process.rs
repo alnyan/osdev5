@@ -6,7 +6,7 @@ use crate::mem::{
 };
 use crate::proc::{PROCESSES, SCHED};
 use crate::sync::IrqSafeSpinLock;
-use alloc::{vec::Vec, rc::Rc};
+use alloc::{rc::Rc, collections::BTreeMap};
 use core::cell::UnsafeCell;
 use core::fmt;
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -53,9 +53,11 @@ struct ProcessInner {
 ///
 pub struct ProcessIo {
     ///
-    pub ioctx: Option<Ioctx>,
+    ioctx: Option<Ioctx>,
     ///
-    pub files: Vec<File>,
+    files: BTreeMap<usize, File>,
+    ///
+    file_bitmap: u64,
 }
 
 /// Structure describing an operating system process
@@ -131,6 +133,41 @@ impl fmt::Display for Pid {
             if self.is_kernel() { "K" } else { "U" },
             self.0 & !Self::KERNEL_BIT
         )
+    }
+}
+
+impl ProcessIo {
+    ///
+    pub fn file(&mut self, idx: usize) -> Result<&mut File, Errno> {
+        self.files.get_mut(&idx).ok_or(Errno::InvalidFile)
+    }
+
+    ///
+    pub fn ioctx(&mut self) -> &mut Ioctx {
+        self.ioctx.as_mut().unwrap()
+    }
+
+    ///
+    pub fn place_file(&mut self, file: File) -> Result<usize, Errno> {
+        for bit in 0..64 {
+            if self.file_bitmap & (1 << bit) == 0 {
+                if self.files.insert(bit, file).is_some() {
+                    panic!("Open file bitmap is broken");
+                }
+                self.file_bitmap |= 1 << bit;
+                return Ok(bit);
+            }
+        }
+        Err(Errno::TooManyDescriptors)
+    }
+
+    ///
+    pub fn new() -> Self {
+        Self {
+            files: BTreeMap::new(),
+            file_bitmap: 0,
+            ioctx: None
+        }
     }
 }
 
@@ -223,10 +260,7 @@ impl Process {
         let id = Pid::new_kernel();
         let res = Rc::new(Self {
             ctx: UnsafeCell::new(Context::kernel(entry as usize, arg)),
-            io: IrqSafeSpinLock::new(ProcessIo {
-                ioctx: None,
-                files: Vec::new(),
-            }),
+            io: IrqSafeSpinLock::new(ProcessIo::new()),
             inner: IrqSafeSpinLock::new(ProcessInner {
                 id,
                 exit: None,

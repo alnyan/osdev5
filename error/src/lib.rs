@@ -16,5 +16,6 @@ pub enum Errno {
     NotImplemented,
     OutOfMemory,
     TimedOut,
+    TooManyDescriptors,
     WouldBlock,
 }
