@@ -10,8 +10,9 @@ fn main() -> i32 {
     loop {
         println!("Hello to stdout");
         trace!("Hello from userspace");
+
         unsafe {
-            asm!("svc #0", in("x8") 121, in("x0") 1000000000);
+            libusr::sys::sys_ex_nanosleep(1_000_000_000);
         }
     }
 }

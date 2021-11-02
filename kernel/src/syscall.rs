@@ -1,5 +1,10 @@
+use crate::debug::Level;
 use crate::mem;
+use crate::proc::{wait, Process};
+use core::time::Duration;
 use error::Errno;
+use libcommon::{Read, Write};
+use syscall::abi;
 
 fn translate(virt: usize) -> Option<usize> {
     let mut res: usize;
@@ -58,7 +63,11 @@ fn validate_user_str<'a>(base: usize, limit: usize) -> Result<&'a str, Errno> {
         }
 
         if !page_valid && translate((base + len) & !0xFFF).is_none() {
-            warnln!("User string refers to unmapped memory: base={:#x}, off={:#x}", base, len);
+            warnln!(
+                "User string refers to unmapped memory: base={:#x}, off={:#x}",
+                base,
+                len
+            );
             return Err(Errno::InvalidArgument);
         }
 
@@ -74,44 +83,24 @@ fn validate_user_str<'a>(base: usize, limit: usize) -> Result<&'a str, Errno> {
 
     let slice = unsafe { core::slice::from_raw_parts(base_ptr, len) };
     core::str::from_utf8(slice).map_err(|_| {
-        warnln!("User string contains invalid UTF-8 characters: base={:#x}", base);
+        warnln!(
+            "User string contains invalid UTF-8 characters: base={:#x}",
+            base
+        );
         Errno::InvalidArgument
     })
 }
 
 pub unsafe fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
     match num {
-        // sys_exit
-        1 => {
-            use crate::proc::Process;
+        // Process management system calls
+        abi::SYS_EXIT => {
             Process::current().exit(args[0] as i32);
             unreachable!();
         }
-        // sys_ex_debug_trace
-        120 => {
-            use crate::debug::Level;
-            validate_user_ptr(args[0], args[1])?;
 
-            let buf = core::slice::from_raw_parts(args[0] as *const u8, args[1]);
-            print!(Level::Debug, "[trace] ");
-            for &byte in buf.iter() {
-                print!(Level::Debug, "{}", byte as char);
-            }
-            println!(Level::Debug, "");
-            Ok(args[1])
-        }
-        // sys_ex_sleep
-        121 => {
-            use crate::proc::wait;
-            use core::time::Duration;
-
-            wait::sleep(Duration::from_nanos(args[0] as u64));
-
-            Ok(0)
-        }
-        // sys_open
-        2 => {
-            use crate::proc::Process;
+        // I/O system calls
+        abi::SYS_OPEN => {
             let path = validate_user_str(args[0], 256)?;
 
             let proc = Process::current();
@@ -123,25 +112,37 @@ pub unsafe fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
 
             Ok(io.files.len() - 1)
         }
-        // sys_read
-        3 => {
-            use crate::proc::Process;
-            use libcommon::Read;
+        abi::SYS_READ => {
             let proc = Process::current();
             let mut io = proc.io.lock();
             let buf = validate_user_ptr(args[1], args[2])?;
 
             io.files[args[0]].read(buf)
         }
-        // sys_write
-        4 => {
-            use crate::proc::Process;
-            use libcommon::Write;
+        abi::SYS_WRITE => {
             let proc = Process::current();
             let mut io = proc.io.lock();
             let buf = validate_user_ptr(args[1], args[2])?;
 
             io.files[args[0]].write(buf)
+        }
+
+        // Extra system calls
+        abi::SYS_EX_DEBUG_TRACE => {
+            validate_user_ptr(args[0], args[1])?;
+
+            let buf = core::slice::from_raw_parts(args[0] as *const u8, args[1]);
+            print!(Level::Debug, "[trace] ");
+            for &byte in buf.iter() {
+                print!(Level::Debug, "{}", byte as char);
+            }
+            println!(Level::Debug, "");
+            Ok(args[1])
+        }
+        abi::SYS_EX_NANOSLEEP => {
+            wait::sleep(Duration::from_nanos(args[0] as u64));
+
+            Ok(0)
         }
         _ => panic!("Undefined system call: {}", num),
     }

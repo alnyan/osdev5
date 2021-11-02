@@ -159,7 +159,7 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
     }
     pub fn write(&mut self, mut pos: usize, data: &[u8]) -> Result<usize, Errno> {
         if pos > self.size {
-            return Err(Errno::InvalidArgument);
+            return Err(Errno::InvalidFile);
         }
 
         #[cfg(feature = "cow")]
@@ -189,7 +189,7 @@ impl<'a, A: BlockAllocator + Copy> Bvec<'a, A> {
     }
     pub fn read(&self, mut pos: usize, data: &mut [u8]) -> Result<usize, Errno> {
         if pos > self.size {
-            return Err(Errno::InvalidArgument);
+            return Err(Errno::InvalidFile);
         }
 
         let mut rem = min(self.size - pos, data.len());

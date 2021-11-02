@@ -119,6 +119,7 @@ dependencies = [
  "fdt-rs",
  "libcommon",
  "memfs",
+ "syscall",
  "tock-registers",
  "vfs",
 ]
@@ -139,6 +140,9 @@ dependencies = [
 [[package]]
 name = "libusr"
 version = "0.1.0"
+dependencies = [
+ "syscall",
+]
 
 [[package]]
 name = "memfs"
@@ -246,6 +250,10 @@ dependencies = [
  "quote",
  "unicode-xid",
 ]
+
+[[package]]
+name = "syscall"
+version = "0.1.0"
 
 [[package]]
 name = "tock-registers"

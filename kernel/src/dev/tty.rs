@@ -102,9 +102,6 @@ impl<const N: usize> CharRing<N> {
                 Err(Errno::Interrupt) => {
                     todo!()
                 },
-                Err(Errno::EndOfFile) => {
-                    todo!()
-                },
                 Err(e) => return Err(e),
             };
 

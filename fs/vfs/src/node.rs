@@ -178,12 +178,12 @@ impl Vnode {
             return Err(Errno::NotADirectory);
         }
         if self.target.borrow().is_some() {
-            return Err(Errno::InvalidArgument);
+            return Err(Errno::Busy);
         }
 
         let mut child_borrow = root.tree.borrow_mut();
         if child_borrow.parent.is_some() {
-            return Err(Errno::InvalidArgument);
+            return Err(Errno::Busy);
         }
         child_borrow.parent = Some(self.clone());
         *self.target.borrow_mut() = Some(root.clone());

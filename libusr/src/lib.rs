@@ -6,7 +6,10 @@ use core::panic::PanicInfo;
 pub mod mem;
 pub mod os;
 pub mod io;
-pub mod sys;
+
+pub mod sys {
+    pub use syscall::*;
+}
 
 #[link_section = ".text._start"]
 #[no_mangle]

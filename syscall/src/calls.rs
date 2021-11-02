@@ -1,3 +1,5 @@
+use crate::abi;
+
 macro_rules! syscall {
     ($num:expr, $a0:expr) => {{
         let mut res: usize = $a0;
@@ -24,26 +26,31 @@ macro_rules! syscall {
 
 #[inline(always)]
 pub unsafe fn sys_exit(status: i32) -> ! {
-    syscall!(1, status as usize);
+    syscall!(abi::SYS_EXIT, status as usize);
     loop {}
 }
 
 #[inline(always)]
+pub unsafe fn sys_ex_nanosleep(ns: u64) -> i32 {
+    syscall!(abi::SYS_EX_NANOSLEEP, ns as usize) as i32
+}
+
+#[inline(always)]
 pub unsafe fn sys_ex_debug_trace(msg: *const u8, len: usize) -> usize {
-    syscall!(120, msg as usize, len)
+    syscall!(abi::SYS_EX_DEBUG_TRACE, msg as usize, len)
 }
 
 #[inline(always)]
 pub unsafe fn sys_open(pathname: *const u8, mode: u32, flags: u32) -> i32 {
-    syscall!(2, pathname as usize, mode as usize, flags as usize) as i32
+    syscall!(abi::SYS_OPEN, pathname as usize, mode as usize, flags as usize) as i32
 }
 
 #[inline(always)]
 pub unsafe fn sys_read(fd: i32, data: *mut u8, len: usize) -> isize {
-    syscall!(3, fd as usize, data as usize, len) as isize
+    syscall!(abi::SYS_READ, fd as usize, data as usize, len) as isize
 }
 
 #[inline(always)]
 pub unsafe fn sys_write(fd: i32, data: *const u8, len: usize) -> isize {
-    syscall!(4, fd as usize, data as usize, len) as isize
+    syscall!(abi::SYS_WRITE, fd as usize, data as usize, len) as isize
 }

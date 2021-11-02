@@ -2,15 +2,19 @@
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Errno {
-    InvalidArgument,
-    DoesNotExist,
-    NotADirectory,
-    IsADirectory,
-    OutOfMemory,
-    WouldBlock,
     AlreadyExists,
+    BadExecutable,
+    Busy,
+    DeviceError,
+    DoesNotExist,
+    Interrupt,
+    InvalidArgument,
+    InvalidFile,
+    InvalidOperation,
+    IsADirectory,
+    NotADirectory,
     NotImplemented,
+    OutOfMemory,
     TimedOut,
-    EndOfFile,
-    Interrupt
+    WouldBlock,
 }

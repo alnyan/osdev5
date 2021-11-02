@@ -55,7 +55,7 @@ impl Seek for File {
         match &mut self.inner {
             FileInner::Normal(inner) => {
                 if !inner.vnode.is_seekable() {
-                    return Err(Errno::InvalidArgument);
+                    return Err(Errno::InvalidOperation);
                 }
 
                 let size = inner.vnode.size()?;

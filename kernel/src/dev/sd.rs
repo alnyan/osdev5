@@ -30,7 +30,7 @@ pub trait SdHostController: Device + BlockDevice {
             != 0x1AA
         {
             warnln!("Card did not respond to CMD8");
-            return Err(Errno::InvalidArgument);
+            return Err(Errno::DeviceError);
         }
 
         // Set operating conditions
@@ -53,7 +53,7 @@ pub trait SdHostController: Device + BlockDevice {
         }
 
         warnln!("Card did not respond to Acmd41");
-        Err(Errno::InvalidArgument)
+        Err(Errno::DeviceError)
     }
 
     fn reset_card(&self) -> Result<(), Errno> {
@@ -93,17 +93,17 @@ pub trait SdHostController: Device + BlockDevice {
 
         if cmd3 & (1 << 14) != 0 {
             warnln!("Illegal command");
-            return Err(Errno::InvalidArgument);
+            return Err(Errno::DeviceError);
         }
 
         if cmd3 & (1 << 13) != 0 {
             warnln!("Card reported error");
-            return Err(Errno::InvalidArgument);
+            return Err(Errno::DeviceError);
         }
 
         if cmd3 & (1 << 8) == 0 {
             warnln!("Card is not ready for data mode");
-            return Err(Errno::InvalidArgument);
+            return Err(Errno::DeviceError);
         }
         let cmd9 = self
             .send_cmd(&mut SdCommand {
@@ -124,7 +124,7 @@ pub trait SdHostController: Device + BlockDevice {
             1 => todo!(),
             _ => {
                 warnln!("Invalid CSD version: {}", csd_structure);
-                return Err(Errno::InvalidArgument);
+                return Err(Errno::DeviceError);
             }
         };
 
@@ -139,7 +139,7 @@ pub trait SdHostController: Device + BlockDevice {
         let status = (cmd7 >> 9) & 0xF;
         if status != 3 && status != 4 {
             warnln!("Card reported invalid status: {}", status);
-            return Err(Errno::InvalidArgument);
+            return Err(Errno::DeviceError);
         }
 
         // Set block size

@@ -136,7 +136,7 @@ unsafe fn read_struct<T, F: Seek + Read>(src: &mut F, pos: usize) -> Result<T, E
         size,
     ))?;
     if res != size {
-        Err(Errno::InvalidArgument)
+        Err(Errno::InvalidFile)
     } else {
         Ok(storage.assume_init())
     }
@@ -147,7 +147,7 @@ pub fn load_elf<F: Seek + Read>(space: &mut Space, source: &mut F) -> Result<usi
     let ehdr: Ehdr<Elf64> = unsafe { read_struct(source, 0).unwrap() };
 
     if &ehdr.ident[0..4] != b"\x7FELF" {
-        return Err(Errno::InvalidArgument);
+        return Err(Errno::BadExecutable);
     }
 
     for i in 0..(ehdr.phnum as usize) {
@@ -175,7 +175,7 @@ pub fn load_elf<F: Seek + Read>(space: &mut Space, source: &mut F) -> Result<usi
                             if source.read(dst)? == dst.len() {
                                 Ok(())
                             } else {
-                                Err(Errno::InvalidArgument)
+                                Err(Errno::InvalidFile)
                             }
                         },
                         phdr.filesz as usize,

@@ -1,9 +1,14 @@
 [package]
-name = "libusr"
+name = "syscall"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-syscall = { path = "../syscall", features = ["user"] }
+
+[features]
+user = []
+
+# TODO implement this feature
+linux_compat = []
