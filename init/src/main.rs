@@ -12,7 +12,7 @@ fn main() -> i32 {
         trace!("Hello from userspace");
 
         unsafe {
-            libusr::sys::sys_ex_nanosleep(1_000_000_000);
+            libusr::sys::sys_ex_nanosleep(1_000_000_000, core::ptr::null_mut());
         }
     }
 }

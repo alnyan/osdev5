@@ -1,6 +1,7 @@
 use crate::debug::Level;
 use crate::mem;
 use crate::proc::{wait, Process};
+use core::mem::size_of;
 use core::time::Duration;
 use error::Errno;
 use libcommon::{Read, Write};
@@ -41,6 +42,14 @@ fn validate_user_ptr<'a>(base: usize, len: usize) -> Result<&'a mut [u8], Errno>
     }
 
     Ok(unsafe { core::slice::from_raw_parts_mut(base as *mut u8, len) })
+}
+
+fn validate_user_ptr_null<'a>(base: usize, len: usize) -> Result<Option<&'a mut [u8]>, Errno> {
+    if base == 0 {
+        Ok(None)
+    } else {
+        validate_user_ptr(base, len).map(|e| Some(e))
+    }
 }
 
 fn validate_user_str<'a>(base: usize, limit: usize) -> Result<&'a str, Errno> {
@@ -129,9 +138,7 @@ pub unsafe fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
 
         // Extra system calls
         abi::SYS_EX_DEBUG_TRACE => {
-            validate_user_ptr(args[0], args[1])?;
-
-            let buf = core::slice::from_raw_parts(args[0] as *const u8, args[1]);
+            let buf = validate_user_ptr(args[0], args[1])?;
             print!(Level::Debug, "[trace] ");
             for &byte in buf.iter() {
                 print!(Level::Debug, "{}", byte as char);
@@ -140,9 +147,16 @@ pub unsafe fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             Ok(args[1])
         }
         abi::SYS_EX_NANOSLEEP => {
-            wait::sleep(Duration::from_nanos(args[0] as u64));
-
-            Ok(0)
+            let rem_buf = validate_user_ptr_null(args[1], size_of::<u64>() * 2)?;
+            let mut rem = Duration::new(0, 0);
+            let res = wait::sleep(Duration::from_nanos(args[0] as u64), &mut rem);
+            if res == Err(Errno::Interrupt) {
+                warnln!("Sleep interrupted, {:?} remaining", rem);
+                if let Some(_) = rem_buf {
+                    todo!()
+                }
+            }
+            res.map(|_| 0)
         }
         _ => panic!("Undefined system call: {}", num),
     }

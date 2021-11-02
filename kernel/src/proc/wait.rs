@@ -33,10 +33,21 @@ pub fn tick() {
     }
 }
 
-pub fn sleep(timeout: Duration) {
+pub fn sleep(timeout: Duration, remaining: &mut Duration) -> Result<(), Errno> {
     // Dummy wait descriptor which will never receive notifications
     static SLEEP_NOTIFY: Wait = Wait::new();
-    SLEEP_NOTIFY.sleep_on(Some(timeout)).ok();
+    let deadline = machine::local_timer().timestamp()? + timeout;
+    match SLEEP_NOTIFY.wait(Some(deadline)) {
+        Err(Errno::Interrupt) => {
+            *remaining = deadline - machine::local_timer().timestamp()?;
+            Err(Errno::Interrupt)
+        }
+        Err(Errno::TimedOut) => {
+            Ok(())
+        }
+        Ok(_) => panic!("Impossible result"),
+        res => res,
+    }
 }
 
 impl Wait {
@@ -71,9 +82,9 @@ impl Wait {
         }
     }
 
-    pub fn sleep_on(&self, timeout: Option<Duration>) -> Result<(), Errno> {
+    pub fn wait(&self, deadline: Option<Duration>) -> Result<(), Errno> {
         let proc = Process::current();
-        let deadline = timeout.map(|t| machine::local_timer().timestamp().unwrap() + t);
+        //let deadline = timeout.map(|t| machine::local_timer().timestamp().unwrap() + t);
         let mut queue_lock = self.queue.lock();
 
         queue_lock.push_back(proc.id());

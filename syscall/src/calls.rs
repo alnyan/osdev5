@@ -31,8 +31,8 @@ pub unsafe fn sys_exit(status: i32) -> ! {
 }
 
 #[inline(always)]
-pub unsafe fn sys_ex_nanosleep(ns: u64) -> i32 {
-    syscall!(abi::SYS_EX_NANOSLEEP, ns as usize) as i32
+pub unsafe fn sys_ex_nanosleep(ns: u64, rem: *mut [u64; 2]) -> i32 {
+    syscall!(abi::SYS_EX_NANOSLEEP, ns as usize, rem as usize) as i32
 }
 
 #[inline(always)]

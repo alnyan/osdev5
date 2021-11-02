@@ -64,7 +64,7 @@ impl<const N: usize> CharRing<N> {
         loop {
             if !lock.is_readable() && lock.flags == 0 {
                 drop(lock);
-                self.wait_read.sleep_on(None)?;
+                self.wait_read.wait(None)?;
                 lock = self.inner.lock();
             } else {
                 break;
