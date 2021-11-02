@@ -6,11 +6,13 @@ use crate::mem::{
 };
 use crate::proc::{PROCESSES, SCHED};
 use crate::sync::IrqSafeSpinLock;
-use alloc::rc::Rc;
+use alloc::{vec::Vec, rc::Rc};
 use core::cell::UnsafeCell;
 use core::fmt;
 use core::sync::atomic::{AtomicU32, Ordering};
 use error::Errno;
+use vfs::Ioctx;
+use vfs::File;
 
 pub use crate::arch::platform::context::{self, Context};
 
@@ -48,11 +50,21 @@ struct ProcessInner {
     exit: Option<ExitCode>,
 }
 
+///
+pub struct ProcessIo {
+    ///
+    pub ioctx: Option<Ioctx>,
+    ///
+    pub files: Vec<File>,
+}
+
 /// Structure describing an operating system process
 #[allow(dead_code)]
 pub struct Process {
     ctx: UnsafeCell<Context>,
     inner: IrqSafeSpinLock<ProcessInner>,
+    ///
+    pub io: IrqSafeSpinLock<ProcessIo>,
 }
 
 impl From<i32> for ExitCode {
@@ -125,6 +137,11 @@ impl fmt::Display for Pid {
 impl Process {
     const USTACK_VIRT_TOP: usize = 0x100000000;
     const USTACK_PAGES: usize = 4;
+
+    ///
+    pub fn set_ioctx(&self, ioctx: Ioctx) {
+        self.io.lock().ioctx = Some(ioctx);
+    }
 
     /// Returns currently executing process
     pub fn current() -> ProcessRef {
@@ -206,6 +223,10 @@ impl Process {
         let id = Pid::new_kernel();
         let res = Rc::new(Self {
             ctx: UnsafeCell::new(Context::kernel(entry as usize, arg)),
+            io: IrqSafeSpinLock::new(ProcessIo {
+                ioctx: None,
+                files: Vec::new(),
+            }),
             inner: IrqSafeSpinLock::new(ProcessInner {
                 id,
                 exit: None,

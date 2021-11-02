@@ -64,6 +64,8 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
         match kind {
             VnodeKind::Directory => node.set_data(Box::new(DirInode {})),
             VnodeKind::Regular => {}
+            VnodeKind::Char => todo!(),
+            VnodeKind::Block => todo!(),
         };
         node
     }
@@ -176,9 +178,9 @@ mod tests {
         let root = fs.root().unwrap();
         let ioctx = Ioctx::new(root.clone());
 
-        assert!(Rc::ptr_eq(&ioctx.find(None, "/").unwrap(), &root));
+        assert!(Rc::ptr_eq(&ioctx.find(None, "/", true).unwrap(), &root));
 
-        let node = ioctx.find(None, "/test1.txt").unwrap();
+        let node = ioctx.find(None, "/test1.txt", true).unwrap();
         let mut file = node.open().unwrap();
         let mut buf = [0u8; 1024];
 

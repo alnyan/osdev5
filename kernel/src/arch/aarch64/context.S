@@ -3,12 +3,11 @@
 .global __aa64_ctx_switch_to
 .global __aa64_ctx_enter_kernel
 
-.set PT_REGS_SIZE, 16 * 6
+.set PT_REGS_SIZE, 16 * 7
 
 __aa64_ctx_enter_user:
     ldp x0, x1, [sp, #0]
     msr sp_el0, x0
-    msr ttbr0_el1, x1
 
     msr spsr_el1, xzr
     ldp x0, x1, [sp, #16]
@@ -21,7 +20,6 @@ __return_to_user:
 
 __aa64_ctx_enter_kernel:
     msr sp_el0, xzr
-    msr ttbr0_el1, xzr
 
     mov x0, #5
     msr spsr_el1, x0
@@ -41,6 +39,8 @@ __aa64_ctx_switch:
     stp x25, x26, [sp, #16 * 3]
     stp x27, x28, [sp, #16 * 4]
     stp x29, x30, [sp, #16 * 5]
+    mrs x19, TTBR0_EL1
+    stp x19, xzr, [sp, #16 * 6]
 
     mov x19, sp
     str x19, [x1]
@@ -48,6 +48,8 @@ __aa64_ctx_switch_to:
     ldr x0, [x0]
     mov sp, x0
 
+    ldp x19, xzr, [sp, #16 * 6]
+    msr TTBR0_EL1, x19
     ldp x19, x20, [sp, #16 * 0]
     ldp x21, x22, [sp, #16 * 1]
     ldp x23, x24, [sp, #16 * 2]

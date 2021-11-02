@@ -1,4 +1,5 @@
-use vfs::{VnodeImpl, VnodeKind, VnodeRef};
+use vfs::{VnodeImpl, VnodeKind, VnodeRef, Vnode};
+use alloc::boxed::Box;
 use error::Errno;
 
 pub struct DirInode;
@@ -7,14 +8,19 @@ impl VnodeImpl for DirInode {
     fn create(
         &mut self,
         _parent: VnodeRef,
-        _name: &str,
-        _kind: VnodeKind,
+        name: &str,
+        kind: VnodeKind,
     ) -> Result<VnodeRef, Errno> {
-        todo!()
+        let vnode = Vnode::new(name, kind, Vnode::SEEKABLE);
+        match kind {
+            VnodeKind::Directory => vnode.set_data(Box::new(DirInode {})),
+            _ => todo!()
+        }
+        Ok(vnode)
     }
 
     fn lookup(&mut self, _parent: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
-        panic!()
+        Err(Errno::DoesNotExist)
     }
 
     fn remove(&mut self, _parent: VnodeRef, _name: &str) -> Result<(), Errno> {

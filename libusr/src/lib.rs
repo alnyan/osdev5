@@ -5,7 +5,8 @@ use core::panic::PanicInfo;
 
 pub mod mem;
 pub mod os;
-mod sys;
+pub mod io;
+pub mod sys;
 
 #[link_section = ".text._start"]
 #[no_mangle]
@@ -22,5 +23,7 @@ extern "C" fn _start(_arg: usize) -> ! {
 fn panic_handler(pi: &PanicInfo) -> ! {
     // TODO formatted messages
     trace!("Panic ocurred: {}", pi);
-    sys::sys_exit(-1);
+    unsafe {
+        sys::sys_exit(-1);
+    }
 }

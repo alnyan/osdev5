@@ -29,7 +29,7 @@ impl Context {
         stack.push(entry);
         stack.push(arg);
 
-        stack.setup_common(__aa64_ctx_enter_kernel as usize);
+        stack.setup_common(__aa64_ctx_enter_kernel as usize, 0);
 
         Self {
             k_sp: stack.sp,
@@ -45,10 +45,10 @@ impl Context {
 
         stack.push(entry);
         stack.push(arg);
-        stack.push(ttbr0);
+        stack.push(/* ttbr0 */ 0);
         stack.push(ustack);
 
-        stack.setup_common(__aa64_ctx_enter_user as usize);
+        stack.setup_common(__aa64_ctx_enter_user as usize, ttbr0);
 
         Self {
             k_sp: stack.sp,
@@ -89,7 +89,9 @@ impl Stack {
         }
     }
 
-    pub fn setup_common(&mut self, entry: usize) {
+    pub fn setup_common(&mut self, entry: usize, ttbr: usize) {
+        self.push(0);
+        self.push(ttbr);
         self.push(entry); // x30/lr
         self.push(0); // x29
         self.push(0); // x28

@@ -26,7 +26,7 @@
     mrs x0, spsr_el1
     mrs x1, elr_el1
     mrs x2, sp_el0
-    mrs x3, ttbr0_el1
+//  mrs x3, ttbr0_el1
 
     stp x0,  x1,  [sp, #16 * 16]
     stp x2,  x3,  [sp, #16 * 17]
@@ -38,7 +38,7 @@
     msr spsr_el1, x0
     msr elr_el1, x1
     msr sp_el0, x2
-    msr ttbr0_el1, x3
+//  msr ttbr0_el1, x3
 
     ldp x0,  x1,  [sp, #16 * 0]
     ldp x2,  x3,  [sp, #16 * 1]

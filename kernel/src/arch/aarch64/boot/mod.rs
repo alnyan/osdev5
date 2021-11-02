@@ -4,6 +4,7 @@ use crate::arch::{
     aarch64::reg::{CNTKCTL_EL1, CPACR_EL1},
     machine,
 };
+use crate::fs::devfs;
 use crate::dev::{fdt::DeviceTree, irq::IntSource, Device};
 //use crate::debug::Level;
 use crate::mem::{
@@ -55,6 +56,8 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
         let heap_base_virt = mem::virtualize(heap_base_phys);
         heap::init(heap_base_virt, 16 * 1024 * 1024);
     }
+
+    devfs::init();
 
     machine::init_board().unwrap();
 

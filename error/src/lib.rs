@@ -11,4 +11,6 @@ pub enum Errno {
     AlreadyExists,
     NotImplemented,
     TimedOut,
+    EndOfFile,
+    Interrupt
 }

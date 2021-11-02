@@ -4,6 +4,7 @@ use crate::arch::platform::{irq_mask_save, irq_restore};
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
 use core::sync::atomic::{AtomicBool, Ordering};
+use core::fmt;
 
 /// Lock structure ensuring IRQs are disabled when inner value is accessed
 pub struct IrqSafeSpinLock<T> {
@@ -67,6 +68,12 @@ impl<T> Deref for IrqSafeSpinLockGuard<'_, T> {
 impl<T> DerefMut for IrqSafeSpinLockGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.lock.value.get() }
+    }
+}
+
+impl<T> fmt::Debug for IrqSafeSpinLockGuard<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", &*self)
     }
 }
 

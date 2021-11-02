@@ -85,7 +85,10 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
             unsafe {
                 match syscall::syscall(exc.x[8], &exc.x[..6]) {
                     Ok(val) => exc.x[0] = val,
-                    Err(_) => exc.x[0] = usize::MAX,
+                    Err(err) => {
+                        warnln!("syscall {} failed: {:?}", exc.x[8], err);
+                        exc.x[0] = usize::MAX
+                    },
                 }
             }
             return;

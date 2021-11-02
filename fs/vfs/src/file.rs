@@ -1,4 +1,4 @@
-use crate::VnodeRef;
+use crate::{VnodeRef, VnodeKind};
 use core::cmp::min;
 use error::Errno;
 use libcommon::{Read, Seek, SeekDir, Write};
@@ -25,7 +25,9 @@ impl Read for File {
         match &mut self.inner {
             FileInner::Normal(inner) => {
                 let count = inner.vnode.read(inner.pos, data)?;
-                inner.pos += count;
+                if inner.vnode.kind() != VnodeKind::Char {
+                    inner.pos += count;
+                }
                 Ok(count)
             }
             _ => unimplemented!(),
@@ -38,7 +40,9 @@ impl Write for File {
         match &mut self.inner {
             FileInner::Normal(inner) => {
                 let count = inner.vnode.write(inner.pos, data)?;
-                inner.pos += count;
+                if inner.vnode.kind() != VnodeKind::Char {
+                    inner.pos += count;
+                }
                 Ok(count)
             }
             _ => unimplemented!(),
@@ -111,6 +115,8 @@ mod tests {
         }
 
         fn read(&mut self, _node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno> {
+            #[cfg(test)]
+            println!("read {}", pos);
             let len = 123;
             if pos >= len {
                 return Ok(0);

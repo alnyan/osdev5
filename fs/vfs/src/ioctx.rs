@@ -1,4 +1,4 @@
-use crate::{FileMode, VnodeRef};
+use crate::{FileMode, VnodeRef, VnodeKind};
 use error::Errno;
 use libcommon::{path_component_left, path_component_right};
 
@@ -17,7 +17,7 @@ impl Ioctx {
         }
     }
 
-    fn _find(&self, mut at: VnodeRef, path: &str) -> Result<VnodeRef, Errno> {
+    fn _find(&self, mut at: VnodeRef, path: &str, follow: bool) -> Result<VnodeRef, Errno> {
         let mut element;
         let mut rest = path;
 
@@ -42,17 +42,27 @@ impl Ioctx {
         }
         assert!(!element.is_empty());
 
-        let node = at.lookup_or_load(element)?;
+        let mut node = at.lookup_or_load(element)?;
+
+        while let Some(target) = node.target() {
+            assert!(node.kind() == VnodeKind::Directory);
+            node = target;
+        }
 
         if rest.is_empty() {
             Ok(node)
         } else {
-            self._find(node, rest)
+            self._find(node, rest, follow)
         }
     }
 
     /// Looks up a path in given ioctx
-    pub fn find(&self, at: Option<VnodeRef>, mut path: &str) -> Result<VnodeRef, Errno> {
+    pub fn find(
+        &self,
+        at: Option<VnodeRef>,
+        mut path: &str,
+        follow: bool,
+    ) -> Result<VnodeRef, Errno> {
         let at = if path.starts_with('/') {
             path = path.trim_start_matches('/');
             self.root.clone()
@@ -62,7 +72,7 @@ impl Ioctx {
             self.cwd.clone()
         };
 
-        self._find(at, path)
+        self._find(at, path, follow)
     }
 
     /// Creates a new directory
@@ -73,7 +83,7 @@ impl Ioctx {
         mode: FileMode,
     ) -> Result<VnodeRef, Errno> {
         let (parent, name) = path_component_right(path);
-        self.find(at, parent)?.mkdir(name, mode)
+        self.find(at, parent, true)?.mkdir(name.trim_start_matches('/'), mode)
     }
 }
 
@@ -147,42 +157,65 @@ mod tests {
 
         let ioctx = Ioctx::new(root.clone());
 
-        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/").unwrap()));
-        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/.").unwrap()));
-        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/./.").unwrap()));
-        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/.///.").unwrap()));
-        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/..").unwrap()));
-        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/../").unwrap()));
-        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/../.").unwrap()));
-        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/../..").unwrap()));
+        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/", false).unwrap()));
+        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/.", false).unwrap()));
+        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/./.", false).unwrap()));
+        assert!(Rc::ptr_eq(
+            &root,
+            &ioctx.find(None, "/.///.", false).unwrap()
+        ));
+        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/..", false).unwrap()));
+        assert!(Rc::ptr_eq(&root, &ioctx.find(None, "/../", false).unwrap()));
+        assert!(Rc::ptr_eq(
+            &root,
+            &ioctx.find(None, "/../.", false).unwrap()
+        ));
+        assert!(Rc::ptr_eq(
+            &root,
+            &ioctx.find(None, "/../..", false).unwrap()
+        ));
 
-        assert!(Rc::ptr_eq(&d0, &ioctx.find(None, "/dir0").unwrap()));
-        assert!(Rc::ptr_eq(&d1, &ioctx.find(None, "/dir1").unwrap()));
-        assert!(Rc::ptr_eq(&d0, &ioctx.find(None, "/dir1/../dir0").unwrap()));
+        assert!(Rc::ptr_eq(&d0, &ioctx.find(None, "/dir0", false).unwrap()));
+        assert!(Rc::ptr_eq(&d1, &ioctx.find(None, "/dir1", false).unwrap()));
+        assert!(Rc::ptr_eq(
+            &d0,
+            &ioctx.find(None, "/dir1/../dir0", false).unwrap()
+        ));
         assert!(Rc::ptr_eq(
             &d1,
-            &ioctx.find(None, "/dir1/../dir0/./../../.././dir1").unwrap()
+            &ioctx
+                .find(None, "/dir1/../dir0/./../../.././dir1", false)
+                .unwrap()
         ));
 
-        assert!(Rc::ptr_eq(&d0d0, &ioctx.find(None, "/dir0/dir0").unwrap()));
         assert!(Rc::ptr_eq(
             &d0d0,
-            &ioctx.find(None, "/dir0/dir0/.").unwrap()
-        ));
-        assert!(Rc::ptr_eq(&d0, &ioctx.find(None, "/dir0/dir0/..").unwrap()));
-        assert!(Rc::ptr_eq(
-            &d0,
-            &ioctx.find(None, "/dir0/dir0/../").unwrap()
+            &ioctx.find(None, "/dir0/dir0", false).unwrap()
         ));
         assert!(Rc::ptr_eq(
+            &d0d0,
+            &ioctx.find(None, "/dir0/dir0/.", false).unwrap()
+        ));
+        assert!(Rc::ptr_eq(
             &d0,
-            &ioctx.find(None, "/dir0/dir0/../.").unwrap()
+            &ioctx.find(None, "/dir0/dir0/..", false).unwrap()
+        ));
+        assert!(Rc::ptr_eq(
+            &d0,
+            &ioctx.find(None, "/dir0/dir0/../", false).unwrap()
+        ));
+        assert!(Rc::ptr_eq(
+            &d0,
+            &ioctx.find(None, "/dir0/dir0/../.", false).unwrap()
         ));
 
-        assert!(Rc::ptr_eq(&d0f0, &ioctx.find(None, "/dir0/file0").unwrap()));
         assert!(Rc::ptr_eq(
             &d0f0,
-            &ioctx.find(None, "/dir1/../dir0/./file0").unwrap()
+            &ioctx.find(None, "/dir0/file0", false).unwrap()
+        ));
+        assert!(Rc::ptr_eq(
+            &d0f0,
+            &ioctx.find(None, "/dir1/../dir0/./file0", false).unwrap()
         ));
     }
 
@@ -198,11 +231,11 @@ mod tests {
         let ioctx = Ioctx::new(root.clone());
 
         assert_eq!(
-            ioctx.find(None, "/dir0/file0/.").unwrap_err(),
+            ioctx.find(None, "/dir0/file0/.", false).unwrap_err(),
             Errno::NotADirectory
         );
         assert_eq!(
-            ioctx.find(None, "/dir0/file0/..").unwrap_err(),
+            ioctx.find(None, "/dir0/file0/..", false).unwrap_err(),
             Errno::NotADirectory
         );
 
@@ -224,5 +257,28 @@ mod tests {
                 .unwrap_err(),
             Errno::AlreadyExists
         );
+    }
+
+    #[test]
+    fn test_find_mount() {
+        let root_outer = Vnode::new("", VnodeKind::Directory, 0);
+        let dir0 = Vnode::new("dir0", VnodeKind::Directory, 0);
+        let root_inner = Vnode::new("", VnodeKind::Directory, 0);
+        let dir1 = Vnode::new("dir1", VnodeKind::Directory, 0);
+
+        root_outer.clone().attach(dir0.clone());
+        root_inner.clone().attach(dir1.clone());
+
+        let ioctx = Ioctx::new(root_outer.clone());
+
+        assert_eq!(ioctx.find(None, "/dir0/dir1", false).unwrap_err(), Errno::DoesNotExist);
+
+        dir0.mount(root_inner.clone()).unwrap();
+
+        assert!(Rc::ptr_eq(&root_inner, &ioctx.find(None, "/dir0", false).unwrap()));
+        assert!(Rc::ptr_eq(&dir1, &ioctx.find(None, "/dir0/dir1", false).unwrap()));
+        assert!(Rc::ptr_eq(&root_inner, &ioctx.find(None, "/dir0/dir1/..", false).unwrap()));
+        assert!(Rc::ptr_eq(&dir0, &ioctx.find(None, "/dir0/dir1/../..", false).unwrap()));
+        assert!(Rc::ptr_eq(&root_outer, &ioctx.find(None, "/dir0/dir1/../../..", false).unwrap()));
     }
 }

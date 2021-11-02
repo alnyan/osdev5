@@ -14,6 +14,10 @@ pub enum VnodeKind {
     Directory,
     /// Node is a regular file
     Regular,
+    /// Node is a character device
+    Char,
+    /// Node is a block device
+    Block,
 }
 
 pub(crate) struct TreeNode {
@@ -36,6 +40,7 @@ pub struct Vnode {
     kind: VnodeKind,
     flags: u32,
 
+    target: RefCell<Option<VnodeRef>>,
     fs: RefCell<Option<Rc<dyn Filesystem>>>,
     data: RefCell<Option<Box<dyn VnodeImpl>>>,
 }
@@ -88,9 +93,15 @@ impl Vnode {
                 parent: None,
                 children: Vec::new(),
             }),
+            target: RefCell::new(None),
             fs: RefCell::new(None),
             data: RefCell::new(None),
         })
+    }
+
+    ///
+    pub fn name<'a>(&'a self) -> &'a str {
+        &self.name
     }
 
     /// Sets an associated [VnodeImpl] for the [Vnode]
@@ -158,9 +169,36 @@ impl Vnode {
         parent_borrow.children.remove(index);
     }
 
+    ///
+    pub fn mount(self: &VnodeRef, root: VnodeRef) -> Result<(), Errno> {
+        if !self.is_directory() {
+            return Err(Errno::NotADirectory);
+        }
+        if !root.is_directory() {
+            return Err(Errno::NotADirectory);
+        }
+        if self.target.borrow().is_some() {
+            return Err(Errno::InvalidArgument);
+        }
+
+        let mut child_borrow = root.tree.borrow_mut();
+        if child_borrow.parent.is_some() {
+            return Err(Errno::InvalidArgument);
+        }
+        child_borrow.parent = Some(self.clone());
+        *self.target.borrow_mut() = Some(root.clone());
+
+        Ok(())
+    }
+
     /// Returns this vnode's parent or itself if it has none
     pub fn parent(self: &VnodeRef) -> VnodeRef {
         self.tree.borrow().parent.as_ref().unwrap_or(self).clone()
+    }
+
+    ///
+    pub fn target(self: &VnodeRef) -> Option<VnodeRef> {
+        self.target.borrow().clone()
     }
 
     /// Looks up a child `name` in in-memory tree cache
@@ -189,7 +227,7 @@ impl Vnode {
             self.attach(vnode.clone());
             Ok(vnode)
         } else {
-            Err(Errno::NotImplemented)
+            Err(Errno::DoesNotExist)
         }
     }
 
@@ -197,6 +235,9 @@ impl Vnode {
     pub fn mkdir(self: &VnodeRef, name: &str, mode: FileMode) -> Result<VnodeRef, Errno> {
         if self.kind != VnodeKind::Directory {
             return Err(Errno::NotADirectory);
+        }
+        if name.contains('/') {
+            return Err(Errno::InvalidArgument);
         }
 
         match self.lookup_or_load(name) {
@@ -223,6 +264,9 @@ impl Vnode {
         if self.kind != VnodeKind::Directory {
             return Err(Errno::NotADirectory);
         }
+        if name.contains('/') {
+            return Err(Errno::InvalidArgument);
+        }
 
         if let Some(ref mut data) = *self.data() {
             let vnode = self.lookup(name).ok_or(Errno::DoesNotExist)?;
@@ -236,7 +280,7 @@ impl Vnode {
 
     /// Opens a vnode for access
     pub fn open(self: &VnodeRef) -> Result<File, Errno> {
-        if self.kind != VnodeKind::Regular {
+        if self.kind == VnodeKind::Directory {
             return Err(Errno::IsADirectory);
         }
 
@@ -250,7 +294,7 @@ impl Vnode {
 
     /// Reads data from offset `pos` into `buf`
     pub fn read(self: &VnodeRef, pos: usize, buf: &mut [u8]) -> Result<usize, Errno> {
-        if self.kind != VnodeKind::Regular {
+        if self.kind == VnodeKind::Directory {
             return Err(Errno::IsADirectory);
         }
 
@@ -263,7 +307,7 @@ impl Vnode {
 
     /// Writes data from `buf` to offset `pos`
     pub fn write(self: &VnodeRef, pos: usize, buf: &[u8]) -> Result<usize, Errno> {
-        if self.kind != VnodeKind::Regular {
+        if self.kind == VnodeKind::Directory {
             return Err(Errno::IsADirectory);
         }
 

@@ -8,10 +8,10 @@ extern crate libusr;
 #[no_mangle]
 fn main() -> i32 {
     loop {
+        println!("Hello to stdout");
         trace!("Hello from userspace");
         unsafe {
             asm!("svc #0", in("x8") 121, in("x0") 1000000000);
         }
     }
-    123
 }

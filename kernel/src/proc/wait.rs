@@ -1,8 +1,8 @@
 use crate::arch::machine;
-use crate::proc::{self, sched::SCHED, Pid, Process, ProcessState};
 use crate::dev::timer::TimestampSource;
+use crate::proc::{self, sched::SCHED, Pid, Process};
 use crate::sync::IrqSafeSpinLock;
-use alloc::{vec::Vec, collections::{VecDeque, LinkedList}};
+use alloc::collections::LinkedList;
 use core::time::Duration;
 use error::Errno;
 
@@ -12,7 +12,7 @@ pub struct Wait {
 
 pub struct Timeout {
     pid: Pid,
-    deadline: Duration
+    deadline: Duration,
 }
 
 static TICK_LIST: IrqSafeSpinLock<LinkedList<Timeout>> = IrqSafeSpinLock::new(LinkedList::new());
@@ -36,13 +36,13 @@ pub fn tick() {
 pub fn sleep(timeout: Duration) {
     // Dummy wait descriptor which will never receive notifications
     static SLEEP_NOTIFY: Wait = Wait::new();
-    SLEEP_NOTIFY.sleep_on(Some(timeout));
+    SLEEP_NOTIFY.sleep_on(Some(timeout)).ok();
 }
 
 impl Wait {
     pub const fn new() -> Self {
         Self {
-            queue: IrqSafeSpinLock::new(LinkedList::new())
+            queue: IrqSafeSpinLock::new(LinkedList::new()),
         }
     }
 
@@ -74,14 +74,14 @@ impl Wait {
     pub fn sleep_on(&self, timeout: Option<Duration>) -> Result<(), Errno> {
         let proc = Process::current();
         let deadline = timeout.map(|t| machine::local_timer().timestamp().unwrap() + t);
-        let mut queue_lock = Some(self.queue.lock());
+        let mut queue_lock = self.queue.lock();
 
-        queue_lock.as_mut().unwrap().push_back(proc.id());
+        queue_lock.push_back(proc.id());
         proc.set_wait_flag(true);
         if let Some(deadline) = deadline {
             TICK_LIST.lock().push_back(Timeout {
                 pid: proc.id(),
-                deadline
+                deadline,
             });
         }
 
@@ -90,13 +90,13 @@ impl Wait {
                 return Ok(());
             }
 
-            queue_lock = None;
+            drop(queue_lock);
             proc.enter_wait();
-            queue_lock = Some(self.queue.lock());
+            queue_lock = self.queue.lock();
 
             if let Some(deadline) = deadline {
                 if machine::local_timer().timestamp()? > deadline {
-                    let mut cursor = queue_lock.as_mut().unwrap().cursor_front_mut();
+                    let mut cursor = queue_lock.cursor_front_mut();
 
                     while let Some(&mut item) = cursor.current() {
                         if proc.id() == item {

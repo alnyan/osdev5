@@ -91,7 +91,8 @@ initrd:
 		-Z build-std=core,alloc,compiler_builtins \
 		$(CARGO_COMMON_OPTS)
 	cp target/$(ARCH)-osdev5/$(PROFILE)/init $(O)
-	cd $(O) && tar cf initrd.img init
+	echo This is a test file >$(O)/test.txt
+	cd $(O) && tar cf initrd.img init test.txt
 ifeq ($(MACH),orangepi3)
 	$(MKIMAGE) \
 		-A arm64 \

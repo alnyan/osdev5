@@ -1,9 +1,16 @@
 use crate::sys;
 use core::fmt;
 
+const STDOUT_FILENO: i32 = 0;
+
 #[macro_export]
-macro_rules! trace {
-    ($($args:tt)+) => ($crate::os::_trace(format_args!($($args)+)))
+macro_rules! print {
+    ($($args:tt)+) => ($crate::io::_print(format_args!($($args)+)))
+}
+
+#[macro_export]
+macro_rules! println {
+    ($($args:tt)+) => (print!("{}\n", format_args!($($args)+)))
 }
 
 struct BufferWriter<'a> {
@@ -21,7 +28,7 @@ impl fmt::Write for BufferWriter<'_> {
     }
 }
 
-pub fn _trace(args: fmt::Arguments) {
+pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     static mut BUFFER: [u8; 4096] = [0; 4096];
     let mut writer = BufferWriter {
@@ -30,6 +37,6 @@ pub fn _trace(args: fmt::Arguments) {
     };
     writer.write_fmt(args).ok();
     unsafe {
-        sys::sys_ex_debug_trace(&BUFFER as *const _, writer.pos);
+        sys::sys_write(STDOUT_FILENO, &BUFFER as *const _, writer.pos);
     }
 }

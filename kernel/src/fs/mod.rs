@@ -6,6 +6,8 @@ use crate::mem::{
 };
 use memfs::BlockAllocator;
 
+pub mod devfs;
+
 #[derive(Clone, Copy)]
 pub struct MemfsBlockAlloc;
 

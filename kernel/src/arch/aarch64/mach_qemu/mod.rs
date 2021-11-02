@@ -11,6 +11,7 @@ use crate::dev::{
     serial::{pl011::Pl011, SerialDevice},
     Device,
 };
+use crate::fs::devfs;
 use crate::mem::phys;
 use error::Errno;
 
@@ -46,6 +47,7 @@ pub fn init_board() -> Result<(), Errno> {
         GIC.enable()?;
 
         UART0.init_irqs()?;
+        devfs::add_char_device("uart0", &UART0)?;
 
         RTC.enable()?;
         RTC.init_irqs()?;

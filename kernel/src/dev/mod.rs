@@ -13,6 +13,8 @@ pub mod pci;
 pub mod rtc;
 pub mod serial;
 pub mod timer;
+#[allow(missing_docs)]
+pub mod tty;
 
 /// Generic device trait
 pub trait Device {

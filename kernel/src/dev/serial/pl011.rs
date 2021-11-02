@@ -4,7 +4,7 @@ use crate::arch::machine::{self, IrqNumber};
 use crate::dev::{
     irq::{IntController, IntSource},
     serial::SerialDevice,
-    Device,
+    tty::CharRing, Device,
 };
 use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeSpinLock;
@@ -16,6 +16,7 @@ use tock_registers::{
     register_bitfields, register_structs,
     registers::{ReadOnly, ReadWrite, WriteOnly},
 };
+use vfs::CharDevice;
 
 register_bitfields! {
     u32,
@@ -78,6 +79,7 @@ struct Pl011Inner {
 /// Device struct for PL011
 pub struct Pl011 {
     inner: InitOnce<IrqSafeSpinLock<Pl011Inner>>,
+    ring: CharRing<16>,
     base: usize,
     irq: IrqNumber,
 }
@@ -135,7 +137,8 @@ impl IntSource for Pl011 {
 
         let byte = inner.regs.DR.get();
         drop(inner);
-        debugln!("irq byte = {:#04x}", byte);
+
+        self.ring.putc(byte as u8, false).ok();
 
         Ok(())
     }
@@ -166,6 +169,23 @@ impl SerialDevice for Pl011 {
     }
 }
 
+impl CharDevice for Pl011 {
+    fn read(&self, blocking: bool, data: &mut [u8]) -> Result<usize, Errno> {
+        assert!(blocking);
+        self.ring.line_read(data, self)
+    }
+
+    fn write(&self, blocking: bool, data: &[u8]) -> Result<usize, Errno> {
+        assert!(blocking);
+        for &byte in data {
+            unsafe {
+                self.inner.get().lock().send(byte);
+            }
+        }
+        Ok(data.len())
+    }
+}
+
 impl Device for Pl011 {
     fn name(&self) -> &'static str {
         "PL011 UART"
@@ -192,6 +212,7 @@ impl Pl011 {
     pub const unsafe fn new(base: usize, irq: IrqNumber) -> Self {
         Self {
             inner: InitOnce::new(),
+            ring: CharRing::new(),
             base,
             irq,
         }

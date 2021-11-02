@@ -63,12 +63,13 @@ pub unsafe fn enter(initrd: Option<(usize, usize)>) -> ! {
 
     spawn!(fn (initrd_ptr: usize) {
         use memfs::Ramfs;
-        use vfs::{Filesystem, Ioctx};
-        use crate::fs::MemfsBlockAlloc;
+        use vfs::{Filesystem, Ioctx, FileMode};
+        use crate::fs::{MemfsBlockAlloc, devfs};
         debugln!("Running kernel init process");
 
         let initrd = unsafe { *(initrd_ptr as *const Option<(usize, usize)>) };
         if let Some((start, end)) = initrd {
+            let proc = Process::current();
             let size = end - start;
             let start = mem::virtualize(start);
 
@@ -78,11 +79,26 @@ pub unsafe fn enter(initrd: Option<(usize, usize)>) -> ! {
             };
             infoln!("Done constructing ramfs");
             let root = fs.root().unwrap();
+            let devfs_root = devfs::root();
+
+            let dir = root.mkdir("dev", FileMode::default_dir()).unwrap();
+            dir.mount(devfs_root.clone()).unwrap();
+
             let ioctx = Ioctx::new(root);
 
             // Open a test file
-            let node = ioctx.find(None, "/init").unwrap();
+            let node = ioctx.find(None, "/init", true).unwrap();
             let mut file = node.open().unwrap();
+
+            proc.set_ioctx(ioctx);
+
+            // Open stdout
+            {
+                let mut io = proc.io.lock();
+                let node = io.ioctx.as_ref().unwrap().find(None, "/dev/uart0", true).unwrap();
+                // TODO fd cloning?
+                io.files.push(node.open().unwrap());
+            }
 
             Process::execve(|space| elf::load_elf(space, &mut file), 0).unwrap();
         } else {
