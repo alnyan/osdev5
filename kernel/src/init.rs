@@ -3,7 +3,7 @@ use crate::fs::{devfs, MemfsBlockAlloc};
 use crate::mem;
 use crate::proc::{elf, Process};
 use memfs::Ramfs;
-use vfs::{FileMode, Filesystem, Ioctx};
+use vfs::{FileMode, Filesystem, Ioctx, OpenFlags};
 
 #[inline(never)]
 pub extern "C" fn init_fn(_arg: usize) -> ! {
@@ -28,7 +28,7 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
     let ioctx = Ioctx::new(root);
 
     let node = ioctx.find(None, "/init", true).unwrap();
-    let mut file = node.open().unwrap();
+    let mut file = node.open(OpenFlags::O_RDONLY).unwrap();
 
     proc.set_ioctx(ioctx);
 
@@ -43,7 +43,7 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
 
         let mut io = proc.io.lock();
         // TODO fd cloning?
-        io.place_file(tty_node.open().unwrap()).unwrap();
+        io.place_file(tty_node.open(OpenFlags::O_RDWR).unwrap()).unwrap();
     }
 
     drop(cfg);

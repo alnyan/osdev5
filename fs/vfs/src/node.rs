@@ -1,4 +1,4 @@
-use crate::{File, FileMode, Filesystem, Stat};
+use crate::{File, FileMode, Filesystem, Stat, OpenFlags};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{RefCell, RefMut};
 use core::fmt;
@@ -58,7 +58,7 @@ pub trait VnodeImpl {
     fn lookup(&mut self, at: VnodeRef, name: &str) -> Result<VnodeRef, Errno>;
 
     /// Opens a vnode for access. Returns initial file position.
-    fn open(&mut self, node: VnodeRef /* TODO open mode */) -> Result<usize, Errno>;
+    fn open(&mut self, node: VnodeRef, opts: OpenFlags) -> Result<usize, Errno>;
     /// Closes a vnode
     fn close(&mut self, node: VnodeRef) -> Result<(), Errno>;
 
@@ -234,8 +234,8 @@ impl Vnode {
         }
     }
 
-    /// Creates a new directory `name` in `self`
-    pub fn mkdir(self: &VnodeRef, name: &str, mode: FileMode) -> Result<VnodeRef, Errno> {
+    /// Creates a new node `name` in `self`
+    pub fn create(self: &VnodeRef, name: &str, mode: FileMode, kind: VnodeKind) -> Result<VnodeRef, Errno> {
         if self.kind != VnodeKind::Directory {
             return Err(Errno::NotADirectory);
         }
@@ -250,7 +250,7 @@ impl Vnode {
         };
 
         if let Some(ref mut data) = *self.data() {
-            let vnode = data.create(self.clone(), name, VnodeKind::Directory)?;
+            let vnode = data.create(self.clone(), name, kind)?;
             if let Some(fs) = self.fs() {
                 vnode.set_fs(fs);
             }
@@ -282,13 +282,13 @@ impl Vnode {
     }
 
     /// Opens a vnode for access
-    pub fn open(self: &VnodeRef) -> Result<File, Errno> {
+    pub fn open(self: &VnodeRef, flags: OpenFlags) -> Result<File, Errno> {
         if self.kind == VnodeKind::Directory {
             return Err(Errno::IsADirectory);
         }
 
         if let Some(ref mut data) = *self.data() {
-            let pos = data.open(self.clone())?;
+            let pos = data.open(self.clone(), flags)?;
             Ok(File::normal(self.clone(), pos))
         } else {
             Err(Errno::NotImplemented)

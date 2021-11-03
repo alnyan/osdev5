@@ -5,10 +5,8 @@ use core::mem::size_of;
 use core::time::Duration;
 use error::Errno;
 use libcommon::{Read, Write};
-use syscall::{
-    abi,
-    stat::{Stat, AT_FDCWD},
-};
+use syscall::{abi, stat::AT_FDCWD};
+use vfs::{FileMode, OpenFlags, Stat};
 
 fn translate(virt: usize) -> Option<usize> {
     let mut res: usize;
@@ -24,9 +22,7 @@ fn translate(virt: usize) -> Option<usize> {
 
 fn validate_user_ptr_struct<'a, T>(base: usize) -> Result<&'a mut T, Errno> {
     let bytes = validate_user_ptr(base, size_of::<T>())?;
-    Ok(unsafe {
-        &mut *(bytes.as_mut_ptr() as *mut T)
-    })
+    Ok(unsafe { &mut *(bytes.as_mut_ptr() as *mut T) })
 }
 
 fn validate_user_ptr<'a>(base: usize, len: usize) -> Result<&'a mut [u8], Errno> {
@@ -119,15 +115,23 @@ pub unsafe fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
         }
 
         // I/O system calls
-        abi::SYS_OPEN => {
-            let path = validate_user_str(args[0], 256)?;
+        abi::SYS_OPENAT => {
+            let at_fd = args[0];
+            let path = validate_user_str(args[1], 256)?;
+            let mode = FileMode::from_bits(args[2] as u32).ok_or(Errno::InvalidArgument)?;
+            let opts = OpenFlags::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
+
+            let at = if at_fd as i32 == AT_FDCWD {
+                None
+            } else {
+                todo!();
+            };
 
             let proc = Process::current();
             let mut io = proc.io.lock();
 
-            let node = io.ioctx().find(None, path, true)?;
-            // TODO check access
-            io.place_file(node.open()?)
+            let file = io.ioctx().open(at, path, mode, opts)?;
+            io.place_file(file)
         }
         abi::SYS_READ => {
             let proc = Process::current();
@@ -158,6 +162,14 @@ pub unsafe fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             };
             let node = io.ioctx().find(at, filename, true)?;
             node.stat(buf)?;
+            Ok(0)
+        }
+        abi::SYS_CLOSE => {
+            let proc = Process::current();
+            let mut io = proc.io.lock();
+            let fd = args[0];
+
+            io.close_file(fd)?;
             Ok(0)
         }
 

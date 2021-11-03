@@ -1,15 +1,9 @@
-use vfs::{VnodeImpl, VnodeKind, VnodeRef, Stat};
+use vfs::{VnodeImpl, VnodeKind, VnodeRef, Stat, OpenFlags};
 use error::Errno;
 use crate::{BlockAllocator, Bvec};
 
 pub struct FileInode<'a, A: BlockAllocator + Copy + 'static> {
     data: Bvec<'a, A>,
-}
-
-impl<'a, A: BlockAllocator + Copy + 'static> FileInode<'a, A> {
-    pub fn new(data: Bvec<'a, A>) -> Self {
-        Self { data }
-    }
 }
 
 impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
@@ -30,7 +24,7 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
         panic!()
     }
 
-    fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
+    fn open(&mut self, _node: VnodeRef, _mode: OpenFlags) -> Result<usize, Errno> {
         Ok(0)
     }
 
@@ -59,5 +53,11 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
         stat.blksize = 4096;
         stat.mode = 0o755;
         Ok(())
+    }
+}
+
+impl<'a, A: BlockAllocator + Copy + 'static> FileInode<'a, A> {
+    pub fn new(data: Bvec<'a, A>) -> Self {
+        Self { data }
     }
 }

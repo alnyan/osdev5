@@ -162,6 +162,17 @@ impl ProcessIo {
     }
 
     ///
+    pub fn close_file(&mut self, idx: usize) -> Result<(), Errno> {
+        if self.file_bitmap & (1 << idx) == 0 {
+            return Err(Errno::InvalidFile);
+        }
+
+        let res = self.files.remove(&idx);
+        assert!(res.is_some());
+        Ok(())
+    }
+
+    ///
     pub fn new() -> Self {
         Self {
             files: BTreeMap::new(),

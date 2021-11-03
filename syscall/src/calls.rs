@@ -39,6 +39,11 @@ pub unsafe fn sys_exit(status: i32) -> ! {
 }
 
 #[inline(always)]
+pub unsafe fn sys_close(fd: i32) -> i32 {
+    syscall!(abi::SYS_CLOSE, fd as usize) as i32
+}
+
+#[inline(always)]
 pub unsafe fn sys_ex_nanosleep(ns: u64, rem: *mut [u64; 2]) -> i32 {
     syscall!(abi::SYS_EX_NANOSLEEP, ns as usize, rem as usize) as i32
 }
@@ -49,9 +54,10 @@ pub unsafe fn sys_ex_debug_trace(msg: *const u8, len: usize) -> usize {
 }
 
 #[inline(always)]
-pub unsafe fn sys_open(pathname: *const u8, mode: u32, flags: u32) -> i32 {
+pub unsafe fn sys_openat(at: i32, pathname: *const u8, mode: u32, flags: u32) -> i32 {
     syscall!(
-        abi::SYS_OPEN,
+        abi::SYS_OPENAT,
+        at as usize,
         pathname as usize,
         mode as usize,
         flags as usize

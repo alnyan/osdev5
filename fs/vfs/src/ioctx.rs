@@ -1,4 +1,4 @@
-use crate::{FileMode, VnodeRef, VnodeKind};
+use crate::{FileMode, VnodeKind, VnodeRef, OpenFlags, File};
 use error::Errno;
 use libcommon::{path_component_left, path_component_right};
 
@@ -83,7 +83,28 @@ impl Ioctx {
         mode: FileMode,
     ) -> Result<VnodeRef, Errno> {
         let (parent, name) = path_component_right(path);
-        self.find(at, parent, true)?.mkdir(name.trim_start_matches('/'), mode)
+        self.find(at, parent, true)?
+            .create(name.trim_start_matches('/'), mode, VnodeKind::Directory)
+    }
+
+    ///
+    pub fn open(
+        &self,
+        at: Option<VnodeRef>,
+        path: &str,
+        mode: FileMode,
+        opts: OpenFlags,
+    ) -> Result<File, Errno> {
+        let node = match self.find(at.clone(), path, true) {
+            Err(Errno::DoesNotExist) => {
+                let (parent, name) = path_component_right(path);
+                let at = self.find(at, parent, true)?;
+                at.create(name, mode, VnodeKind::Regular)
+            },
+            o => o
+        }?;
+
+        node.open(opts)
     }
 }
 
@@ -271,14 +292,32 @@ mod tests {
 
         let ioctx = Ioctx::new(root_outer.clone());
 
-        assert_eq!(ioctx.find(None, "/dir0/dir1", false).unwrap_err(), Errno::DoesNotExist);
+        assert_eq!(
+            ioctx.find(None, "/dir0/dir1", false).unwrap_err(),
+            Errno::DoesNotExist
+        );
 
         dir0.mount(root_inner.clone()).unwrap();
 
-        assert!(Rc::ptr_eq(&root_inner, &ioctx.find(None, "/dir0", false).unwrap()));
-        assert!(Rc::ptr_eq(&dir1, &ioctx.find(None, "/dir0/dir1", false).unwrap()));
-        assert!(Rc::ptr_eq(&root_inner, &ioctx.find(None, "/dir0/dir1/..", false).unwrap()));
-        assert!(Rc::ptr_eq(&dir0, &ioctx.find(None, "/dir0/dir1/../..", false).unwrap()));
-        assert!(Rc::ptr_eq(&root_outer, &ioctx.find(None, "/dir0/dir1/../../..", false).unwrap()));
+        assert!(Rc::ptr_eq(
+            &root_inner,
+            &ioctx.find(None, "/dir0", false).unwrap()
+        ));
+        assert!(Rc::ptr_eq(
+            &dir1,
+            &ioctx.find(None, "/dir0/dir1", false).unwrap()
+        ));
+        assert!(Rc::ptr_eq(
+            &root_inner,
+            &ioctx.find(None, "/dir0/dir1/..", false).unwrap()
+        ));
+        assert!(Rc::ptr_eq(
+            &dir0,
+            &ioctx.find(None, "/dir0/dir1/../..", false).unwrap()
+        ));
+        assert!(Rc::ptr_eq(
+            &root_outer,
+            &ioctx.find(None, "/dir0/dir1/../../..", false).unwrap()
+        ));
     }
 }

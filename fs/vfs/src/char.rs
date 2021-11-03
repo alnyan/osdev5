@@ -1,4 +1,4 @@
-use crate::{VnodeImpl, VnodeKind, VnodeRef, Stat};
+use crate::{VnodeImpl, VnodeKind, VnodeRef, Stat, OpenFlags};
 use error::Errno;
 
 /// Generic character device trait
@@ -36,7 +36,7 @@ impl VnodeImpl for CharDeviceWrapper {
         panic!();
     }
 
-    fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
+    fn open(&mut self, _node: VnodeRef, _opts: OpenFlags) -> Result<usize, Errno> {
         Ok(0)
     }
 

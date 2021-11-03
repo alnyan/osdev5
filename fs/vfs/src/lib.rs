@@ -9,14 +9,12 @@ extern crate std;
 
 extern crate alloc;
 
-pub use syscall::stat::Stat;
+pub use syscall::stat::{Stat, OpenFlags, FileMode};
 
 mod block;
 pub use block::BlockDevice;
 mod fs;
 pub use fs::Filesystem;
-mod stat;
-pub use stat::FileMode;
 mod node;
 pub use node::{Vnode, VnodeImpl, VnodeKind, VnodeRef};
 mod ioctx;

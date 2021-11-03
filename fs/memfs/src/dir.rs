@@ -1,10 +1,13 @@
-use vfs::{VnodeImpl, VnodeKind, VnodeRef, Vnode, Stat};
+use crate::{BlockAllocator, Bvec, FileInode};
 use alloc::boxed::Box;
 use error::Errno;
+use vfs::{OpenFlags, Stat, Vnode, VnodeImpl, VnodeKind, VnodeRef};
 
-pub struct DirInode;
+pub struct DirInode<A: BlockAllocator + Copy + 'static> {
+    alloc: A,
+}
 
-impl VnodeImpl for DirInode {
+impl<A: BlockAllocator + Copy + 'static> VnodeImpl for DirInode<A> {
     fn create(
         &mut self,
         _parent: VnodeRef,
@@ -13,8 +16,9 @@ impl VnodeImpl for DirInode {
     ) -> Result<VnodeRef, Errno> {
         let vnode = Vnode::new(name, kind, Vnode::SEEKABLE);
         match kind {
-            VnodeKind::Directory => vnode.set_data(Box::new(DirInode {})),
-            _ => todo!()
+            VnodeKind::Directory => vnode.set_data(Box::new(DirInode { alloc: self.alloc })),
+            VnodeKind::Regular => vnode.set_data(Box::new(FileInode::new(Bvec::new(self.alloc)))),
+            _ => todo!(),
         }
         Ok(vnode)
     }
@@ -27,7 +31,7 @@ impl VnodeImpl for DirInode {
         Ok(())
     }
 
-    fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
+    fn open(&mut self, _node: VnodeRef, _flags: OpenFlags) -> Result<usize, Errno> {
         todo!()
     }
 
@@ -56,3 +60,8 @@ impl VnodeImpl for DirInode {
     }
 }
 
+impl<A: BlockAllocator + Copy + 'static> DirInode<A> {
+    pub const fn new(alloc: A) -> Self {
+        Self { alloc }
+    }
+}

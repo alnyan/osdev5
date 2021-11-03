@@ -4,8 +4,10 @@
 #[cfg(feature = "linux_compat")]
 compile_error!("Not yet implemented");
 
-pub mod abi;
+#[macro_use]
+extern crate bitflags;
 
+pub mod abi;
 pub mod stat;
 
 #[cfg(feature = "user")]

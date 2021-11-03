@@ -62,7 +62,7 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
         let node = Vnode::new(name, kind, Vnode::SEEKABLE);
         node.set_fs(self.clone());
         match kind {
-            VnodeKind::Directory => node.set_data(Box::new(DirInode {})),
+            VnodeKind::Directory => node.set_data(Box::new(DirInode::new(self.alloc))),
             VnodeKind::Regular => {}
             VnodeKind::Char => todo!(),
             VnodeKind::Block => todo!(),
@@ -90,7 +90,7 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
                     return Err(Errno::DoesNotExist);
                 }
                 // TODO file modes
-                let node = at.mkdir(element, FileMode::default_dir())?;
+                let node = at.create(element, FileMode::default_dir(), VnodeKind::Directory)?;
                 node
             }
         };
