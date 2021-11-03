@@ -7,6 +7,7 @@
     const_raw_ptr_deref,
     const_fn_fn_ptr_basics,
     const_fn_trait_bound,
+    const_trait_impl,
     const_panic,
     panic_info_message,
     alloc_error_handler,
@@ -27,6 +28,7 @@ extern crate alloc;
 pub mod debug;
 
 pub mod arch;
+pub mod config;
 pub mod dev;
 pub mod fs;
 pub mod mem;
@@ -35,6 +37,8 @@ pub mod sync;
 #[allow(missing_docs)]
 pub mod syscall;
 pub mod util;
+#[allow(missing_docs)]
+pub mod init;
 
 #[panic_handler]
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {

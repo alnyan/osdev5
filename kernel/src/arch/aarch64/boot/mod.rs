@@ -5,7 +5,9 @@ use crate::arch::{
     machine,
 };
 use crate::fs::devfs;
-use crate::dev::{fdt::DeviceTree, irq::IntSource, Device};
+use crate::dev::{fdt::{DeviceTree, find_prop}, irq::IntSource, Device};
+use error::Errno;
+use crate::config::{CONFIG, ConfigKey};
 //use crate::debug::Level;
 use crate::mem::{
     self, heap,
@@ -16,6 +18,39 @@ use crate::proc;
 use cortex_a::asm::barrier::{self, dsb, isb};
 use cortex_a::registers::{SCTLR_EL1, VBAR_EL1};
 use tock_registers::interfaces::{ReadWriteable, Writeable};
+
+fn init_device_tree(fdt_base_phys: usize) -> Result<(), Errno> {
+    use fdt_rs::prelude::*;
+
+    let fdt = if fdt_base_phys != 0 {
+        DeviceTree::from_phys(fdt_base_phys + 0xFFFFFF8000000000)?
+    } else {
+        warnln!("No FDT present");
+        return Ok(());
+    };
+
+    use crate::debug::Level;
+    fdt.dump(Level::Debug);
+
+    let mut cfg = CONFIG.lock();
+
+    if let Some(chosen) = fdt.node_by_path("/chosen") {
+        if let Some(initrd_start) = find_prop(chosen.clone(), "linux,initrd-start") {
+            let initrd_end = find_prop(chosen.clone(), "linux,initrd-end").unwrap();
+            let initrd_start = initrd_start.u32(0).unwrap() as usize;
+            let initrd_end = initrd_end.u32(0).unwrap() as usize;
+
+            cfg.set_usize(ConfigKey::InitrdBase, initrd_start);
+            cfg.set_usize(ConfigKey::InitrdSize, initrd_end - initrd_start);
+        }
+
+        if let Some(cmdline) = find_prop(chosen, "bootargs") {
+            cfg.set_cmdline(cmdline.str().unwrap());
+        }
+    }
+
+    Ok(())
+}
 
 #[no_mangle]
 extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
@@ -49,6 +84,8 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
     // physical memory
     machine::init_board_early().unwrap();
 
+    init_device_tree(fdt_base).expect("Device tree init failed");
+
     // Setup a heap
     unsafe {
         let heap_base_phys = phys::alloc_contiguous_pages(PageUsage::KernelHeap, 4096)
@@ -61,29 +98,14 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
 
     machine::init_board().unwrap();
 
-    let initrd;
-    if fdt_base != 0 {
-        let fdt = DeviceTree::from_phys(fdt_base + 0xFFFFFF8000000000);
-        if let Ok(fdt) = fdt {
-            use crate::debug::Level;
-            fdt.dump(Level::Debug);
-            initrd = fdt.initrd();
-        } else {
-            initrd = None;
-            errorln!("Failed to init FDT");
-        }
-    } else {
-        initrd = None;
-        warnln!("No FDT present");
-    }
-
+    debugln!("Config: {:#x?}", CONFIG.lock());
     infoln!("Machine init finished");
 
     unsafe {
         machine::local_timer().enable().unwrap();
         machine::local_timer().init_irqs().unwrap();
 
-        proc::enter(initrd);
+        proc::enter();
     }
 }
 

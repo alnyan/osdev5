@@ -9,7 +9,12 @@ extern crate libusr;
 fn main() -> i32 {
     let mut buf = [0; 128];
 
+    print!("\x1B[2J\x1B[1;1H");
+    println!("Hello!");
+
     loop {
+        print!("> ");
+
         let count = unsafe {
             libusr::sys::sys_read(0, buf.as_mut_ptr(), buf.len())
         };
@@ -21,12 +26,12 @@ fn main() -> i32 {
 
         if let Ok(s) = core::str::from_utf8(&buf[..count]) {
             println!("Got string {:?}", s);
+
+            if s == "quit" {
+                break;
+            }
         } else {
             println!("Got string (non-utf8) {:?}", &buf[..count]);
-        }
-
-        unsafe {
-            libusr::sys::sys_ex_nanosleep(1_000_000_000, core::ptr::null_mut());
         }
     }
     -1

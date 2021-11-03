@@ -2,8 +2,9 @@ use crate::arch::machine::{self, IrqNumber};
 use crate::dev::{
     irq::{IntController, IntSource},
     serial::SerialDevice,
-    Device,
+    tty::CharRing, Device,
 };
+use vfs::CharDevice;
 use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
@@ -78,6 +79,7 @@ struct UartInner {
 
 pub(super) struct Uart {
     inner: InitOnce<IrqSafeSpinLock<UartInner>>,
+    ring: CharRing<16>,
     base: usize,
     irq: IrqNumber,
 }
@@ -120,6 +122,23 @@ impl SerialDevice for Uart {
     }
 }
 
+impl CharDevice for Uart {
+    fn read(&self, blocking: bool, data: &mut [u8]) -> Result<usize, Errno> {
+        assert!(blocking);
+        self.ring.line_read(data, self)
+    }
+
+    fn write(&self, blocking: bool, data: &[u8]) -> Result<usize, Errno> {
+        assert!(blocking);
+        for &byte in data {
+            unsafe {
+                self.send(byte)?;
+            }
+        }
+        Ok(data.len())
+    }
+}
+
 impl IntSource for Uart {
     fn handle_irq(&self) -> Result<(), Errno> {
         let byte = self.inner.get().lock().regs.DR_DLL.get();
@@ -132,8 +151,7 @@ impl IntSource for Uart {
             }
         }
 
-        use crate::dev::gpio::GpioDevice;
-        machine::GPIO.toggle_pin(machine::PinAddress::new(3, 26));
+        self.ring.putc(byte as u8, false).ok();
         Ok(())
     }
 
@@ -150,6 +168,7 @@ impl Uart {
     pub const unsafe fn new(base: usize, irq: IrqNumber) -> Self {
         Self {
             inner: InitOnce::new(),
+            ring: CharRing::new(),
             base,
             irq,
         }

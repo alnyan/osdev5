@@ -71,7 +71,6 @@ impl RtcDevice for Rtc {}
 impl IntSource for Rtc {
     fn handle_irq(&self) -> Result<(), Errno> {
         self.regs.get().lock().arm_alarm0_irq(1);
-        debugln!("Tick!");
         Ok(())
     }
 

@@ -71,9 +71,9 @@ impl<T> DerefMut for IrqSafeSpinLockGuard<'_, T> {
     }
 }
 
-impl<T> fmt::Debug for IrqSafeSpinLockGuard<'_, T> {
+impl<T: fmt::Debug> fmt::Debug for IrqSafeSpinLockGuard<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", &*self)
+        fmt::Debug::fmt(unsafe { &*self.lock.value.get() }, f)
     }
 }
 

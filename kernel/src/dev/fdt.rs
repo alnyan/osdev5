@@ -88,7 +88,7 @@ fn find_node<'a>(at: INode<'a>, path: &str) -> Option<INode<'a>> {
     }
 }
 
-fn find_prop<'a>(at: INode<'a>, name: &str) -> Option<IProp<'a>> {
+pub fn find_prop<'a>(at: INode<'a>, name: &str) -> Option<IProp<'a>> {
     at.props().find(|p| p.name().unwrap() == name)
 }
 

@@ -1,5 +1,6 @@
 //! Physical memory management facilities
 
+use crate::config::{ConfigKey, CONFIG};
 use crate::mem::PAGE_SIZE;
 use core::mem::size_of;
 use error::Errno;
@@ -133,12 +134,13 @@ pub unsafe fn init_from_iter<T: Iterator<Item = MemoryRegion> + Clone>(iter: T) 
     // Step 3. Initialize the memory manager with available pages
     let mut manager = ManagerImpl::initialize(mem_base, pages_base, total_pages);
     let mut usable_pages = 0usize;
+    let cfg = CONFIG.lock();
     'l0: for region in iter {
         for addr in (region.start..region.end).step_by(PAGE_SIZE) {
             if !reserved::is_reserved(addr) {
                 manager.add_page(addr);
                 usable_pages += 1;
-                if usable_pages == MAX_PAGES {
+                if usable_pages >= cfg.get_usize(ConfigKey::MemLimit) {
                     break 'l0;
                 }
             }

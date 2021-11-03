@@ -11,6 +11,7 @@ use crate::dev::{
     timer::TimestampSource,
     Device,
 };
+use crate::fs::devfs::{self, CharDeviceType};
 use crate::mem::phys;
 use error::Errno;
 
@@ -43,6 +44,7 @@ pub fn init_board() -> Result<(), Errno> {
         GPIO.enable()?;
 
         UART0.init_irqs()?;
+        devfs::add_char_device(&UART0, CharDeviceType::TtySerial)?;
 
         R_WDOG.enable()?;
 
