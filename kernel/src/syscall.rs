@@ -5,7 +5,10 @@ use core::mem::size_of;
 use core::time::Duration;
 use error::Errno;
 use libcommon::{Read, Write};
-use syscall::abi;
+use syscall::{
+    abi,
+    stat::{Stat, AT_FDCWD},
+};
 
 fn translate(virt: usize) -> Option<usize> {
     let mut res: usize;
@@ -17,6 +20,13 @@ fn translate(virt: usize) -> Option<usize> {
     } else {
         None
     }
+}
+
+fn validate_user_ptr_struct<'a, T>(base: usize) -> Result<&'a mut T, Errno> {
+    let bytes = validate_user_ptr(base, size_of::<T>())?;
+    Ok(unsafe {
+        &mut *(bytes.as_mut_ptr() as *mut T)
+    })
 }
 
 fn validate_user_ptr<'a>(base: usize, len: usize) -> Result<&'a mut [u8], Errno> {
@@ -132,6 +142,23 @@ pub unsafe fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             let buf = validate_user_ptr(args[1], args[2])?;
 
             io.file(args[0])?.write(buf)
+        }
+        abi::SYS_FSTATAT => {
+            let proc = Process::current();
+            let mut io = proc.io.lock();
+            let fd = args[0];
+            let filename = validate_user_str(args[1], 256)?;
+            let buf = validate_user_ptr_struct::<Stat>(args[2])?;
+
+            // TODO "self" flag
+            let at = if fd as i32 != AT_FDCWD {
+                todo!();
+            } else {
+                None
+            };
+            let node = io.ioctx().find(at, filename, true)?;
+            node.stat(buf)?;
+            Ok(0)
         }
 
         // Extra system calls

@@ -1,4 +1,4 @@
-use vfs::{VnodeImpl, VnodeKind, VnodeRef, Vnode};
+use vfs::{VnodeImpl, VnodeKind, VnodeRef, Vnode, Stat};
 use alloc::boxed::Box;
 use error::Errno;
 
@@ -49,6 +49,10 @@ impl VnodeImpl for DirInode {
 
     fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
         todo!()
+    }
+
+    fn stat(&mut self, _node: VnodeRef, _stat: &mut Stat) -> Result<(), Errno> {
+        todo!();
     }
 }
 

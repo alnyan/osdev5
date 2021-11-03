@@ -1,4 +1,4 @@
-use crate::{VnodeImpl, VnodeKind, VnodeRef};
+use crate::{VnodeImpl, VnodeKind, VnodeRef, Stat};
 use error::Errno;
 
 /// Generic character device trait
@@ -58,6 +58,10 @@ impl VnodeImpl for CharDeviceWrapper {
 
     fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
         panic!();
+    }
+
+    fn stat(&mut self, _node: VnodeRef, _stat: &mut Stat) -> Result<(), Errno> {
+        todo!();
     }
 }
 

@@ -1,4 +1,4 @@
-use vfs::{VnodeImpl, VnodeKind, VnodeRef};
+use vfs::{VnodeImpl, VnodeKind, VnodeRef, Stat};
 use error::Errno;
 use crate::{BlockAllocator, Bvec};
 
@@ -52,5 +52,12 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
 
     fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
         Ok(self.data.size())
+    }
+
+    fn stat(&mut self, node: VnodeRef, stat: &mut Stat) -> Result<(), Errno> {
+        stat.size = self.data.size() as u64;
+        stat.blksize = 4096;
+        stat.mode = 0o755;
+        Ok(())
     }
 }

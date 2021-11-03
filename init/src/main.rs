@@ -5,12 +5,17 @@
 #[macro_use]
 extern crate libusr;
 
+use libusr::io;
+
 #[no_mangle]
 fn main() -> i32 {
     let mut buf = [0; 128];
+    let stat = io::stat("/test.txt").unwrap();
 
     print!("\x1B[2J\x1B[1;1H");
     println!("Hello!");
+
+    println!("test.txt: {:?}", stat);
 
     loop {
         print!("> ");

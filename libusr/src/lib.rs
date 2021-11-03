@@ -8,7 +8,8 @@ pub mod os;
 pub mod io;
 
 pub mod sys {
-    pub use syscall::*;
+    pub use syscall::calls::*;
+    pub use syscall::stat::Stat;
 }
 
 #[link_section = ".text._start"]

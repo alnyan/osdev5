@@ -9,6 +9,8 @@ extern crate std;
 
 extern crate alloc;
 
+pub use syscall::stat::Stat;
+
 mod block;
 pub use block::BlockDevice;
 mod fs;

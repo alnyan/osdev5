@@ -1,4 +1,4 @@
-use crate::{File, FileMode, Filesystem};
+use crate::{File, FileMode, Filesystem, Stat};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{RefCell, RefMut};
 use core::fmt;
@@ -69,6 +69,9 @@ pub trait VnodeImpl {
     /// Writes `data.len()` bytes from the buffer to file offset `pos`.
     /// Resizes the file storage if necessary.
     fn write(&mut self, node: VnodeRef, pos: usize, data: &[u8]) -> Result<usize, Errno>;
+
+    /// Retrieves file status
+    fn stat(&mut self, node: VnodeRef, stat: &mut Stat) -> Result<(), Errno>;
 
     /// Reports the size of this filesystem object in bytes
     fn size(&mut self, node: VnodeRef) -> Result<usize, Errno>;
@@ -335,6 +338,15 @@ impl Vnode {
     pub fn size(self: &VnodeRef) -> Result<usize, Errno> {
         if let Some(ref mut data) = *self.data() {
             data.size(self.clone())
+        } else {
+            Err(Errno::NotImplemented)
+        }
+    }
+
+    /// Reports file status
+    pub fn stat(self: &VnodeRef, stat: &mut Stat) -> Result<(), Errno> {
+        if let Some(ref mut data) = *self.data() {
+            data.stat(self.clone(), stat)
         } else {
             Err(Errno::NotImplemented)
         }
