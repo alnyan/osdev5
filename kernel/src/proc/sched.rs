@@ -43,6 +43,7 @@ impl Scheduler {
         self.inner.get().lock().queue.push_back(pid);
     }
 
+    /// Removes given `pid` from execution queue
     pub fn dequeue(&self, pid: Pid) {
         self.inner.get().lock().queue.retain(|&p| p != pid)
     }

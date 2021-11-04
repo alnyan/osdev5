@@ -1,18 +1,19 @@
+//! Process data and control
+use crate::arch::aarch64::exception::ExceptionFrame;
 use crate::mem::{
     self,
     phys::{self, PageUsage},
     virt::{MapAttributes, Space},
 };
-use crate::arch::aarch64::exception::ExceptionFrame;
 use crate::proc::{PROCESSES, SCHED};
 use crate::sync::IrqSafeSpinLock;
-use alloc::{rc::Rc, collections::BTreeMap};
+use alloc::{collections::BTreeMap, rc::Rc};
 use core::cell::UnsafeCell;
 use core::fmt;
 use core::sync::atomic::{AtomicU32, Ordering};
 use error::Errno;
-use vfs::Ioctx;
 use vfs::File;
+use vfs::Ioctx;
 
 pub use crate::arch::platform::context::{self, Context};
 
@@ -50,6 +51,7 @@ struct ProcessInner {
     exit: Option<ExitCode>,
 }
 
+/// Process I/O context. Contains file tables, root/cwd info etc.
 pub struct ProcessIo {
     ioctx: Option<Ioctx>,
     files: BTreeMap<usize, File>,
@@ -61,6 +63,7 @@ pub struct ProcessIo {
 pub struct Process {
     ctx: UnsafeCell<Context>,
     inner: IrqSafeSpinLock<ProcessInner>,
+    /// Process I/O context
     pub io: IrqSafeSpinLock<ProcessIo>,
 }
 
@@ -119,6 +122,7 @@ impl Pid {
         self.0 as u8
     }
 
+    /// Returns bit value of this pid
     pub const fn value(self) -> u32 {
         self.0
     }
@@ -136,19 +140,23 @@ impl fmt::Display for Pid {
 }
 
 impl ProcessIo {
+    /// Clones this I/O context
     pub fn fork(&self) -> Result<ProcessIo, Errno> {
         // TODO
         Ok(Self::new())
     }
 
+    /// Returns [File] struct referred to by file descriptor `idx`
     pub fn file(&mut self, idx: usize) -> Result<&mut File, Errno> {
         self.files.get_mut(&idx).ok_or(Errno::InvalidFile)
     }
 
+    /// Returns [Ioctx] structure reference of this I/O context
     pub fn ioctx(&mut self) -> &mut Ioctx {
         self.ioctx.as_mut().unwrap()
     }
 
+    /// Allocates a file descriptor and associates a [File] struct with it
     pub fn place_file(&mut self, file: File) -> Result<usize, Errno> {
         for bit in 0..64 {
             if self.file_bitmap & (1 << bit) == 0 {
@@ -162,6 +170,7 @@ impl ProcessIo {
         Err(Errno::TooManyDescriptors)
     }
 
+    /// Performs [File] close and releases its associated file descriptor `idx`
     pub fn close_file(&mut self, idx: usize) -> Result<(), Errno> {
         if self.file_bitmap & (1 << idx) == 0 {
             return Err(Errno::InvalidFile);
@@ -172,11 +181,12 @@ impl ProcessIo {
         Ok(())
     }
 
+    /// Constructs a new I/O context
     pub fn new() -> Self {
         Self {
             files: BTreeMap::new(),
             file_bitmap: 0,
-            ioctx: None
+            ioctx: None,
         }
     }
 }
@@ -191,6 +201,7 @@ impl Process {
     const USTACK_VIRT_TOP: usize = 0x100000000;
     const USTACK_PAGES: usize = 4;
 
+    /// Changes process I/O context: root and cwd
     pub fn set_ioctx(&self, ioctx: Ioctx) {
         self.io.lock().ioctx = Some(ioctx);
     }
@@ -241,6 +252,7 @@ impl Process {
         (&mut *src_ctx).switch(&mut *dst_ctx);
     }
 
+    /// Suspends current process with a "waiting" status
     pub fn enter_wait(&self) {
         let drop = {
             let mut lock = self.inner.lock();
@@ -254,10 +266,12 @@ impl Process {
         }
     }
 
+    /// Changes process wait condition status
     pub fn set_wait_flag(&self, v: bool) {
         self.inner.lock().wait_flag = v;
     }
 
+    /// Returns `true` if process wait condition has not been reached
     pub fn wait_flag(&self) -> bool {
         self.inner.lock().wait_flag
     }
@@ -286,6 +300,8 @@ impl Process {
         Ok(res)
     }
 
+    /// Creates a "fork" of the process, cloning its address space and
+    /// resources
     pub fn fork(&self, frame: &mut ExceptionFrame) -> Result<Pid, Errno> {
         let src_io = self.io.lock();
         let mut src_inner = self.inner.lock();
@@ -303,8 +319,8 @@ impl Process {
                 exit: None,
                 space: Some(dst_space),
                 state: State::Ready,
-                wait_flag: false
-            })
+                wait_flag: false,
+            }),
         });
         debugln!("Process {} forked into {}", src_inner.id, dst_id);
         assert!(PROCESSES.lock().insert(dst_id, dst).is_none());

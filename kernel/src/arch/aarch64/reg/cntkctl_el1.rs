@@ -1,4 +1,5 @@
 //! CNTKCTL_EL1 register
+#![allow(missing_docs)]
 
 use tock_registers::{
     interfaces::{Readable, Writeable},

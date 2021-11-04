@@ -1,3 +1,4 @@
+//! Teletype (TTY) device facilities
 use error::Errno;
 use crate::proc::wait::Wait;
 use crate::sync::IrqSafeSpinLock;
@@ -11,7 +12,7 @@ struct CharRingInner<const N: usize> {
     flags: u8
 }
 
-///
+/// Ring buffer for TTYs
 pub struct CharRing<const N: usize> {
     wait_read: Wait,
     wait_write: Wait,
@@ -43,6 +44,7 @@ impl<const N: usize> CharRingInner<N> {
 }
 
 impl<const N: usize> CharRing<N> {
+    /// Returns a new fixed-size ring buffer
     pub const fn new() -> Self {
         Self {
             inner: IrqSafeSpinLock::new(CharRingInner {
@@ -56,6 +58,7 @@ impl<const N: usize> CharRing<N> {
         }
     }
 
+    /// Performs a blocking read of a single byte from the buffer
     pub fn getc(&self) -> Result<u8, Errno> {
         let mut lock = self.inner.lock();
         loop {
@@ -75,10 +78,7 @@ impl<const N: usize> CharRing<N> {
         Ok(byte)
     }
 
-    pub fn dump(&self) {
-        debugln!("{:?}", self.inner.lock());
-    }
-
+    /// Puts a single byte to the buffer
     pub fn putc(&self, ch: u8, blocking: bool) -> Result<(), Errno> {
         let mut lock = self.inner.lock();
         if blocking {
@@ -89,6 +89,7 @@ impl<const N: usize> CharRing<N> {
         Ok(())
     }
 
+    /// Line discipline function
     pub fn line_read<T: CharDevice>(&self, data: &mut [u8], dev: &T) -> Result<usize, Errno> {
         let mut rem = data.len();
         let mut off = 0;

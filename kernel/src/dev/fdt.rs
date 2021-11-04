@@ -1,3 +1,4 @@
+//! Device tree facilities
 use crate::debug::Level;
 use error::Errno;
 use fdt_rs::prelude::*;
@@ -17,6 +18,7 @@ static mut INDEX_BUFFER: Wrap = Wrap { data: [0; 65536] };
 type INode<'a> = DevTreeIndexNode<'a, 'a, 'a>;
 type IProp<'a> = DevTreeIndexProp<'a, 'a, 'a>;
 
+/// Device tree manager structure
 #[allow(dead_code)]
 pub struct DeviceTree {
     tree: DevTree<'static>,
@@ -88,6 +90,7 @@ fn find_node<'a>(at: INode<'a>, path: &str) -> Option<INode<'a>> {
     }
 }
 
+/// Looks up a node's property by its name
 pub fn find_prop<'a>(at: INode<'a>, name: &str) -> Option<IProp<'a>> {
     at.props().find(|p| p.name().unwrap() == name)
 }
@@ -101,24 +104,18 @@ pub fn find_prop<'a>(at: INode<'a>, name: &str) -> Option<IProp<'a>> {
 // }
 
 impl DeviceTree {
+    /// Dumps contents of the device tree
     pub fn dump(&self, level: Level) {
         dump_node(level, &self.index.root(), 0);
     }
 
+    /// Looks up given `path` in the tree
     pub fn node_by_path(&self, path: &str) -> Option<INode> {
         find_node(self.index.root(), path.trim_start_matches('/'))
     }
 
-    pub fn initrd(&self) -> Option<(usize, usize)> {
-        let chosen = self.node_by_path("/chosen")?;
-        let initrd_start = find_prop(chosen.clone(), "linux,initrd-start")?
-            .u32(0)
-            .ok()?;
-        let initrd_end = find_prop(chosen, "linux,initrd-end")?.u32(0).ok()?;
-
-        Some((initrd_start as usize, initrd_end as usize))
-    }
-
+    /// Loads a device tree from physical `base` address and
+    /// creates an index for it
     pub fn from_phys(base: usize) -> Result<DeviceTree, Errno> {
         // TODO virtualize address
         let tree = unsafe { DevTree::from_raw_pointer(base as *const _) }

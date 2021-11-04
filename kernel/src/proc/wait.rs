@@ -1,3 +1,5 @@
+//! Facilities for process suspension and sleep
+
 use crate::arch::machine;
 use crate::dev::timer::TimestampSource;
 use crate::proc::{self, sched::SCHED, Pid, Process};
@@ -6,17 +8,20 @@ use alloc::collections::LinkedList;
 use core::time::Duration;
 use error::Errno;
 
+/// Wait channel structure. Contains a queue of processes
+/// waiting for some event to happen.
 pub struct Wait {
     queue: IrqSafeSpinLock<LinkedList<Pid>>,
 }
 
-pub struct Timeout {
+struct Timeout {
     pid: Pid,
     deadline: Duration,
 }
 
 static TICK_LIST: IrqSafeSpinLock<LinkedList<Timeout>> = IrqSafeSpinLock::new(LinkedList::new());
 
+/// Checks for any timed out wait channels and interrupts them
 pub fn tick() {
     let time = machine::local_timer().timestamp().unwrap();
     let mut list = TICK_LIST.lock();
@@ -33,6 +38,7 @@ pub fn tick() {
     }
 }
 
+/// Suspends current process for given duration
 pub fn sleep(timeout: Duration, remaining: &mut Duration) -> Result<(), Errno> {
     // Dummy wait descriptor which will never receive notifications
     static SLEEP_NOTIFY: Wait = Wait::new();
@@ -42,25 +48,26 @@ pub fn sleep(timeout: Duration, remaining: &mut Duration) -> Result<(), Errno> {
             *remaining = deadline - machine::local_timer().timestamp()?;
             Err(Errno::Interrupt)
         }
-        Err(Errno::TimedOut) => {
-            Ok(())
-        }
+        Err(Errno::TimedOut) => Ok(()),
         Ok(_) => panic!("Impossible result"),
         res => res,
     }
 }
 
 impl Wait {
+    /// Constructs a new wait channel
     pub const fn new() -> Self {
         Self {
             queue: IrqSafeSpinLock::new(LinkedList::new()),
         }
     }
 
+    /// Notifies all processes waiting for this event
     pub fn wakeup_all(&self) {
         todo!()
     }
 
+    /// Notifies a single process waiting for this event
     pub fn wakeup_one(&self) {
         // No IRQs will arrive now == safe to manipulate tick list
         let mut tick_lock = TICK_LIST.lock();
@@ -82,6 +89,8 @@ impl Wait {
         }
     }
 
+    /// Suspends current process until event is signalled or
+    /// (optional) deadline is reached
     pub fn wait(&self, deadline: Option<Duration>) -> Result<(), Errno> {
         let proc = Process::current();
         //let deadline = timeout.map(|t| machine::local_timer().timestamp().unwrap() + t);

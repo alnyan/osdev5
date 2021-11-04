@@ -87,6 +87,7 @@ impl Ioctx {
             .create(name.trim_start_matches('/'), mode, VnodeKind::Directory)
     }
 
+    /// Opens (and possibly creates) a filesystem path for access
     pub fn open(
         &self,
         at: Option<VnodeRef>,

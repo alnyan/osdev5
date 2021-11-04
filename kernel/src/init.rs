@@ -1,3 +1,5 @@
+//! Kernel initialization process
+
 use crate::config::{ConfigKey, CONFIG};
 use crate::fs::{devfs, MemfsBlockAlloc};
 use crate::mem;
@@ -5,6 +7,7 @@ use crate::proc::{elf, Process};
 use memfs::Ramfs;
 use vfs::{Filesystem, Ioctx, OpenFlags};
 
+/// Kernel init process function
 #[inline(never)]
 pub extern "C" fn init_fn(_arg: usize) -> ! {
     let proc = Process::current();
@@ -39,11 +42,13 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
             devfs_root.lookup("ttyS0")
         } else {
             devfs_root.lookup(console)
-        }.expect("Failed to open stdout for init process");
+        }
+        .expect("Failed to open stdout for init process");
 
         let mut io = proc.io.lock();
         // TODO fd cloning?
-        io.place_file(tty_node.open(OpenFlags::O_RDWR).unwrap()).unwrap();
+        io.place_file(tty_node.open(OpenFlags::O_RDWR).unwrap())
+            .unwrap();
     }
 
     drop(cfg);

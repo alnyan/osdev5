@@ -1,3 +1,5 @@
+//! System call implementation
+
 use crate::debug::Level;
 use crate::mem;
 use crate::proc::{wait, Process, Pid};
@@ -107,6 +109,9 @@ fn validate_user_str<'a>(base: usize, limit: usize) -> Result<&'a str, Errno> {
     })
 }
 
+/// Creates a "fork" process from current one using its register frame.
+/// See [Process::fork()].
+///
 /// # Safety
 ///
 /// Unsafe: accepts and clones process states. Only legal to call
@@ -115,6 +120,7 @@ pub unsafe fn sys_fork(regs: &mut ExceptionFrame) -> Result<Pid, Errno> {
     Process::current().fork(regs)
 }
 
+/// Main system call dispatcher function
 pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
     match num {
         // Process management system calls

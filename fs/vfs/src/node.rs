@@ -102,6 +102,7 @@ impl Vnode {
         })
     }
 
+    /// Returns [Vnode]'s path element name
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -171,6 +172,7 @@ impl Vnode {
         parent_borrow.children.remove(index);
     }
 
+    /// Attaches some filesystem's root directory node at another directory
     pub fn mount(self: &VnodeRef, root: VnodeRef) -> Result<(), Errno> {
         if !self.is_directory() {
             return Err(Errno::NotADirectory);
@@ -197,6 +199,7 @@ impl Vnode {
         self.tree.borrow().parent.as_ref().unwrap_or(self).clone()
     }
 
+    /// Returns this vnode's mount target (for directories)
     pub fn target(self: &VnodeRef) -> Option<VnodeRef> {
         self.target.borrow().clone()
     }

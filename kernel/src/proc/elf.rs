@@ -1,3 +1,4 @@
+//! Executable and Linkable Format binary loader module
 use crate::mem::{
     self,
     phys::{self, PageUsage},
@@ -140,6 +141,7 @@ unsafe fn read_struct<T, F: Seek + Read>(src: &mut F, pos: usize) -> Result<T, E
     }
 }
 
+/// Loads an ELF program from `source` into target `space`
 pub fn load_elf<F: Seek + Read>(space: &mut Space, source: &mut F) -> Result<usize, Errno> {
     let ehdr: Ehdr<Elf64> = unsafe { read_struct(source, 0).unwrap() };
 

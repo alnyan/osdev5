@@ -1,6 +1,8 @@
+//! Kernel command-line handling and configuration
 use crate::sync::IrqSafeSpinLock;
 use core::fmt;
 
+/// Kernel configuration data
 #[derive(Debug)]
 pub struct Config {
     cmdline: ConfigString<256>,
@@ -10,6 +12,8 @@ pub struct Config {
     initrd_size: usize,
 }
 
+/// Kernel parameter keys
+#[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
 pub enum ConfigKey {
     Cmdline,
@@ -24,6 +28,7 @@ struct ConfigString<const N: usize> {
     len: usize,
 }
 
+/// Kernel config instance
 pub static CONFIG: IrqSafeSpinLock<Config> = IrqSafeSpinLock::new(Config::default());
 
 impl const Default for Config {
@@ -39,6 +44,7 @@ impl const Default for Config {
 }
 
 impl Config {
+    /// Sets a config key to [usize] value
     pub fn set_usize(&mut self, key: ConfigKey, value: usize) {
         match key {
             ConfigKey::InitrdBase => { self.initrd_base = value }
@@ -48,6 +54,7 @@ impl Config {
         }
     }
 
+    /// Sets a config key to [str] value
     pub fn set_str(&mut self, key: ConfigKey, value: &str) {
         match key {
             ConfigKey::Cmdline => { self.cmdline.set_from_str(value) }
@@ -55,6 +62,7 @@ impl Config {
         }
     }
 
+    /// Returns an [usize] value for given `key`
     pub fn get_usize(&self, key: ConfigKey) -> usize {
         match key {
             ConfigKey::InitrdBase => self.initrd_base,
@@ -64,6 +72,7 @@ impl Config {
         }
     }
 
+    /// Returns a [str] value for given `key`
     pub fn get_str(&self, key: ConfigKey) -> &str {
         match key {
             ConfigKey::Cmdline => self.cmdline.as_str(),
@@ -72,6 +81,8 @@ impl Config {
         }
     }
 
+    /// Parses command line options provided to the kernel and
+    /// sets appropriate config keys
     pub fn set_cmdline(&self, _cmdline: &str) {
         // TODO
     }

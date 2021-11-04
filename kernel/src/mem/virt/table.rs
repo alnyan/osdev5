@@ -74,6 +74,8 @@ impl Table {
         }
     }
 
+    /// Returns next-level translation table reference for `index`, if one is present.
+    /// Same as [next_level_table_or_alloc], but returns `None` if no table is mapped.
     pub fn next_level_table(&mut self, index: usize) -> Option<&'static mut Table> {
         let entry = self[index];
         if entry.is_present() {
@@ -184,6 +186,7 @@ impl Space {
         }
     }
 
+    /// Performs a copy of the address space, cloning data owned by it
     pub fn fork(&mut self) -> Result<&'static mut Self, Errno> {
         let res = Self::alloc_empty()?;
         for l0i in 0..512 {

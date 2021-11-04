@@ -1,18 +1,27 @@
+//! SD host controller interface and card operation facilities
 use crate::dev::Device;
 use error::Errno;
 use vfs::BlockDevice;
 
+/// Generic SD/MMC host controller interface
 pub trait SdHostController: Device + BlockDevice {
     // Physical layer
+    /// Sends `cmd` to the card using controller's physical layer
     fn send_cmd(&self, cmd: &mut SdCommand) -> Result<SdResponse, Errno>;
+    /// Performs controller reset
     fn phys_reset(&self) -> Result<(), Errno>;
+    /// Returns `true` if the card is physically present
     fn is_phys_inserted(&self) -> bool;
 
     // Data layer
+    /// Sets card relative address
     fn set_card_address(&self, rca: u16) -> Result<(), Errno>;
+    /// Sets card identification data
     fn set_card_identification(&self, id: SdCardIdentification) -> Result<(), Errno>;
+    /// Resets card to unidentified state
     fn reset_card_identification(&self) -> Result<(), Errno>;
 
+    /// Resets the inserted card and waits for it to respond
     fn reset_card_probe(&self) -> Result<(), Errno> {
         self.send_cmd(&mut SdCommand {
             number: SdCommandNumber::Cmd0,
@@ -56,6 +65,8 @@ pub trait SdHostController: Device + BlockDevice {
         Err(Errno::DeviceError)
     }
 
+    /// Performs controller reset and attempts SD card initialization sequence
+    /// if it is physically present
     fn reset_card(&self) -> Result<(), Errno> {
         let mut buf = [0u8; 16];
 
@@ -209,8 +220,11 @@ pub trait SdHostController: Device + BlockDevice {
     }
 }
 
+/// List of possible response types by SD cards
+#[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SdResponseType {
+    /// No response
     None,
     R1,
     R1b,
@@ -223,6 +237,8 @@ pub enum SdResponseType {
     R7,
 }
 
+/// List of possible SD card versions
+#[allow(missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum SdCardVersion {
     Ver10 = 0x10,
@@ -232,58 +248,119 @@ pub enum SdCardVersion {
     Ver40 = 0x40,
 }
 
+/// SD card identification data
 pub struct SdCardIdentification {
+    /// Manufacturer's/device ID
     pub id: [u32; 4],
+    /// SD card version
     pub version: SdCardVersion,
+    /// SD card capacity in bytes
     pub capacity: u64,
 }
 
+/// SD card status data
 pub struct SdCardStatus {
+    /// If `true`, SD card is physically detected by the controller
     pub phys_inserted: bool,
+    /// SD card's RCA (relative card address)
     pub address: Option<u16>,
+    /// Identification data
     pub id: Option<SdCardIdentification>,
 }
 
+/// List of possible SD command responses
 #[derive(Clone, Copy, Debug)]
 pub enum SdResponse {
+    /// Single-word response
     One(u32),
+    /// Four-word response
     Four([u32; 4]),
 }
 
+/// List of SD card commands
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(u32)]
 pub enum SdCommandNumber {
+    /// GO_IDLE_STATE
+    ///
+    /// Resets the SD card
     Cmd0 = 0,
+    /// ALL_SEND_CID
+    ///
+    /// Requests card's unique card ID
     Cmd2 = 2,
+    /// SEND_RELATIVE_ADDR
+    ///
+    /// Requests card's RCA
     Cmd3 = 3,
+    /// SWITCH_FUNC
+    ///
+    /// Checks switchable function and/or switches card function
     Cmd6 = 6,
+    /// SELECT/DESELECT_CARD
+    ///
+    /// Selects or deselects a card
     Cmd7 = 7,
+    /// SEND_IF_COND
+    ///
+    /// Sends SD card interface conditions (voltage range)
     Cmd8 = 8,
+    /// SEND_CSD
+    ///
+    /// Sends SD card-specific data
     Cmd9 = 9,
+    /// SET_BLOCKLEN
+    ///
+    /// Sets SD card logical block length
     Cmd16 = 16,
+    /// READ_SINGLE_BLOCK
+    ///
+    /// Reads a single block from the card
     Cmd17 = 17,
+    /// SD_SEND_OP_COND
+    ///
+    /// Sends host capacity support info and requests card's operating
+    /// conditions info
     Acmd41 = 41,
+    /// SEND_SCR
+    ///
+    /// Requests SD configuration register
     Acmd51 = 51,
+    /// APP_CMD
+    ///
+    /// Notifies the card that the following command is
+    /// an "A-cmd" (application specific command)
     Cmd55 = 55,
 }
 
+/// Information structure for SD controller drivers
 pub struct SdCommandInfo {
+    /// Which response type to expect from this command
     pub response_type: SdResponseType,
 }
 
+/// Struct describing expected data transfer for a command
 pub enum SdCommandTransfer<'a> {
+    /// No transfer occurs
     None,
+    /// Read from card (second param is block size)
     Read(&'a mut [u8], u16),
+    /// Write to card (second param is block size)
     Write(&'a [u8], u16),
 }
 
+/// Generic SD card command structure
 pub struct SdCommand<'a> {
+    /// Command index
     pub number: SdCommandNumber,
+    /// Argument value (0 if marked as 'stuff bits' in spec)
     pub argument: u32,
+    /// Expected data transfer
     pub transfer: SdCommandTransfer<'a>,
 }
 
 impl SdCardStatus {
+    /// Initial state for a SD card
     pub const fn invalid() -> Self {
         Self {
             phys_inserted: false,
@@ -294,12 +371,14 @@ impl SdCardStatus {
 }
 
 impl SdResponseType {
+    /// Returns `true` if response has 'busy' status
     pub const fn is_busy(self) -> bool {
         matches!(self, Self::R1b | Self::R5b)
     }
 }
 
 impl SdResponse {
+    /// Returns single-word response or panics
     pub fn unwrap_one(&self) -> u32 {
         match *self {
             SdResponse::One(v) => v,
@@ -307,6 +386,7 @@ impl SdResponse {
         }
     }
 
+    /// Returns four-word response or panics
     pub fn unwrap_four(&self) -> [u32; 4] {
         match *self {
             SdResponse::Four(v) => v,
@@ -316,12 +396,14 @@ impl SdResponse {
 }
 
 impl SdCommandInfo {
+    /// Constructs a new command info struct
     pub const fn new(response_type: SdResponseType) -> Self {
         Self { response_type }
     }
 }
 
 impl SdCommand<'_> {
+    /// Returns command information
     pub const fn info_struct(&self) -> SdCommandInfo {
         match self.number {
             SdCommandNumber::Cmd0 => SdCommandInfo::new(SdResponseType::None),
@@ -339,10 +421,12 @@ impl SdCommand<'_> {
         }
     }
 
+    /// Returns `true` if cmd is application-specific
     pub const fn is_acmd(&self) -> bool {
         matches!(self.number, SdCommandNumber::Acmd41 | SdCommandNumber::Acmd51)
     }
 
+    /// Returns the command index
     pub const fn number(&self) -> u32 {
         self.number as u32
     }

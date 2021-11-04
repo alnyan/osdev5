@@ -16,6 +16,7 @@ pub struct GenericTimer {
     irq: IrqNumber,
 }
 
+/// Duration of a single timer period
 pub const TIMER_TICK: u64 = 1000000;
 
 impl Device for GenericTimer {

@@ -1,20 +1,25 @@
+//! Device list pseudo-filesystem
 use crate::util::InitOnce;
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use error::Errno;
 use vfs::{CharDevice, CharDeviceWrapper, Vnode, VnodeKind, VnodeRef};
 
+/// Possible character device kinds
 #[derive(Debug)]
 pub enum CharDeviceType {
+    /// Serial TTY (ttyS*)
     TtySerial,
 }
 
 static DEVFS_ROOT: InitOnce<VnodeRef> = InitOnce::new();
 
+/// Initializes devfs
 pub fn init() {
     DEVFS_ROOT.init(Vnode::new("", VnodeKind::Directory, 0));
 }
 
+/// Returns devfs root node reference
 pub fn root() -> &'static VnodeRef {
     DEVFS_ROOT.get()
 }
@@ -30,6 +35,7 @@ fn _add_char_device(dev: &'static dyn CharDevice, name: &str) -> Result<(), Errn
     Ok(())
 }
 
+/// Adds a character device node to the filesystem
 pub fn add_char_device(dev: &'static dyn CharDevice, kind: CharDeviceType) -> Result<(), Errno> {
     static TTYS_COUNT: AtomicUsize = AtomicUsize::new(0);
     let mut buf = [0u8; 32];

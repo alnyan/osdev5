@@ -9,18 +9,21 @@ pub mod pcie;
 macro_rules! ecam_field {
     ($getter:ident, $off:expr, u16) => {
         #[inline(always)]
+        #[allow(missing_docs)]
         fn $getter(&self) -> u16 {
             self.readw($off)
         }
     };
     ($getter:ident, $off:expr, u8) => {
         #[inline(always)]
+        #[allow(missing_docs)]
         fn $getter(&self) -> u8 {
             self.readb($off)
         }
     };
     ($getter:ident, $setter:ident, $off:expr, u16) => {
         #[inline(always)]
+        #[allow(missing_docs)]
         unsafe fn $setter(&self, v: u16) {
             self.writew($off, v)
         }

@@ -40,6 +40,7 @@ impl Context {
         }
     }
 
+    /// Clones a process context from given `frame`
     pub fn fork(frame: &ExceptionFrame, ttbr0: usize) -> Self {
         let mut stack = Stack::new(8);
 

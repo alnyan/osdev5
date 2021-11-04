@@ -1,3 +1,4 @@
+//! Kernel filesystem facilities
 use crate::mem::{
     self,
     phys::{self, PageUsage},
@@ -6,6 +7,7 @@ use memfs::BlockAllocator;
 
 pub mod devfs;
 
+/// Allocator implementation for memfs
 #[derive(Clone, Copy)]
 pub struct MemfsBlockAlloc;
 

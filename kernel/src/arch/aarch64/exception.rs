@@ -17,13 +17,19 @@ pub const EC_DATA_ABORT_EL0: u64 = 0b100100;
 /// SVC instruction in AA64 state
 pub const EC_SVC_AA64: u64 = 0b010101;
 
+/// Storage for saving context interrupted by exception
 #[derive(Debug)]
 #[repr(C)]
 pub struct ExceptionFrame {
+    /// General-purpose registers x0-x31
     pub x: [usize; 32],
+    /// Saved processor status
     pub spsr_el1: u64,
+    /// Exception return address
     pub elr_el1: u64,
+    /// User-space stack pointer
     pub sp_el0: u64,
+    /// Translation table base register for user-space
     pub ttbr0_el1: u64,
 }
 

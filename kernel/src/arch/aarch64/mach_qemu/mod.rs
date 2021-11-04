@@ -30,6 +30,7 @@ const ECAM_BASE: usize = 0x4010000000;
 const PHYS_BASE: usize = 0x40000000;
 const PHYS_SIZE: usize = 0x10000000;
 
+/// Performs early board initialization (debug output and physical memory)
 pub fn init_board_early() -> Result<(), Errno> {
     unsafe {
         // Enable UART early on
@@ -40,6 +41,7 @@ pub fn init_board_early() -> Result<(), Errno> {
     Ok(())
 }
 
+/// Performs board hardware init
 pub fn init_board() -> Result<(), Errno> {
     unsafe {
         GIC.enable()?;
