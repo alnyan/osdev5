@@ -15,9 +15,7 @@ fn main() -> i32 {
     loop {
         print!("> ");
 
-        let count = unsafe {
-            libusr::sys::sys_read(0, buf.as_mut_ptr(), buf.len())
-        };
+        let count = unsafe { libusr::sys::sys_read(0, &mut buf) };
         if count < 0 {
             trace!("Read from stdio failed");
             break;

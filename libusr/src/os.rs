@@ -30,6 +30,6 @@ pub fn _trace(args: fmt::Arguments) {
     };
     writer.write_fmt(args).ok();
     unsafe {
-        sys::sys_ex_debug_trace(&BUFFER as *const _, writer.pos);
+        sys::sys_ex_debug_trace(&BUFFER[..writer.pos]);
     }
 }
