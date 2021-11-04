@@ -1,5 +1,5 @@
 use super::{PageInfo, PageUsage};
-use crate::mem::{virtualize, PAGE_SIZE};
+use crate::mem::{memcpy, virtualize, PAGE_SIZE};
 use crate::sync::IrqSafeSpinLock;
 use core::mem;
 use error::Errno;
@@ -8,6 +8,7 @@ pub unsafe trait Manager {
     fn alloc_page(&mut self, pu: PageUsage) -> Result<usize, Errno>;
     fn alloc_contiguous_pages(&mut self, pu: PageUsage, count: usize) -> Result<usize, Errno>;
     fn free_page(&mut self, page: usize) -> Result<(), Errno>;
+    fn clone_page(&mut self, src: usize) -> Result<usize, Errno>;
     // TODO status()
 }
 pub struct SimpleManager {
@@ -34,22 +35,32 @@ impl SimpleManager {
         }
     }
     pub(super) unsafe fn add_page(&mut self, addr: usize) {
-        let page = &mut self.pages[addr / PAGE_SIZE - self.base_index];
+        let page = &mut self.pages[self.page_index(addr)];
         assert!(page.refcount == 0 && page.usage == PageUsage::Reserved);
         page.usage = PageUsage::Available;
     }
-}
-unsafe impl Manager for SimpleManager {
-    fn alloc_page(&mut self, pu: PageUsage) -> Result<usize, Errno> {
+
+    fn page_index(&self, page: usize) -> usize {
+        page / PAGE_SIZE - self.base_index
+    }
+
+    fn alloc_single_index(&mut self, pu: PageUsage) -> Result<usize, Errno> {
         for index in 0..self.pages.len() {
             let page = &mut self.pages[index];
             if page.usage == PageUsage::Available {
                 page.usage = pu;
                 page.refcount = 1;
-                return Ok((self.base_index + index) * PAGE_SIZE);
+                return Ok(index);
             }
         }
         Err(Errno::OutOfMemory)
+    }
+}
+unsafe impl Manager for SimpleManager {
+    fn alloc_page(&mut self, pu: PageUsage) -> Result<usize, Errno> {
+        self.alloc_single_index(pu)
+            .map(|r| (self.base_index + r) * PAGE_SIZE)
+        //return Ok((self.base_index + index) * PAGE_SIZE);
     }
     fn alloc_contiguous_pages(&mut self, pu: PageUsage, count: usize) -> Result<usize, Errno> {
         'l0: for i in 0..self.pages.len() {
@@ -70,6 +81,19 @@ unsafe impl Manager for SimpleManager {
     }
     fn free_page(&mut self, _page: usize) -> Result<(), Errno> {
         todo!()
+    }
+
+    fn clone_page(&mut self, src: usize) -> Result<usize, Errno> {
+        let src_index = self.page_index(src);
+        let src_page = &self.pages[src_index];
+        assert_eq!(src_page.refcount, 1);
+        assert!(src_page.usage != PageUsage::Available && src_page.usage != PageUsage::Reserved);
+        let dst_index = self.alloc_single_index(src_page.usage)?;
+        let dst = (self.base_index + dst_index) * PAGE_SIZE;
+        unsafe {
+            memcpy(virtualize(dst) as *mut u8, virtualize(src) as *mut u8, 4096);
+        }
+        Ok(dst)
     }
 }
 

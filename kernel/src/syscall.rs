@@ -1,12 +1,13 @@
 use crate::debug::Level;
 use crate::mem;
-use crate::proc::{wait, Process};
+use crate::proc::{wait, Process, Pid};
 use core::mem::size_of;
 use core::time::Duration;
 use error::Errno;
 use libcommon::{Read, Write};
 use syscall::{abi, stat::AT_FDCWD};
 use vfs::{FileMode, OpenFlags, Stat};
+use crate::arch::platform::exception::ExceptionFrame;
 
 fn translate(virt: usize) -> Option<usize> {
     let mut res: usize;
@@ -104,6 +105,12 @@ fn validate_user_str<'a>(base: usize, limit: usize) -> Result<&'a str, Errno> {
         );
         Errno::InvalidArgument
     })
+}
+
+pub unsafe fn sys_fork(regs: &mut ExceptionFrame) -> Result<Pid, Errno> {
+    let proc = Process::current();
+    let res = proc.fork(regs);
+    res
 }
 
 pub unsafe fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {

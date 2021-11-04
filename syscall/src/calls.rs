@@ -2,6 +2,11 @@ use crate::abi;
 use crate::stat::Stat;
 
 macro_rules! syscall {
+    ($num:expr) => {{
+        let mut res: usize;
+        asm!("svc #0", out("x0") res, in("x8") $num, options(nostack));
+        res
+    }};
     ($num:expr, $a0:expr) => {{
         let mut res: usize = $a0;
         asm!("svc #0",
@@ -83,4 +88,9 @@ pub unsafe fn sys_fstatat(at: i32, pathname: *const u8, statbuf: *mut Stat, flag
         statbuf as usize,
         flags as usize
     ) as i32
+}
+
+#[inline(always)]
+pub unsafe fn sys_fork() -> i32 {
+    syscall!(abi::SYS_FORK) as i32
 }

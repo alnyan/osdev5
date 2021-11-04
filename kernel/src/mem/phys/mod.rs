@@ -87,6 +87,11 @@ pub unsafe fn free_page(page: usize) -> Result<(), Errno> {
     MANAGER.lock().as_mut().unwrap().free_page(page)
 }
 
+///
+pub fn clone_page(src: usize) -> Result<usize, Errno> {
+    MANAGER.lock().as_mut().unwrap().clone_page(src)
+}
+
 fn find_contiguous<T: Iterator<Item = MemoryRegion>>(iter: T, count: usize) -> Option<usize> {
     for region in iter {
         let mut collected = 0;

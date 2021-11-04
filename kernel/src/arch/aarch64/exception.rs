@@ -6,6 +6,7 @@ use crate::dev::irq::{IntController, IrqContext};
 use crate::syscall;
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
 use tock_registers::interfaces::Readable;
+use ::syscall::abi;
 
 /// Trapped SIMD/FP functionality
 pub const EC_FP_TRAP: u64 = 0b000111;
@@ -16,14 +17,15 @@ pub const EC_DATA_ABORT_EL0: u64 = 0b100100;
 /// SVC instruction in AA64 state
 pub const EC_SVC_AA64: u64 = 0b010101;
 
+#[allow(missing_docs)]
 #[derive(Debug)]
 #[repr(C)]
-struct ExceptionFrame {
-    x: [usize; 32],
-    spsr_el1: u64,
-    elr_el1: u64,
-    sp_el0: u64,
-    ttbr0_el1: u64,
+pub struct ExceptionFrame {
+    pub x: [usize; 32],
+    pub spsr_el1: u64,
+    pub elr_el1: u64,
+    pub sp_el0: u64,
+    pub ttbr0_el1: u64,
 }
 
 #[inline(always)]
@@ -83,6 +85,16 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
         }
         EC_SVC_AA64 => {
             unsafe {
+                if exc.x[8] == abi::SYS_FORK {
+                    match syscall::sys_fork(exc) {
+                        Ok(pid) => exc.x[0] = pid.value() as usize,
+                        Err(err) => {
+                            todo!()
+                        },
+                    }
+                    return;
+                }
+
                 match syscall::syscall(exc.x[8], &exc.x[..6]) {
                     Ok(val) => exc.x[0] = val,
                     Err(err) => {

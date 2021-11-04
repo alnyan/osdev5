@@ -4,6 +4,7 @@ use crate::mem::{
     self,
     phys::{self, PageUsage},
 };
+use crate::arch::aarch64::exception::ExceptionFrame;
 use core::mem::size_of;
 
 struct Stack {
@@ -36,6 +37,56 @@ impl Context {
 
             stack_base_phys: stack.bp,
             stack_page_count: 8,
+        }
+    }
+
+    ///
+    pub fn fork(frame: &ExceptionFrame, ttbr0: usize) -> Self {
+        let mut stack = Stack::new(8);
+
+        stack.push(frame.x[18]);
+        stack.push(frame.x[17]);
+        stack.push(frame.x[16]);
+        stack.push(frame.x[15]);
+        stack.push(frame.x[14]);
+        stack.push(frame.x[13]);
+        stack.push(frame.x[12]);
+        stack.push(frame.x[11]);
+        stack.push(frame.x[10]);
+        stack.push(frame.x[9]);
+        stack.push(frame.x[8]);
+        stack.push(frame.x[7]);
+        stack.push(frame.x[6]);
+        stack.push(frame.x[5]);
+        stack.push(frame.x[4]);
+        stack.push(frame.x[3]);
+        stack.push(frame.x[2]);
+        stack.push(frame.x[1]);
+
+        stack.push(frame.elr_el1 as usize);
+        stack.push(frame.sp_el0 as usize);
+
+        // Setup common
+        stack.push(0);
+        stack.push(ttbr0);
+        stack.push(__aa64_ctx_enter_from_fork as usize); // x30/lr
+        stack.push(frame.x[29]); // x29
+        stack.push(frame.x[28]); // x28
+        stack.push(frame.x[27]); // x27
+        stack.push(frame.x[26]); // x26
+        stack.push(frame.x[25]); // x25
+        stack.push(frame.x[24]); // x24
+        stack.push(frame.x[23]); // x23
+        stack.push(frame.x[22]); // x22
+        stack.push(frame.x[21]); // x21
+        stack.push(frame.x[20]); // x20
+        stack.push(frame.x[19]); // x19
+
+        Self {
+            k_sp: stack.sp,
+
+            stack_base_phys: stack.bp,
+            stack_page_count: 8
         }
     }
 
@@ -119,6 +170,7 @@ impl Stack {
 }
 
 extern "C" {
+    fn __aa64_ctx_enter_from_fork();
     fn __aa64_ctx_enter_kernel();
     fn __aa64_ctx_enter_user();
     fn __aa64_ctx_switch(dst: *mut Context, src: *mut Context);

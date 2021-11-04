@@ -4,6 +4,7 @@ use crate::mem::{
     phys::{self, PageUsage},
     virt::{MapAttributes, Space},
 };
+use crate::arch::aarch64::exception::ExceptionFrame;
 use crate::proc::{PROCESSES, SCHED};
 use crate::sync::IrqSafeSpinLock;
 use alloc::{rc::Rc, collections::BTreeMap};
@@ -123,6 +124,11 @@ impl Pid {
         assert!(!self.is_kernel());
         self.0 as u8
     }
+
+    ///
+    pub const fn value(self) -> u32 {
+        self.0
+    }
 }
 
 impl fmt::Display for Pid {
@@ -137,6 +143,12 @@ impl fmt::Display for Pid {
 }
 
 impl ProcessIo {
+    ///
+    pub fn fork(&self) -> Result<ProcessIo, Errno> {
+        // TODO
+        Ok(Self::new())
+    }
+
     ///
     pub fn file(&mut self, idx: usize) -> Result<&mut File, Errno> {
         self.files.get_mut(&idx).ok_or(Errno::InvalidFile)
@@ -283,6 +295,34 @@ impl Process {
         debugln!("New kernel process: {}", id);
         assert!(PROCESSES.lock().insert(id, res.clone()).is_none());
         Ok(res)
+    }
+
+    ///
+    pub fn fork(&self, frame: &mut ExceptionFrame) -> Result<Pid, Errno> {
+        let src_io = self.io.lock();
+        let mut src_inner = self.inner.lock();
+
+        let dst_id = Pid::new_user();
+        let dst_space = src_inner.space.as_mut().unwrap().fork()?;
+        let dst_space_phys = (dst_space as *mut _ as usize) - mem::KERNEL_OFFSET;
+        let dst_ttbr0 = dst_space_phys | ((dst_id.asid() as usize) << 48);
+
+        let dst = Rc::new(Self {
+            ctx: UnsafeCell::new(Context::fork(frame, dst_ttbr0)),
+            io: IrqSafeSpinLock::new(src_io.fork()?),
+            inner: IrqSafeSpinLock::new(ProcessInner {
+                id: dst_id,
+                exit: None,
+                space: Some(dst_space),
+                state: State::Ready,
+                wait_flag: false
+            })
+        });
+        debugln!("Process {} forked into {}", src_inner.id, dst_id);
+        assert!(PROCESSES.lock().insert(dst_id, dst.clone()).is_none());
+        SCHED.enqueue(dst_id);
+
+        Ok(dst_id)
     }
 
     /// Terminates a process.

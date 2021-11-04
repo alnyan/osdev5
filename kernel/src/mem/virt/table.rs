@@ -74,6 +74,20 @@ impl Table {
         }
     }
 
+    ///
+    pub fn next_level_table(&mut self, index: usize) -> Option<&'static mut Table> {
+        let entry = self[index];
+        if entry.is_present() {
+            if !entry.is_table() {
+                panic!("Entry is not a table: idx={}", index);
+            }
+
+            Some(unsafe { &mut *(mem::virtualize(entry.address_unchecked()) as *mut _) })
+        } else {
+            None
+        }
+    }
+
     /// Constructs and fills a [Table] with non-present mappings
     pub const fn empty() -> Table {
         Table {
@@ -135,6 +149,10 @@ impl Entry {
     pub const unsafe fn address_unchecked(self) -> usize {
         (self.0 & Self::PHYS_MASK) as usize
     }
+
+    unsafe fn fork_flags(self) -> MapAttributes {
+        MapAttributes::from_bits_unchecked(self.0 & !Self::PHYS_MASK)
+    }
 }
 
 impl Space {
@@ -165,5 +183,33 @@ impl Space {
             debugln!("Map {:#x} -> {:#x}", virt, phys);
             Ok(())
         }
+    }
+
+    ///
+    pub fn fork(&mut self) -> Result<&'static mut Self, Errno> {
+        let mut res = Self::alloc_empty()?;
+        for l0i in 0..512 {
+            if let Some(l1_table) = self.0.next_level_table(l0i) {
+                for l1i in 0..512 {
+                    if let Some(l2_table) = l1_table.next_level_table(l1i) {
+                        for l2i in 0..512 {
+                            let entry = l2_table[l2i];
+
+                            // TODO copy-on-write
+                            if entry.is_present() {
+                                assert!(entry.is_table());
+                                let src_phys = unsafe { entry.address_unchecked() };
+                                let virt_addr = (l0i << 30) | (l1i << 21) | (l2i << 12);
+                                debugln!("Fork page {:#x}:{:#x}", virt_addr, src_phys);
+                                let dst_phys = phys::clone_page(src_phys)?;
+
+                                res.map(virt_addr, dst_phys, unsafe { entry.fork_flags() })?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(res)
     }
 }
