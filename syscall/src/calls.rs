@@ -1,5 +1,5 @@
 use crate::abi;
-use crate::stat::{Stat, OpenFlags, FileMode};
+use crate::stat::{FileMode, OpenFlags, Stat};
 
 // TODO document the syscall ABI
 
@@ -48,11 +48,15 @@ macro_rules! syscall {
 
 /// Integer/size argument
 macro_rules! argn {
-    ($a:expr) => ($a as usize)
+    ($a:expr) => {
+        $a as usize
+    };
 }
 /// Pointer/base argument
 macro_rules! argp {
-    ($a:expr) => ($a as *mut core::ffi::c_void as usize)
+    ($a:expr) => {
+        $a as *mut core::ffi::c_void as usize
+    };
 }
 // /// Immutable pointer/base argument
 // macro_rules! argpi {
@@ -77,7 +81,11 @@ pub unsafe fn sys_ex_nanosleep(ns: u64, rem: &mut [u64; 2]) -> i32 {
 
 #[inline(always)]
 pub unsafe fn sys_ex_debug_trace(msg: &[u8]) -> usize {
-    syscall!(abi::SYS_EX_DEBUG_TRACE, argp!(msg.as_ptr()), argn!(msg.len()))
+    syscall!(
+        abi::SYS_EX_DEBUG_TRACE,
+        argp!(msg.as_ptr()),
+        argn!(msg.len())
+    )
 }
 
 #[inline(always)]
@@ -94,12 +102,22 @@ pub unsafe fn sys_openat(at: i32, pathname: &str, mode: FileMode, flags: OpenFla
 
 #[inline(always)]
 pub unsafe fn sys_read(fd: i32, data: &mut [u8]) -> isize {
-    syscall!(abi::SYS_READ, argn!(fd), argp!(data.as_mut_ptr()), argn!(data.len())) as isize
+    syscall!(
+        abi::SYS_READ,
+        argn!(fd),
+        argp!(data.as_mut_ptr()),
+        argn!(data.len())
+    ) as isize
 }
 
 #[inline(always)]
 pub unsafe fn sys_write(fd: i32, data: &[u8]) -> isize {
-    syscall!(abi::SYS_WRITE, argn!(fd), argp!(data.as_ptr()), argn!(data.len())) as isize
+    syscall!(
+        abi::SYS_WRITE,
+        argn!(fd),
+        argp!(data.as_ptr()),
+        argn!(data.len())
+    ) as isize
 }
 
 #[inline(always)]
@@ -117,4 +135,13 @@ pub unsafe fn sys_fstatat(at: i32, pathname: &str, statbuf: &mut Stat, flags: i3
 #[inline(always)]
 pub unsafe fn sys_fork() -> i32 {
     syscall!(abi::SYS_FORK) as i32
+}
+
+#[inline(always)]
+pub unsafe fn sys_execve(pathname: &str) -> i32 {
+    syscall!(
+        abi::SYS_EXECVE,
+        argp!(pathname.as_ptr()),
+        argn!(pathname.len())
+    ) as i32
 }

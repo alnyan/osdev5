@@ -9,3 +9,4 @@ pub const SYS_OPENAT: usize = 4;
 pub const SYS_FSTATAT: usize = 5;
 pub const SYS_CLOSE: usize = 6;
 pub const SYS_FORK: usize = 7;
+pub const SYS_EXECVE: usize = 8;

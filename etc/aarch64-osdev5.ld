@@ -12,6 +12,7 @@ SECTIONS {
     .text : {
         *(.text._start)
         *(.text*)
+        *(.eh_frame*)
     } :text
 
     . = ALIGN(0x1000);

@@ -405,6 +405,12 @@ impl Process {
             unsafe {
                 SCHED.hack_current_pid(lock.id);
             }
+        } else {
+            // Invalidate user ASID
+            let input = (lock.id.asid() as usize) << 48;
+            unsafe {
+                asm!("tlbi aside1, {}", in(reg) input);
+            }
         }
 
         let new_space = Space::alloc_empty()?;

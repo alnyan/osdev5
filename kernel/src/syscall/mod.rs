@@ -2,7 +2,7 @@
 
 use crate::arch::platform::exception::ExceptionFrame;
 use crate::debug::Level;
-use crate::proc::{wait, Pid, Process};
+use crate::proc::{elf, wait, Pid, Process};
 use core::mem::size_of;
 use core::time::Duration;
 use error::Errno;
@@ -90,6 +90,20 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
 
             io.close_file(fd)?;
             Ok(0)
+        }
+        abi::SYS_EXECVE => {
+            let node = {
+                let proc = Process::current();
+                let mut io = proc.io.lock();
+                let filename = validate_user_str(args[0], args[1])?;
+                // TODO argv, envp array passing ABI?
+                let node = io.ioctx().find(None, filename, true)?;
+                drop(io);
+                node
+            };
+            let mut file = node.open(OpenFlags::O_RDONLY)?;
+            Process::execve(|space| elf::load_elf(space, &mut file), 0).unwrap();
+            panic!();
         }
 
         // Extra system calls
