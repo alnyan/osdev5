@@ -72,7 +72,7 @@ impl Config {
         }
     }
 
-    pub fn set_cmdline(&self, cmdline: &str) {
+    pub fn set_cmdline(&self, _cmdline: &str) {
         // TODO
     }
 }
@@ -91,7 +91,7 @@ impl<const N: usize> ConfigString<N> {
 
     pub fn set_from_str(&mut self, data: &str) {
         let bytes = data.as_bytes();
-        self.buf[..bytes.len()].copy_from_slice(&bytes);
+        self.buf[..bytes.len()].copy_from_slice(bytes);
         self.len = bytes.len();
     }
 }

@@ -11,5 +11,5 @@ pub trait Filesystem {
     /// Returns storage device of the filesystem (if any)
     fn dev(self: Rc<Self>) -> Option<&'static dyn BlockDevice>;
     /// Returns filesystem's private data struct (if any)
-    fn data<'a>(&'a self) -> Option<Ref<'a, dyn Any>>;
+    fn data(&self) -> Option<Ref<dyn Any>>;
 }

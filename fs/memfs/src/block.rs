@@ -13,6 +13,9 @@ pub struct BlockRef<'a, A: BlockAllocator + Copy> {
 
 pub unsafe trait BlockAllocator {
     fn alloc(&self) -> *mut u8;
+    /// # Safety
+    ///
+    /// Unsafe: accepts arbitrary block addresses
     unsafe fn dealloc(&self, block: *mut u8);
 }
 
@@ -42,6 +45,9 @@ impl<'a, A: BlockAllocator + Copy> BlockRef<'a, A> {
         }
     }
 
+    /// # Safety
+    ///
+    /// Unsafe: does not perform checks on `data` pointer
     pub unsafe fn from_raw(alloc: A, data: *mut u8) -> Self {
         Self {
             inner: Some(&mut *(data as *mut _)),

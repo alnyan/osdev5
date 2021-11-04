@@ -185,7 +185,7 @@ impl Space {
     }
 
     pub fn fork(&mut self) -> Result<&'static mut Self, Errno> {
-        let mut res = Self::alloc_empty()?;
+        let res = Self::alloc_empty()?;
         for l0i in 0..512 {
             if let Some(l1_table) = self.0.next_level_table(l0i) {
                 for l1i in 0..512 {
@@ -199,7 +199,7 @@ impl Space {
                                 let src_phys = unsafe { entry.address_unchecked() };
                                 let virt_addr = (l0i << 30) | (l1i << 21) | (l2i << 12);
                                 debugln!("Fork page {:#x}:{:#x}", virt_addr, src_phys);
-                                let dst_phys = phys::clone_page(src_phys)?;
+                                let dst_phys = unsafe { phys::clone_page(src_phys)? };
 
                                 res.map(virt_addr, dst_phys, unsafe { entry.fork_flags() })?;
                             }

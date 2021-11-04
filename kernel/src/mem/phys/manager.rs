@@ -85,10 +85,10 @@ unsafe impl Manager for SimpleManager {
 
     fn clone_page(&mut self, src: usize) -> Result<usize, Errno> {
         let src_index = self.page_index(src);
-        let src_page = &self.pages[src_index];
-        assert_eq!(src_page.refcount, 1);
-        assert!(src_page.usage != PageUsage::Available && src_page.usage != PageUsage::Reserved);
-        let dst_index = self.alloc_single_index(src_page.usage)?;
+        let src_usage = self.pages[src_index].usage;
+        assert_eq!(self.pages[src_index].refcount, 1);
+        let dst_index = self.alloc_single_index(src_usage)?;
+        assert!(src_usage != PageUsage::Available && src_usage != PageUsage::Reserved);
         let dst = (self.base_index + dst_index) * PAGE_SIZE;
         unsafe {
             memcpy(virtualize(dst) as *mut u8, virtualize(src) as *mut u8, 4096);

@@ -7,7 +7,6 @@ use tock_registers::{
 
 register_bitfields! {
     u64,
-    #[allow(missing_docs)]
     /// EL1 Architectural Feature Access Control Register
     pub CPACR_EL1 [
         /// Enable EL0 and EL1 SIMD/FP accesses to EL1

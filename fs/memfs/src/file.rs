@@ -48,7 +48,7 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
         Ok(self.data.size())
     }
 
-    fn stat(&mut self, node: VnodeRef, stat: &mut Stat) -> Result<(), Errno> {
+    fn stat(&mut self, _node: VnodeRef, stat: &mut Stat) -> Result<(), Errno> {
         stat.size = self.data.size() as u64;
         stat.blksize = 4096;
         stat.mode = 0o755;

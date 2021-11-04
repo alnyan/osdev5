@@ -69,6 +69,10 @@ impl<T> DeviceMemoryIo<T> {
     /// Allocates and maps device MMIO memory.
     ///
     /// See [DeviceMemory::map]
+    ///
+    /// # Safety
+    ///
+    /// Unsafe: accepts arbitrary physical addresses
     pub unsafe fn map(name: &'static str, phys: usize, count: usize) -> Result<Self, Errno> {
         DeviceMemory::map(name, phys, count).map(Self::new)
     }

@@ -17,7 +17,6 @@ pub const EC_DATA_ABORT_EL0: u64 = 0b100100;
 /// SVC instruction in AA64 state
 pub const EC_SVC_AA64: u64 = 0b010101;
 
-#[allow(missing_docs)]
 #[derive(Debug)]
 #[repr(C)]
 pub struct ExceptionFrame {
@@ -89,7 +88,8 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
                     match syscall::sys_fork(exc) {
                         Ok(pid) => exc.x[0] = pid.value() as usize,
                         Err(err) => {
-                            todo!()
+                            warnln!("fork() syscall failed: {:?}", err);
+                            exc.x[0] = usize::MAX;
                         },
                     }
                     return;

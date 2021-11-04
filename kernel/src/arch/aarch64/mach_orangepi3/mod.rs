@@ -27,7 +27,6 @@ use rtc::Rtc;
 use uart::Uart;
 use wdog::RWdog;
 
-#[allow(missing_docs)]
 pub fn init_board_early() -> Result<(), Errno> {
     unsafe {
         UART0.enable()?;
@@ -37,7 +36,6 @@ pub fn init_board_early() -> Result<(), Errno> {
     Ok(())
 }
 
-#[allow(missing_docs)]
 pub fn init_board() -> Result<(), Errno> {
     unsafe {
         GIC.enable()?;

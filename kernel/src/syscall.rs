@@ -55,7 +55,7 @@ fn validate_user_ptr_null<'a>(base: usize, len: usize) -> Result<Option<&'a mut 
     if base == 0 {
         Ok(None)
     } else {
-        validate_user_ptr(base, len).map(|e| Some(e))
+        validate_user_ptr(base, len).map(Some)
     }
 }
 
@@ -107,13 +107,15 @@ fn validate_user_str<'a>(base: usize, limit: usize) -> Result<&'a str, Errno> {
     })
 }
 
+/// # Safety
+///
+/// Unsafe: accepts and clones process states. Only legal to call
+/// from exception handlers.
 pub unsafe fn sys_fork(regs: &mut ExceptionFrame) -> Result<Pid, Errno> {
-    let proc = Process::current();
-    let res = proc.fork(regs);
-    res
+    Process::current().fork(regs)
 }
 
-pub unsafe fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
+pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
     match num {
         // Process management system calls
         abi::SYS_EXIT => {
@@ -196,7 +198,7 @@ pub unsafe fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             let res = wait::sleep(Duration::from_nanos(args[0] as u64), &mut rem);
             if res == Err(Errno::Interrupt) {
                 warnln!("Sleep interrupted, {:?} remaining", rem);
-                if let Some(_) = rem_buf {
+                if rem_buf.is_some() {
                     todo!()
                 }
             }

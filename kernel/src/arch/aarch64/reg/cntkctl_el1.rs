@@ -7,7 +7,6 @@ use tock_registers::{
 
 register_bitfields! {
     u64,
-    #[allow(missing_docs)]
     /// Counter-timer Kernel Control Register
     pub CNTKCTL_EL1 [
         /// If set, disables CNTPCT and CNTFRQ trapping from EL0

@@ -3,7 +3,6 @@ use crate::proc::wait::Wait;
 use crate::sync::IrqSafeSpinLock;
 use vfs::CharDevice;
 
-#[allow(missing_docs)]
 #[derive(Debug)]
 struct CharRingInner<const N: usize> {
     rd: usize,
@@ -19,7 +18,6 @@ pub struct CharRing<const N: usize> {
     inner: IrqSafeSpinLock<CharRingInner<N>>,
 }
 
-#[allow(missing_docs)]
 impl<const N: usize> CharRingInner<N> {
     #[inline]
     const fn is_readable(&self) -> bool {
@@ -44,7 +42,6 @@ impl<const N: usize> CharRingInner<N> {
     }
 }
 
-#[allow(missing_docs)]
 impl<const N: usize> CharRing<N> {
     pub const fn new() -> Self {
         Self {

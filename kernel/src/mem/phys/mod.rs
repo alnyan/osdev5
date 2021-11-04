@@ -13,8 +13,6 @@ pub use reserved::ReservedRegion;
 
 type ManagerImpl = SimpleManager;
 
-const MAX_PAGES: usize = 1024 * 1024;
-
 /// These describe what a memory page is used for
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum PageUsage {
@@ -83,12 +81,19 @@ pub fn alloc_page(pu: PageUsage) -> Result<usize, Errno> {
 }
 
 /// Releases a single physical memory page back for further allocation.
+///
+/// # Safety
+///
+/// Unsafe: accepts arbitrary `page` arguments
 pub unsafe fn free_page(page: usize) -> Result<(), Errno> {
     MANAGER.lock().as_mut().unwrap().free_page(page)
 }
 
-pub fn clone_page(src: usize) -> Result<usize, Errno> {
-    MANAGER.lock().as_mut().unwrap().clone_page(src)
+/// # Safety
+///
+/// Unsafe: accepts arbitrary `page` arguments
+pub unsafe fn clone_page(page: usize) -> Result<usize, Errno> {
+    MANAGER.lock().as_mut().unwrap().clone_page(page)
 }
 
 fn find_contiguous<T: Iterator<Item = MemoryRegion>>(iter: T, count: usize) -> Option<usize> {
@@ -115,6 +120,11 @@ fn find_contiguous<T: Iterator<Item = MemoryRegion>>(iter: T, count: usize) -> O
 
 /// Initializes physical memory manager using an iterator of available
 /// physical memory ranges
+///
+/// # Safety
+///
+/// Unsafe: caller must ensure validity of passed memory regions.
+/// The function may not be called twice.
 pub unsafe fn init_from_iter<T: Iterator<Item = MemoryRegion> + Clone>(iter: T) {
     let mut mem_base = usize::MAX;
     for reg in iter.clone() {
@@ -157,6 +167,10 @@ pub unsafe fn init_from_iter<T: Iterator<Item = MemoryRegion> + Clone>(iter: T) 
 /// Initializes physical memory manager using a single memory region.
 ///
 /// See [init_from_iter].
+///
+/// # Safety
+///
+/// Unsafe: see [init_from_iter].
 pub unsafe fn init_from_region(base: usize, size: usize) {
     let iter = SimpleMemoryIterator::new(MemoryRegion {
         start: base,

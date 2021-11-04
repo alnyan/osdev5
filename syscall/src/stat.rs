@@ -1,12 +1,10 @@
-use core::fmt;
-
 pub const AT_FDCWD: i32 = -2;
 
 bitflags! {
     pub struct OpenFlags: u32 {
-        const O_RDONLY =    1 << 0;
-        const O_WRONLY =    2 << 0;
-        const O_RDWR =      3 << 0;
+        const O_RDONLY =    1;
+        const O_WRONLY =    2;
+        const O_RDWR =      3;
         const O_ACCESS =    0xF;
 
         const O_CREAT =     1 << 4;

@@ -34,10 +34,8 @@ pub mod fs;
 pub mod mem;
 pub mod proc;
 pub mod sync;
-#[allow(missing_docs)]
 pub mod syscall;
 pub mod util;
-#[allow(missing_docs)]
 pub mod init;
 
 #[panic_handler]

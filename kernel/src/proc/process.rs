@@ -181,6 +181,12 @@ impl ProcessIo {
     }
 }
 
+impl Default for ProcessIo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Process {
     const USTACK_VIRT_TOP: usize = 0x100000000;
     const USTACK_PAGES: usize = 4;
@@ -301,7 +307,7 @@ impl Process {
             })
         });
         debugln!("Process {} forked into {}", src_inner.id, dst_id);
-        assert!(PROCESSES.lock().insert(dst_id, dst.clone()).is_none());
+        assert!(PROCESSES.lock().insert(dst_id, dst).is_none());
         SCHED.enqueue(dst_id);
 
         Ok(dst_id)

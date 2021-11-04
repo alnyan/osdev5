@@ -49,6 +49,9 @@ impl<A: BlockAllocator + Copy + 'static> Filesystem for Ramfs<A> {
 }
 
 impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
+    /// # Safety
+    ///
+    /// Unsafe: accepts arbitrary `base` and `size` parameters
     pub unsafe fn open(base: *const u8, size: usize, alloc: A) -> Result<Rc<Self>, Errno> {
         let res = Rc::new(Self {
             root: RefCell::new(None),
@@ -90,8 +93,7 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
                     return Err(Errno::DoesNotExist);
                 }
                 // TODO file modes
-                let node = at.create(element, FileMode::default_dir(), VnodeKind::Directory)?;
-                node
+                at.create(element, FileMode::default_dir(), VnodeKind::Directory)?
             }
         };
 

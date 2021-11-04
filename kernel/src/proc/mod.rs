@@ -1,39 +1,37 @@
 //! Process and thread manipulation facilities
 
-use crate::mem;
 use crate::init;
 use crate::sync::IrqSafeSpinLock;
-use alloc::{boxed::Box, collections::BTreeMap};
+use alloc::collections::BTreeMap;
 
 pub mod elf;
 pub mod process;
 pub use process::{Pid, Process, ProcessRef, State as ProcessState};
 
-#[allow(missing_docs)]
 pub mod wait;
 
 pub mod sched;
 pub use sched::Scheduler;
 pub(self) use sched::SCHED;
 
-macro_rules! spawn {
-    (fn ($dst_arg:ident : usize) $body:block, $src_arg:expr) => {{
-        #[inline(never)]
-        extern "C" fn __inner_func($dst_arg : usize) -> ! {
-            let __res = $body;
-            {
-                #![allow(unreachable_code)]
-                SCHED.current_process().exit(__res);
-                panic!();
-            }
-        }
-
-        let __proc = $crate::proc::Process::new_kernel(__inner_func, $src_arg).unwrap();
-        $crate::proc::SCHED.enqueue(__proc.id());
-    }};
-
-    (fn () $body:block) => (spawn!(fn (_arg: usize) $body, 0usize))
-}
+// macro_rules! spawn {
+//     (fn ($dst_arg:ident : usize) $body:block, $src_arg:expr) => {{
+//         #[inline(never)]
+//         extern "C" fn __inner_func($dst_arg : usize) -> ! {
+//             let __res = $body;
+//             {
+//                 #![allow(unreachable_code)]
+//                 SCHED.current_process().exit(__res);
+//                 panic!();
+//             }
+//         }
+//
+//         let __proc = $crate::proc::Process::new_kernel(__inner_func, $src_arg).unwrap();
+//         $crate::proc::SCHED.enqueue(__proc.id());
+//     }};
+//
+//     (fn () $body:block) => (spawn!(fn (_arg: usize) $body, 0usize))
+// }
 
 /// Performs a task switch.
 ///

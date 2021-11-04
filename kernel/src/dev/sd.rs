@@ -295,24 +295,21 @@ impl SdCardStatus {
 
 impl SdResponseType {
     pub const fn is_busy(self) -> bool {
-        match self {
-            Self::R1b | Self::R5b => true,
-            _ => false,
-        }
+        matches!(self, Self::R1b | Self::R5b)
     }
 }
 
 impl SdResponse {
     pub fn unwrap_one(&self) -> u32 {
-        match self {
-            &SdResponse::One(v) => v,
+        match *self {
+            SdResponse::One(v) => v,
             _ => panic!("Unexpected response type"),
         }
     }
 
     pub fn unwrap_four(&self) -> [u32; 4] {
-        match self {
-            &SdResponse::Four(v) => v,
+        match *self {
+            SdResponse::Four(v) => v,
             _ => panic!("Unexpected response type"),
         }
     }
@@ -343,10 +340,7 @@ impl SdCommand<'_> {
     }
 
     pub const fn is_acmd(&self) -> bool {
-        match self.number {
-            SdCommandNumber::Acmd41 | SdCommandNumber::Acmd51 => true,
-            _ => false,
-        }
+        matches!(self.number, SdCommandNumber::Acmd41 | SdCommandNumber::Acmd51)
     }
 
     pub const fn number(&self) -> u32 {

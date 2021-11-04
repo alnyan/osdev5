@@ -3,7 +3,7 @@ use crate::fs::{devfs, MemfsBlockAlloc};
 use crate::mem;
 use crate::proc::{elf, Process};
 use memfs::Ramfs;
-use vfs::{FileMode, Filesystem, Ioctx, OpenFlags};
+use vfs::{Filesystem, Ioctx, OpenFlags};
 
 #[inline(never)]
 pub extern "C" fn init_fn(_arg: usize) -> ! {

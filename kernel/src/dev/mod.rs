@@ -3,17 +3,14 @@
 use error::Errno;
 
 // Device classes
-#[allow(missing_docs)]
 pub mod fdt;
 pub mod gpio;
 pub mod irq;
-#[allow(missing_docs)]
 pub mod sd;
 pub mod pci;
 pub mod rtc;
 pub mod serial;
 pub mod timer;
-#[allow(missing_docs)]
 pub mod tty;
 
 /// Generic device trait
