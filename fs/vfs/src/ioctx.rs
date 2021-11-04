@@ -87,7 +87,6 @@ impl Ioctx {
             .create(name.trim_start_matches('/'), mode, VnodeKind::Directory)
     }
 
-    ///
     pub fn open(
         &self,
         at: Option<VnodeRef>,

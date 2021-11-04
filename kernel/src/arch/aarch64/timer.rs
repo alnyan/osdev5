@@ -16,7 +16,6 @@ pub struct GenericTimer {
     irq: IrqNumber,
 }
 
-///
 pub const TIMER_TICK: u64 = 1000000;
 
 impl Device for GenericTimer {

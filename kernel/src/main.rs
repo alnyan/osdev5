@@ -16,7 +16,7 @@
 )]
 #![no_std]
 #![no_main]
-#![deny(missing_docs)]
+#![warn(missing_docs)]
 
 #[macro_use]
 extern crate cfg_if;

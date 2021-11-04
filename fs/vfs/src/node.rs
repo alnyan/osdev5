@@ -102,7 +102,6 @@ impl Vnode {
         })
     }
 
-    ///
     pub fn name<'a>(&'a self) -> &'a str {
         &self.name
     }
@@ -172,7 +171,6 @@ impl Vnode {
         parent_borrow.children.remove(index);
     }
 
-    ///
     pub fn mount(self: &VnodeRef, root: VnodeRef) -> Result<(), Errno> {
         if !self.is_directory() {
             return Err(Errno::NotADirectory);
@@ -199,7 +197,6 @@ impl Vnode {
         self.tree.borrow().parent.as_ref().unwrap_or(self).clone()
     }
 
-    ///
     pub fn target(self: &VnodeRef) -> Option<VnodeRef> {
         self.target.borrow().clone()
     }

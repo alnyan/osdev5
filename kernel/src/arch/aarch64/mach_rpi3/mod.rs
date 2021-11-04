@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use crate::arch::aarch64::timer::GenericTimer;
 use crate::dev::{Device, serial::{SerialDevice, pl011::Pl011}, irq::IntSource};
 use crate::mem::phys;

@@ -85,7 +85,6 @@ pub struct Pl011 {
 }
 
 impl Pl011Inner {
-    ///
     #[inline(always)]
     pub unsafe fn send(&mut self, byte: u8) {
         while self.regs.FR.matches_all(FR::TXFF::SET) {
@@ -94,7 +93,6 @@ impl Pl011Inner {
         self.regs.DR.set(byte as u32);
     }
 
-    ///
     pub unsafe fn recv(&mut self, blocking: bool) -> Result<u8, Errno> {
         if self.regs.FR.matches_all(FR::RXFE::SET) {
             if !blocking {
@@ -109,7 +107,6 @@ impl Pl011Inner {
         Ok(self.regs.DR.get() as u8)
     }
 
-    ///
     pub unsafe fn enable(&mut self) {
         self.regs.CR.set(0);
         self.regs.ICR.write(ICR::ALL::CLEAR);

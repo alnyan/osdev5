@@ -43,7 +43,6 @@ impl Scheduler {
         self.inner.get().lock().queue.push_back(pid);
     }
 
-    ///
     pub fn dequeue(&self, pid: Pid) {
         self.inner.get().lock().queue.retain(|&p| p != pid)
     }

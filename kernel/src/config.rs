@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use crate::sync::IrqSafeSpinLock;
 use core::fmt;
 

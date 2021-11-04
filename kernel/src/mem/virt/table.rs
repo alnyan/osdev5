@@ -74,7 +74,6 @@ impl Table {
         }
     }
 
-    ///
     pub fn next_level_table(&mut self, index: usize) -> Option<&'static mut Table> {
         let entry = self[index];
         if entry.is_present() {
@@ -185,7 +184,6 @@ impl Space {
         }
     }
 
-    ///
     pub fn fork(&mut self) -> Result<&'static mut Self, Errno> {
         let mut res = Self::alloc_empty()?;
         for l0i in 0..512 {

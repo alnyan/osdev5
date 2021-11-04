@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use crate::mem::{
     self,
     phys::{self, PageUsage},
