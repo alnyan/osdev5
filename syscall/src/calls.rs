@@ -55,7 +55,7 @@ macro_rules! argn {
 /// Pointer/base argument
 macro_rules! argp {
     ($a:expr) => {
-        $a as *mut core::ffi::c_void as usize
+        $a as usize
     };
 }
 // /// Immutable pointer/base argument
@@ -175,3 +175,16 @@ pub unsafe fn sys_execve(pathname: &str) -> i32 {
         argn!(pathname.len())
     ) as i32
 }
+
+/// # Safety
+///
+/// System call
+#[inline(always)]
+pub unsafe fn sys_waitpid(pid: u32, status: &mut i32) -> i32 {
+    syscall!(
+        abi::SYS_WAITPID,
+        argn!(pid),
+        argp!(status as *mut i32)
+    ) as i32
+}
+

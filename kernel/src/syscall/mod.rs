@@ -122,6 +122,19 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             Process::execve(|space| elf::load_elf(space, file), 0).unwrap();
             panic!();
         }
+        abi::SYS_WAITPID => {
+            // TODO special "pid" values
+            let pid = unsafe { Pid::from_raw(args[0] as u32) };
+            let status = validate_user_ptr_struct::<i32>(args[1])?;
+
+            match Process::waitpid(pid) {
+                Ok(exit) => {
+                    *status = i32::from(exit);
+                    Ok(0)
+                },
+                _ => todo!()
+            }
+        }
 
         // Extra system calls
         abi::SYS_EX_DEBUG_TRACE => {

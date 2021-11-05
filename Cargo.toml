@@ -16,6 +16,6 @@ members = [
     "libcommon",
     "kernel",
     "libusr",
-    "init",
+    "user",
     "error"
 ]

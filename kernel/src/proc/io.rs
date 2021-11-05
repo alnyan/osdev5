@@ -76,6 +76,11 @@ impl ProcessIo {
     pub(super) fn handle_cloexec(&mut self) {
         self.files.retain(|_, entry| !entry.borrow().is_cloexec());
     }
+
+    pub(super) fn handle_exit(&mut self) {
+        self.files.clear();
+        self.ioctx.take();
+    }
 }
 
 impl Default for ProcessIo {

@@ -5,7 +5,7 @@ use crate::mem::{
     phys::{self, PageUsage},
     virt::{MapAttributes, Space},
 };
-use crate::proc::{ProcessIo, PROCESSES, SCHED};
+use crate::proc::{wait::Wait, ProcessIo, PROCESSES, SCHED};
 use crate::sync::IrqSafeSpinLock;
 use alloc::rc::Rc;
 use core::cell::UnsafeCell;
@@ -54,6 +54,7 @@ struct ProcessInner {
 pub struct Process {
     ctx: UnsafeCell<Context>,
     inner: IrqSafeSpinLock<ProcessInner>,
+    exit_wait: Wait,
     /// Process I/O context
     pub io: IrqSafeSpinLock<ProcessIo>,
 }
@@ -67,6 +68,12 @@ impl From<i32> for ExitCode {
 impl From<()> for ExitCode {
     fn from(_: ()) -> Self {
         Self(0)
+    }
+}
+
+impl From<ExitCode> for i32 {
+    fn from(f: ExitCode) -> Self {
+        f.0
     }
 }
 
@@ -117,6 +124,10 @@ impl Pid {
     pub const fn value(self) -> u32 {
         self.0
     }
+
+    pub const unsafe fn from_raw(num: u32) -> Self {
+        Self(num)
+    }
 }
 
 impl fmt::Display for Pid {
@@ -137,6 +148,10 @@ impl Process {
     /// Returns currently executing process
     pub fn current() -> ProcessRef {
         SCHED.current_process()
+    }
+
+    pub fn get(pid: Pid) -> Option<ProcessRef> {
+        PROCESSES.lock().get(&pid).cloned()
     }
 
     /// Schedules an initial thread for execution
@@ -215,6 +230,7 @@ impl Process {
         let res = Rc::new(Self {
             ctx: UnsafeCell::new(Context::kernel(entry as usize, arg)),
             io: IrqSafeSpinLock::new(ProcessIo::new()),
+            exit_wait: Wait::new(),
             inner: IrqSafeSpinLock::new(ProcessInner {
                 id,
                 exit: None,
@@ -242,6 +258,7 @@ impl Process {
         let dst = Rc::new(Self {
             ctx: UnsafeCell::new(Context::fork(frame, dst_ttbr0)),
             io: IrqSafeSpinLock::new(src_io.fork()?),
+            exit_wait: Wait::new(),
             inner: IrqSafeSpinLock::new(ProcessInner {
                 id: dst_id,
                 exit: None,
@@ -267,9 +284,13 @@ impl Process {
             assert!(lock.exit.is_none());
             lock.exit = Some(status);
             lock.state = State::Finished;
+
+            self.io.lock().handle_exit();
+
             SCHED.dequeue(lock.id);
             drop
         };
+        self.exit_wait.wakeup_all();
         if drop {
             SCHED.switch(true);
             panic!("This code should never run");
@@ -295,12 +316,13 @@ impl Process {
                 .ok_or(Errno::DoesNotExist)?;
 
             if let Some(r) = proc.collect() {
+                // TODO drop the process struct itself
                 PROCESSES.lock().remove(&proc.id());
-                debugln!("r = {}", Rc::strong_count(&proc));
+                debugln!("pid {} has {} refs", proc.id(), Rc::strong_count(&proc));
                 return Ok(r);
-            } else {
-                cortex_a::asm::wfi();
             }
+
+            proc.exit_wait.wait(None)?;
         }
     }
 

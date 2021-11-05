@@ -86,13 +86,14 @@ ifeq ($(MACH),orangepi3)
 endif
 
 initrd:
-	cd init && cargo build \
+	cd user && cargo build \
 		--target=../etc/$(ARCH)-osdev5.json \
 		-Z build-std=core,alloc,compiler_builtins \
 		$(CARGO_COMMON_OPTS)
-	cp target/$(ARCH)-osdev5/$(PROFILE)/init $(O)
-	echo This is a test file >$(O)/test.txt
-	cd $(O) && tar cf initrd.img init test.txt
+	mkdir -p $(O)/rootfs/bin
+	cp target/$(ARCH)-osdev5/$(PROFILE)/init $(O)/rootfs/init
+	cp target/$(ARCH)-osdev5/$(PROFILE)/shell $(O)/rootfs/bin
+	cd $(O)/rootfs && tar cf ../initrd.img `find -type f -printf "%P\n"`
 ifeq ($(MACH),orangepi3)
 	$(MKIMAGE) \
 		-A arm64 \

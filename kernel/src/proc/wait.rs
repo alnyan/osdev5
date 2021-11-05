@@ -62,31 +62,43 @@ impl Wait {
         }
     }
 
+    fn wakeup_some(&self, mut limit: usize) -> usize {
+        // No IRQs will arrive now == safe to manipulate tick list
+        let mut queue = self.queue.lock();
+        let mut count = 0;
+        while limit != 0 && !queue.is_empty() {
+            let pid = queue.pop_front();
+            if let Some(pid) = pid {
+                let mut tick_lock = TICK_LIST.lock();
+                let mut cursor = tick_lock.cursor_front_mut();
+                while let Some(item) = cursor.current() {
+                    if pid == item.pid {
+                        cursor.remove_current();
+                        break;
+                    } else {
+                        cursor.move_next();
+                    }
+                }
+                drop(tick_lock);
+
+                proc::process(pid).set_wait_flag(false);
+                SCHED.enqueue(pid);
+            }
+
+            limit -= 1;
+            count += 1;
+        }
+        count
+    }
+
     /// Notifies all processes waiting for this event
     pub fn wakeup_all(&self) {
-        todo!()
+        self.wakeup_some(usize::MAX);
     }
 
     /// Notifies a single process waiting for this event
     pub fn wakeup_one(&self) {
-        // No IRQs will arrive now == safe to manipulate tick list
-        let mut tick_lock = TICK_LIST.lock();
-        let pid = self.queue.lock().pop_front();
-        if let Some(pid) = pid {
-            let mut cursor = tick_lock.cursor_front_mut();
-            while let Some(item) = cursor.current() {
-                if pid == item.pid {
-                    cursor.remove_current();
-                    break;
-                } else {
-                    cursor.move_next();
-                }
-            }
-            drop(tick_lock);
-
-            proc::process(pid).set_wait_flag(false);
-            SCHED.enqueue(pid);
-        }
+        self.wakeup_some(1);
     }
 
     /// Suspends current process until event is signalled or
