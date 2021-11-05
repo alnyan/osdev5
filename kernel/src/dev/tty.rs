@@ -1,5 +1,6 @@
 //! Teletype (TTY) device facilities
 use crate::proc::wait::Wait;
+use crate::dev::serial::SerialDevice;
 use crate::sync::IrqSafeSpinLock;
 use error::Errno;
 use vfs::CharDevice;
@@ -17,6 +18,108 @@ pub struct CharRing<const N: usize> {
     wait_read: Wait,
     wait_write: Wait,
     inner: IrqSafeSpinLock<CharRingInner<N>>,
+}
+
+pub trait TtyDevice<const N: usize>: SerialDevice {
+    fn ring(&self) -> &CharRing<N>;
+
+    fn line_send(&self, byte: u8) -> Result<(), Errno> {
+        if byte == b'\n' {
+            self.send(b'\r').ok();
+        }
+
+        self.send(byte)
+    }
+
+    fn recv_byte(&self, mut byte: u8) {
+        if byte == b'\r' {
+            // TODO ICRNL conv option
+            byte = b'\n';
+        }
+
+        if byte == 4 {
+            // TODO handle EOF
+            self.ring().signal_eof();
+            return;
+        }
+
+        self.ring().putc(byte, false).ok();
+
+        match byte {
+            b'\n' => {
+                // TODO ECHONL option
+                self.line_send(byte).ok();
+                // TODO ICANON
+            }
+            0x17 | 0x7F => (),
+            0x0C => {
+                // TODO ECHO option && ICANON option
+                self.raw_write(b"^L").ok();
+            },
+            0x1B => {
+                // TODO ECHO option && ICANON option
+                self.raw_write(b"^[").ok();
+            },
+            _ => {
+                // TODO ECHO option
+                self.line_send(byte).ok();
+            }
+        }
+    }
+
+    /// Line discipline function
+    fn line_read(&self, data: &mut [u8]) -> Result<usize, Errno> {
+        let ring = self.ring();
+        let mut rem = data.len();
+        let mut off = 0;
+
+        while rem != 0 {
+            let byte = match ring.getc() {
+                Ok(ch) => ch,
+                Err(Errno::Interrupt) => {
+                    todo!()
+                }
+                Err(Errno::EndOfFile) => {
+                    break;
+                }
+                Err(e) => return Err(e),
+            };
+
+            if byte == 0x7F {
+                if off > 0 {
+                    self.raw_write(b"\x1B[D \x1B[D").ok();
+                    off -= 1;
+                    rem += 1;
+                }
+                continue;
+            } else if byte >= b' ' {
+                // TODO tty options
+            }
+
+            data[off] = byte;
+            off += 1;
+            rem -= 1;
+
+            if byte == b'\n' || byte == b'\r' {
+                break;
+            }
+        }
+        Ok(off)
+    }
+
+    fn line_write(&self, data: &[u8]) -> Result<usize, Errno> {
+        for &byte in data.iter() {
+            self.line_send(byte)?;
+        }
+        Ok(data.len())
+    }
+
+    fn raw_write(&self, data: &[u8]) -> Result<usize, Errno> {
+        for &byte in data.iter() {
+            self.send(byte)?;
+        }
+        Ok(data.len())
+    }
 }
 
 impl<const N: usize> CharRingInner<N> {
@@ -71,6 +174,10 @@ impl<const N: usize> CharRing<N> {
             }
         }
         if lock.flags != 0 {
+            if lock.flags & (1 << 0) != 0 {
+                lock.flags &= !(1 << 0);
+                return Err(Errno::EndOfFile);
+            }
             todo!();
         }
         let byte = lock.read_unchecked();
@@ -89,41 +196,8 @@ impl<const N: usize> CharRing<N> {
         Ok(())
     }
 
-    /// Line discipline function
-    pub fn line_read<T: CharDevice>(&self, data: &mut [u8], dev: &T) -> Result<usize, Errno> {
-        let mut rem = data.len();
-        let mut off = 0;
-
-        while rem != 0 {
-            let byte = match self.getc() {
-                Ok(ch) => ch,
-                Err(Errno::Interrupt) => {
-                    todo!()
-                }
-                Err(e) => return Err(e),
-            };
-
-            if byte == b'\n' || byte == b'\r' {
-                dev.write(true, b"\r\n").ok();
-                break;
-            }
-
-            if byte == 0x7F {
-                if off > 0 {
-                    dev.write(true, b"\x1B[D \x1B[D").ok();
-                    off -= 1;
-                    rem += 1;
-                }
-                continue;
-            } else if byte >= b' ' {
-                // TODO tty options
-                dev.write(true, &[byte]).ok();
-            }
-
-            data[off] = byte;
-            off += 1;
-            rem -= 1;
-        }
-        Ok(off)
+    fn signal_eof(&self) {
+        self.inner.lock().flags |= 1 << 0;
+        self.wait_read.wakeup_one();
     }
 }

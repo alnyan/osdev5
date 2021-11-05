@@ -16,7 +16,7 @@ fn main() -> i32 {
     } else {
         let mut status = 0;
         let res = unsafe { libusr::sys::sys_waitpid(pid as u32, &mut status) };
-        if res > 0 {
+        if res == 0 {
             println!("Process {} exited with status {}", pid, status);
         } else {
             eprintln!("waitpid() failed");

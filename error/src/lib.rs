@@ -7,6 +7,7 @@ pub enum Errno {
     Busy,
     DeviceError,
     DoesNotExist,
+    EndOfFile,
     Interrupt,
     InvalidArgument,
     InvalidFile,

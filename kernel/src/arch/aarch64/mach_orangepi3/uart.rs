@@ -2,7 +2,7 @@ use crate::arch::machine::{self, IrqNumber};
 use crate::dev::{
     irq::{IntController, IntSource},
     serial::SerialDevice,
-    tty::CharRing,
+    tty::{CharRing, TtyDevice},
     Device,
 };
 use crate::mem::virt::DeviceMemoryIo;
@@ -126,24 +126,24 @@ impl SerialDevice for Uart {
 impl CharDevice for Uart {
     fn read(&self, blocking: bool, data: &mut [u8]) -> Result<usize, Errno> {
         assert!(blocking);
-        self.ring.line_read(data, self)
+        self.line_read(data)
     }
 
     fn write(&self, blocking: bool, data: &[u8]) -> Result<usize, Errno> {
         assert!(blocking);
-        for &byte in data {
-            unsafe {
-                self.send(byte)?;
-            }
-        }
-        Ok(data.len())
+        self.line_write(data)
+    }
+}
+
+impl TtyDevice<16> for Uart {
+    fn ring(&self) -> &CharRing<16> {
+        &self.ring
     }
 }
 
 impl IntSource for Uart {
     fn handle_irq(&self) -> Result<(), Errno> {
         let byte = self.inner.get().lock().regs.DR_DLL.get();
-        debugln!("irq byte = {:#04x}!", byte);
 
         if byte == 0x1B {
             debugln!("Received ESC, resetting");
@@ -152,7 +152,7 @@ impl IntSource for Uart {
             }
         }
 
-        self.ring.putc(byte as u8, false).ok();
+        self.recv_byte(byte as u8);
         Ok(())
     }
 
