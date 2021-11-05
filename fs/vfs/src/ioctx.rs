@@ -1,4 +1,4 @@
-use crate::{FileMode, FileRef, VnodeKind, VnodeRef, OpenFlags};
+use crate::{FileMode, FileRef, OpenFlags, VnodeKind, VnodeRef};
 use error::Errno;
 use libcommon::{path_component_left, path_component_right};
 
@@ -84,8 +84,11 @@ impl Ioctx {
         mode: FileMode,
     ) -> Result<VnodeRef, Errno> {
         let (parent, name) = path_component_right(path);
-        self.find(at, parent, true)?
-            .create(name.trim_start_matches('/'), mode, VnodeKind::Directory)
+        self.find(at, parent, true)?.create(
+            name.trim_start_matches('/'),
+            mode,
+            VnodeKind::Directory,
+        )
     }
 
     /// Opens (and possibly creates) a filesystem path for access
@@ -101,8 +104,8 @@ impl Ioctx {
                 let (parent, name) = path_component_right(path);
                 let at = self.find(at, parent, true)?;
                 at.create(name, mode, VnodeKind::Regular)
-            },
-            o => o
+            }
+            o => o,
         }?;
 
         node.open(opts)

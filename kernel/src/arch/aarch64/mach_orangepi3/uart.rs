@@ -2,9 +2,9 @@ use crate::arch::machine::{self, IrqNumber};
 use crate::dev::{
     irq::{IntController, IntSource},
     serial::SerialDevice,
-    tty::CharRing, Device,
+    tty::CharRing,
+    Device,
 };
-use vfs::CharDevice;
 use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
@@ -12,6 +12,7 @@ use error::Errno;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::registers::{Aliased, ReadOnly, ReadWrite};
 use tock_registers::{register_bitfields, register_structs};
+use vfs::CharDevice;
 
 register_bitfields! [
     u32,

@@ -4,10 +4,10 @@ use crate::mem::{
     phys::{self, PageUsage},
     virt::{MapAttributes, Space},
 };
-use vfs::FileRef;
 use core::mem::{size_of, MaybeUninit};
 use error::Errno;
 use libcommon::{Read, Seek, SeekDir};
+use vfs::FileRef;
 
 trait Elf {
     type Addr;

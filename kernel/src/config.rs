@@ -20,7 +20,7 @@ pub enum ConfigKey {
     Console,
     MemLimit,
     InitrdBase,
-    InitrdSize
+    InitrdSize,
 }
 
 struct ConfigString<const N: usize> {
@@ -38,7 +38,7 @@ impl const Default for Config {
             console: ConfigString::empty(),
             mem_limit: usize::MAX,
             initrd_base: 0,
-            initrd_size: 0
+            initrd_size: 0,
         }
     }
 }
@@ -47,18 +47,18 @@ impl Config {
     /// Sets a config key to [usize] value
     pub fn set_usize(&mut self, key: ConfigKey, value: usize) {
         match key {
-            ConfigKey::InitrdBase => { self.initrd_base = value }
-            ConfigKey::InitrdSize => { self.initrd_size = value }
-            ConfigKey::MemLimit => { self.mem_limit = value }
-            _ => panic!("Invalid usize key: {:?}", key)
+            ConfigKey::InitrdBase => self.initrd_base = value,
+            ConfigKey::InitrdSize => self.initrd_size = value,
+            ConfigKey::MemLimit => self.mem_limit = value,
+            _ => panic!("Invalid usize key: {:?}", key),
         }
     }
 
     /// Sets a config key to [str] value
     pub fn set_str(&mut self, key: ConfigKey, value: &str) {
         match key {
-            ConfigKey::Cmdline => { self.cmdline.set_from_str(value) }
-            _ => panic!("Invalid str key: {:?}", key)
+            ConfigKey::Cmdline => self.cmdline.set_from_str(value),
+            _ => panic!("Invalid str key: {:?}", key),
         }
     }
 
@@ -68,7 +68,7 @@ impl Config {
             ConfigKey::InitrdBase => self.initrd_base,
             ConfigKey::InitrdSize => self.initrd_size,
             ConfigKey::MemLimit => self.mem_limit,
-            _ => panic!("Invalid usize key: {:?}", key)
+            _ => panic!("Invalid usize key: {:?}", key),
         }
     }
 
@@ -77,7 +77,7 @@ impl Config {
         match key {
             ConfigKey::Cmdline => self.cmdline.as_str(),
             ConfigKey::Console => self.console.as_str(),
-            _ => panic!("Invalid str key: {:?}", key)
+            _ => panic!("Invalid str key: {:?}", key),
         }
     }
 

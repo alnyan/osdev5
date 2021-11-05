@@ -1,7 +1,7 @@
-use crate::{VnodeRef, BlockDevice};
-use core::cell::Ref;
-use core::any::Any;
+use crate::{BlockDevice, VnodeRef};
 use alloc::rc::Rc;
+use core::any::Any;
+use core::cell::Ref;
 use error::Errno;
 
 /// General filesystem interface

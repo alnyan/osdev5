@@ -1,4 +1,4 @@
-use crate::{VnodeImpl, VnodeKind, VnodeRef, Stat, OpenFlags};
+use crate::{OpenFlags, Stat, VnodeImpl, VnodeKind, VnodeRef};
 use error::Errno;
 
 /// Generic character device trait

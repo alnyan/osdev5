@@ -1,4 +1,4 @@
-use crate::{FileRef, File, FileMode, Filesystem, Stat, OpenFlags};
+use crate::{File, FileMode, FileRef, Filesystem, OpenFlags, Stat};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{RefCell, RefMut};
 use core::fmt;
@@ -235,7 +235,12 @@ impl Vnode {
     }
 
     /// Creates a new node `name` in `self`
-    pub fn create(self: &VnodeRef, name: &str, mode: FileMode, kind: VnodeKind) -> Result<VnodeRef, Errno> {
+    pub fn create(
+        self: &VnodeRef,
+        name: &str,
+        mode: FileMode,
+        kind: VnodeKind,
+    ) -> Result<VnodeRef, Errno> {
         if self.kind != VnodeKind::Directory {
             return Err(Errno::NotADirectory);
         }
@@ -292,7 +297,7 @@ impl Vnode {
             OpenFlags::O_RDONLY => open_flags |= File::READ,
             OpenFlags::O_WRONLY => open_flags |= File::WRITE,
             OpenFlags::O_RDWR => open_flags |= File::READ | File::WRITE,
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
         if flags.contains(OpenFlags::O_CLOEXEC) {
             open_flags |= File::CLOEXEC;

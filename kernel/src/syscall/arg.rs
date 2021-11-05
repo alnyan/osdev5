@@ -61,7 +61,11 @@ pub fn validate_user_ptr_null<'a>(base: usize, len: usize) -> Result<Option<&'a 
 pub fn validate_user_str<'a>(base: usize, len: usize) -> Result<&'a str, Errno> {
     let bytes = validate_user_ptr(base, len)?;
     core::str::from_utf8(bytes).map_err(|_| {
-        warnln!("User string contains invalid UTF-8 characters: base={:#x}, len={:#x}", base, len);
+        warnln!(
+            "User string contains invalid UTF-8 characters: base={:#x}, len={:#x}",
+            base,
+            len
+        );
         Errno::InvalidArgument
     })
 }

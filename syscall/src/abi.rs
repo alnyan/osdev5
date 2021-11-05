@@ -1,4 +1,3 @@
-
 pub const SYS_EX_DEBUG_TRACE: usize = 128;
 pub const SYS_EX_NANOSLEEP: usize = 129;
 

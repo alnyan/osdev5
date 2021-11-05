@@ -313,7 +313,9 @@ mod cow_tests {
         //unsafe {
         //    bvec.setup_cow(source_data.as_ptr(), source_data.len());
         //}
-        let mut bvec = unsafe { Bvec::new_copy_on_write(TestAlloc {}, source_data.as_ptr(), source_data.len()) };
+        let mut bvec = unsafe {
+            Bvec::new_copy_on_write(TestAlloc {}, source_data.as_ptr(), source_data.len())
+        };
         assert!(bvec.is_cow());
         assert_eq!(bvec.size(), source_data.len());
         assert_eq!(bvec.capacity, 0);
@@ -335,7 +337,9 @@ mod cow_tests {
         for i in 0..source_data.len() {
             source_data[i] = (i & 0xFF) as u8;
         }
-        let mut bvec = unsafe { Bvec::new_copy_on_write(TestAlloc {}, source_data.as_ptr(), source_data.len()) };
+        let mut bvec = unsafe {
+            Bvec::new_copy_on_write(TestAlloc {}, source_data.as_ptr(), source_data.len())
+        };
         assert!(bvec.is_cow());
         assert_eq!(bvec.size(), source_data.len());
         assert_eq!(bvec.capacity, 0);

@@ -4,7 +4,8 @@ use crate::arch::machine::{self, IrqNumber};
 use crate::dev::{
     irq::{IntController, IntSource},
     serial::SerialDevice,
-    tty::CharRing, Device,
+    tty::CharRing,
+    Device,
 };
 use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeSpinLock;

@@ -4,9 +4,9 @@ use crate::arch::machine;
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
 use crate::syscall;
+use ::syscall::abi;
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
 use tock_registers::interfaces::Readable;
-use ::syscall::abi;
 
 /// Trapped SIMD/FP functionality
 pub const EC_FP_TRAP: u64 = 0b000111;
@@ -96,7 +96,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
                         Err(err) => {
                             warnln!("fork() syscall failed: {:?}", err);
                             exc.x[0] = usize::MAX;
-                        },
+                        }
                     }
                     return;
                 }
@@ -106,7 +106,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
                     Err(err) => {
                         warnln!("syscall {} failed: {:?}", exc.x[8], err);
                         exc.x[0] = usize::MAX
-                    },
+                    }
                 }
             }
             return;

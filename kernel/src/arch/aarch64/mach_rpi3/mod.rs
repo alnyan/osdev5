@@ -1,10 +1,14 @@
 use crate::arch::aarch64::timer::GenericTimer;
-use crate::dev::{Device, serial::{SerialDevice, pl011::Pl011}, irq::IntSource};
+use crate::dev::{
+    irq::IntSource,
+    serial::{pl011::Pl011, SerialDevice},
+    Device,
+};
 use crate::mem::phys;
 use error::Errno;
 
 pub mod irqchip;
-pub use irqchip::{IrqNumber, Bcm283xIrqchip};
+pub use irqchip::{Bcm283xIrqchip, IrqNumber};
 pub mod emmc;
 pub use emmc::MassMediaController;
 pub mod mailbox;

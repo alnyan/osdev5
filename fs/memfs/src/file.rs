@@ -1,6 +1,6 @@
-use vfs::{VnodeImpl, VnodeKind, VnodeRef, Stat, OpenFlags};
-use error::Errno;
 use crate::{BlockAllocator, Bvec};
+use error::Errno;
+use vfs::{OpenFlags, Stat, VnodeImpl, VnodeKind, VnodeRef};
 
 pub struct FileInode<'a, A: BlockAllocator + Copy + 'static> {
     data: Bvec<'a, A>,

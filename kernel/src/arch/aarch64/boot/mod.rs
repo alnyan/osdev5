@@ -4,10 +4,14 @@ use crate::arch::{
     aarch64::reg::{CNTKCTL_EL1, CPACR_EL1},
     machine,
 };
+use crate::config::{ConfigKey, CONFIG};
+use crate::dev::{
+    fdt::{find_prop, DeviceTree},
+    irq::IntSource,
+    Device,
+};
 use crate::fs::devfs;
-use crate::dev::{fdt::{DeviceTree, find_prop}, irq::IntSource, Device};
 use error::Errno;
-use crate::config::{CONFIG, ConfigKey};
 //use crate::debug::Level;
 use crate::mem::{
     self, heap,

@@ -1,15 +1,13 @@
 use crate::sys::{self, Stat};
-use syscall::stat::AT_FDCWD;
 use core::fmt;
+use syscall::stat::AT_FDCWD;
 
 // TODO populate this type
 pub struct Error;
 
 pub fn stat(pathname: &str) -> Result<Stat, Error> {
     let mut buf = Stat::default();
-    let res = unsafe {
-        sys::sys_fstatat(AT_FDCWD, pathname, &mut buf, 0)
-    };
+    let res = unsafe { sys::sys_fstatat(AT_FDCWD, pathname, &mut buf, 0) };
     if res != 0 {
         todo!();
     }

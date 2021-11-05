@@ -31,12 +31,12 @@ pub mod arch;
 pub mod config;
 pub mod dev;
 pub mod fs;
+pub mod init;
 pub mod mem;
 pub mod proc;
 pub mod sync;
 pub mod syscall;
 pub mod util;
-pub mod init;
 
 #[panic_handler]
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {

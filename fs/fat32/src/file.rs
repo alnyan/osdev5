@@ -1,10 +1,10 @@
-use vfs::{VnodeImpl, VnodeRef, VnodeKind};
-use error::Errno;
 use crate::Bpb;
+use error::Errno;
+use vfs::{VnodeImpl, VnodeKind, VnodeRef};
 
 pub struct FileInode {
     pub cluster: u32,
-    pub size: u32
+    pub size: u32,
 }
 
 impl VnodeImpl for FileInode {

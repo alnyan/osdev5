@@ -43,15 +43,11 @@ pub struct Stat {
 impl FileMode {
     /// Returns default permission set for directories
     pub const fn default_dir() -> Self {
-        unsafe {
-            Self::from_bits_unchecked(0o755)
-        }
+        unsafe { Self::from_bits_unchecked(0o755) }
     }
 
     /// Returns default permission set for regular files
     pub const fn default_reg() -> Self {
-        unsafe {
-            Self::from_bits_unchecked(0o644)
-        }
+        unsafe { Self::from_bits_unchecked(0o644) }
     }
 }

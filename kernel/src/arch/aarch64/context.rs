@@ -1,10 +1,10 @@
 //! Thread context
 
+use crate::arch::aarch64::exception::ExceptionFrame;
 use crate::mem::{
     self,
     phys::{self, PageUsage},
 };
-use crate::arch::aarch64::exception::ExceptionFrame;
 use core::mem::size_of;
 
 struct Stack {
@@ -86,7 +86,7 @@ impl Context {
             k_sp: stack.sp,
 
             stack_base_phys: stack.bp,
-            stack_page_count: 8
+            stack_page_count: 8,
         }
     }
 

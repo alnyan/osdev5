@@ -1,7 +1,7 @@
 //! Teletype (TTY) device facilities
-use error::Errno;
 use crate::proc::wait::Wait;
 use crate::sync::IrqSafeSpinLock;
+use error::Errno;
 use vfs::CharDevice;
 
 #[derive(Debug)]
@@ -9,7 +9,7 @@ struct CharRingInner<const N: usize> {
     rd: usize,
     wr: usize,
     data: [u8; N],
-    flags: u8
+    flags: u8,
 }
 
 /// Ring buffer for TTYs
@@ -51,7 +51,7 @@ impl<const N: usize> CharRing<N> {
                 rd: 0,
                 wr: 0,
                 data: [0; N],
-                flags: 0
+                flags: 0,
             }),
             wait_read: Wait::new(),
             wait_write: Wait::new(),
@@ -99,7 +99,7 @@ impl<const N: usize> CharRing<N> {
                 Ok(ch) => ch,
                 Err(Errno::Interrupt) => {
                     todo!()
-                },
+                }
                 Err(e) => return Err(e),
             };
 

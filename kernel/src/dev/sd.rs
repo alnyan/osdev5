@@ -423,7 +423,10 @@ impl SdCommand<'_> {
 
     /// Returns `true` if cmd is application-specific
     pub const fn is_acmd(&self) -> bool {
-        matches!(self.number, SdCommandNumber::Acmd41 | SdCommandNumber::Acmd51)
+        matches!(
+            self.number,
+            SdCommandNumber::Acmd41 | SdCommandNumber::Acmd51
+        )
     }
 
     /// Returns the command index

@@ -2,9 +2,9 @@
 
 use crate::arch::platform::{irq_mask_save, irq_restore};
 use core::cell::UnsafeCell;
+use core::fmt;
 use core::ops::{Deref, DerefMut};
 use core::sync::atomic::{AtomicBool, Ordering};
-use core::fmt;
 
 /// Lock structure ensuring IRQs are disabled when inner value is accessed
 pub struct IrqSafeSpinLock<T> {

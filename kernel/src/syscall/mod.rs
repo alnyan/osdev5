@@ -2,7 +2,7 @@
 
 use crate::arch::platform::exception::ExceptionFrame;
 use crate::debug::Level;
-use crate::proc::{elf, ProcessIo, wait, Pid, Process};
+use crate::proc::{elf, wait, Pid, Process, ProcessIo};
 use core::mem::size_of;
 use core::ops::DerefMut;
 use core::time::Duration;
