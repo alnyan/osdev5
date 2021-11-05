@@ -121,6 +121,9 @@ doc-open:
 
 clippy:
 	cd kernel && cargo clippy $(CARGO_BUILD_OPTS)
+	cd init && cargo clippy \
+		--target=../etc/$(ARCH)-osdev5.json \
+		-Zbuild-std=core,alloc,compiler_builtins $(CARGO_COMMON_OPTS)
 
 qemu: all
 	$(QEMU_PREFIX)qemu-system-$(ARCH) $(QEMU_OPTS)

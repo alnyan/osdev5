@@ -2,7 +2,10 @@ use crate::sys::{self, Stat};
 use syscall::stat::AT_FDCWD;
 use core::fmt;
 
-pub fn stat(pathname: &str) -> Result<Stat, ()> {
+// TODO populate this type
+pub struct Error;
+
+pub fn stat(pathname: &str) -> Result<Stat, Error> {
     let mut buf = Stat::default();
     let res = unsafe {
         sys::sys_fstatat(AT_FDCWD, pathname, &mut buf, 0)
