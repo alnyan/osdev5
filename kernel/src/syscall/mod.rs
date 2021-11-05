@@ -2,13 +2,17 @@
 
 use crate::arch::platform::exception::ExceptionFrame;
 use crate::debug::Level;
-use crate::proc::{elf, wait, Pid, Process};
+use crate::proc::{elf, process::ProcessIo, wait, Pid, Process};
 use core::mem::size_of;
+use core::ops::DerefMut;
 use core::time::Duration;
 use error::Errno;
 use libcommon::{Read, Write};
-use syscall::{abi, stat::AT_FDCWD};
-use vfs::{FileMode, OpenFlags, Stat};
+use syscall::{
+    abi,
+    stat::{AT_EMPTY_PATH, AT_FDCWD},
+};
+use vfs::{FileMode, OpenFlags, Stat, VnodeRef};
 
 mod arg;
 use arg::*;
@@ -22,6 +26,25 @@ use arg::*;
 /// from exception handlers.
 pub unsafe fn sys_fork(regs: &mut ExceptionFrame) -> Result<Pid, Errno> {
     Process::current().fork(regs)
+}
+
+fn find_at_node<T: DerefMut<Target = ProcessIo>>(
+    io: &mut T,
+    at_fd: usize,
+    filename: &str,
+    empty_path: bool,
+) -> Result<VnodeRef, Errno> {
+    let at = if at_fd as i32 != AT_FDCWD {
+        io.file(at_fd)?.borrow().node()
+    } else {
+        None
+    };
+
+    if empty_path && filename.is_empty() {
+        at.ok_or(Errno::InvalidArgument)
+    } else {
+        io.ioctx().find(at, filename, true)
+    }
 }
 
 /// Main system call dispatcher function
@@ -40,14 +63,14 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             let mode = FileMode::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
             let opts = OpenFlags::from_bits(args[4] as u32).ok_or(Errno::InvalidArgument)?;
 
+            let proc = Process::current();
+            let mut io = proc.io.lock();
+
             let at = if at_fd as i32 == AT_FDCWD {
                 None
             } else {
-                todo!();
+                io.file(at_fd)?.borrow().node()
             };
-
-            let proc = Process::current();
-            let mut io = proc.io.lock();
 
             let file = io.ioctx().open(at, path, mode, opts)?;
             io.place_file(file)
@@ -67,20 +90,14 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             io.file(args[0])?.borrow_mut().write(buf)
         }
         abi::SYS_FSTATAT => {
-            let proc = Process::current();
-            let mut io = proc.io.lock();
-            let fd = args[0];
+            let at_fd = args[0];
             let filename = validate_user_str(args[1], args[2])?;
             let buf = validate_user_ptr_struct::<Stat>(args[3])?;
+            let flags = args[4] as u32;
 
-            // TODO "self" flag
-            let at = if fd as i32 != AT_FDCWD {
-                todo!();
-            } else {
-                None
-            };
-            let node = io.ioctx().find(at, filename, true)?;
-            node.stat(buf)?;
+            let proc = Process::current();
+            let mut io = proc.io.lock();
+            find_at_node(&mut io, at_fd, filename, flags & AT_EMPTY_PATH != 0)?.stat(buf)?;
             Ok(0)
         }
         abi::SYS_CLOSE => {

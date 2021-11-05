@@ -121,7 +121,7 @@ pub unsafe fn sys_write(fd: i32, data: &[u8]) -> isize {
 }
 
 #[inline(always)]
-pub unsafe fn sys_fstatat(at: i32, pathname: &str, statbuf: &mut Stat, flags: i32) -> i32 {
+pub unsafe fn sys_fstatat(at: i32, pathname: &str, statbuf: &mut Stat, flags: u32) -> i32 {
     syscall!(
         abi::SYS_FSTATAT,
         argn!(at),

@@ -1,4 +1,5 @@
 pub const AT_FDCWD: i32 = -2;
+pub const AT_EMPTY_PATH: u32 = 1 << 16;
 
 bitflags! {
     pub struct OpenFlags: u32 {

@@ -84,6 +84,13 @@ impl File {
             inner: FileInner::Normal(NormalFile { vnode, pos }),
         }))
     }
+
+    pub fn node(&self) -> Option<VnodeRef> {
+        match &self.inner {
+            FileInner::Normal(inner) => Some(inner.vnode.clone()),
+            _ => None
+        }
+    }
 }
 
 impl Drop for File {

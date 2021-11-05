@@ -3,13 +3,13 @@
 
 use core::panic::PanicInfo;
 
+pub mod io;
 pub mod mem;
 pub mod os;
-pub mod io;
 
 pub mod sys {
     pub use syscall::calls::*;
-    pub use syscall::stat::{AT_FDCWD, Stat, OpenFlags, FileMode};
+    pub use syscall::stat::{FileMode, OpenFlags, Stat, AT_EMPTY_PATH, AT_FDCWD};
 }
 
 #[link_section = ".text._start"]
