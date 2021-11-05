@@ -2,8 +2,6 @@ use crate::sys::{self, Stat};
 use syscall::stat::AT_FDCWD;
 use core::fmt;
 
-const STDOUT_FILENO: i32 = 0;
-
 pub fn stat(pathname: &str) -> Result<Stat, ()> {
     let mut buf = Stat::default();
     let res = unsafe {
@@ -19,12 +17,22 @@ pub fn stat(pathname: &str) -> Result<Stat, ()> {
 
 #[macro_export]
 macro_rules! print {
-    ($($args:tt)+) => ($crate::io::_print(format_args!($($args)+)))
+    ($($args:tt)+) => ($crate::io::_print($crate::sys::STDOUT_FILENO, format_args!($($args)+)))
 }
 
 #[macro_export]
 macro_rules! println {
     ($($args:tt)+) => (print!("{}\n", format_args!($($args)+)))
+}
+
+#[macro_export]
+macro_rules! eprint {
+    ($($args:tt)+) => ($crate::io::_print($crate::sys::STDERR_FILENO, format_args!($($args)+)))
+}
+
+#[macro_export]
+macro_rules! eprintln {
+    ($($args:tt)+) => (eprint!("{}\n", format_args!($($args)+)))
 }
 
 struct BufferWriter<'a> {
@@ -42,7 +50,7 @@ impl fmt::Write for BufferWriter<'_> {
     }
 }
 
-pub fn _print(args: fmt::Arguments) {
+pub fn _print(fd: i32, args: fmt::Arguments) {
     use core::fmt::Write;
     static mut BUFFER: [u8; 4096] = [0; 4096];
     let mut writer = BufferWriter {
@@ -51,6 +59,6 @@ pub fn _print(args: fmt::Arguments) {
     };
     writer.write_fmt(args).ok();
     unsafe {
-        sys::sys_write(STDOUT_FILENO, &BUFFER[..writer.pos]);
+        sys::sys_write(fd, &BUFFER[..writer.pos]);
     }
 }

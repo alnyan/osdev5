@@ -1,4 +1,4 @@
-use crate::{FileMode, FileRef, VnodeKind, VnodeRef, OpenFlags, File};
+use crate::{FileMode, FileRef, VnodeKind, VnodeRef, OpenFlags};
 use error::Errno;
 use libcommon::{path_component_left, path_component_right};
 

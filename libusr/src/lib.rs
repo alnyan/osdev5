@@ -9,7 +9,7 @@ pub mod os;
 
 pub mod sys {
     pub use syscall::calls::*;
-    pub use syscall::stat::{FileMode, OpenFlags, Stat, AT_EMPTY_PATH, AT_FDCWD};
+    pub use syscall::stat::*;
 }
 
 #[link_section = ".text._start"]

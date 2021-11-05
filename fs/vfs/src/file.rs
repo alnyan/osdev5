@@ -17,15 +17,21 @@ enum FileInner {
     Socket,
 }
 
+/// Convenience wrapper type for a [File] struct reference
 pub type FileRef = Rc<RefCell<File>>;
 
 /// Structure representing a file/socket opened for access
 pub struct File {
     inner: FileInner,
+    flags: u32,
 }
 
 impl Read for File {
     fn read(&mut self, data: &mut [u8]) -> Result<usize, Errno> {
+        if self.flags & Self::READ == 0 {
+            return Err(Errno::InvalidOperation);
+        }
+
         match &mut self.inner {
             FileInner::Normal(inner) => {
                 let count = inner.vnode.read(inner.pos, data)?;
@@ -41,6 +47,10 @@ impl Read for File {
 
 impl Write for File {
     fn write(&mut self, data: &[u8]) -> Result<usize, Errno> {
+        if self.flags & Self::WRITE == 0 {
+            return Err(Errno::ReadOnly);
+        }
+
         match &mut self.inner {
             FileInner::Normal(inner) => {
                 let count = inner.vnode.write(inner.pos, data)?;
@@ -78,18 +88,33 @@ impl Seek for File {
 }
 
 impl File {
+    /// File can be read
+    pub const READ: u32 = 1 << 0;
+    /// File can be written
+    pub const WRITE: u32 = 1 << 1;
+    /// File has to be closed on execve() calls
+    pub const CLOEXEC: u32 = 1 << 2;
+
     /// Constructs a new file handle for a regular file
-    pub fn normal(vnode: VnodeRef, pos: usize) -> FileRef {
+    pub fn normal(vnode: VnodeRef, pos: usize, flags: u32) -> FileRef {
         Rc::new(RefCell::new(Self {
             inner: FileInner::Normal(NormalFile { vnode, pos }),
+            flags,
         }))
     }
 
+    /// Returns [VnodeRef] associated with this file, if available
     pub fn node(&self) -> Option<VnodeRef> {
         match &self.inner {
             FileInner::Normal(inner) => Some(inner.vnode.clone()),
-            _ => None
+            _ => None,
         }
+    }
+
+    /// Returns `true` if the file has to be closed when running execve() family
+    /// of system calls
+    pub fn is_cloexec(&self) -> bool {
+        self.flags & Self::CLOEXEC != 0
     }
 }
 
@@ -99,7 +124,7 @@ impl Drop for File {
             FileInner::Normal(inner) => {
                 inner.vnode.close().ok();
             }
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 }

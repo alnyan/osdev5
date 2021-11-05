@@ -31,11 +31,11 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
     let ioctx = Ioctx::new(root);
 
     let node = ioctx.find(None, "/init", true).unwrap();
-    let file = node.open(OpenFlags::O_RDONLY).unwrap();
+    let file = node.open(OpenFlags::O_RDONLY | OpenFlags::O_EXEC).unwrap();
 
     proc.set_ioctx(ioctx);
 
-    // Open stdout
+    // Open stdin/stdout/stderr
     {
         let devfs_root = devfs::root();
         let tty_node = if console.is_empty() {
@@ -46,9 +46,13 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
         .expect("Failed to open stdout for init process");
 
         let mut io = proc.io.lock();
-        // TODO fd cloning?
-        io.place_file(tty_node.open(OpenFlags::O_RDWR).unwrap())
-            .unwrap();
+        let stdin = tty_node.open(OpenFlags::O_RDONLY).unwrap();
+        let stdout = tty_node.open(OpenFlags::O_WRONLY).unwrap();
+        let stderr = stdout.clone();
+
+        io.set_file(0, stdin).unwrap();
+        io.set_file(1, stdout).unwrap();
+        io.set_file(2, stderr).unwrap();
     }
 
     drop(cfg);

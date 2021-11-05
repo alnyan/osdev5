@@ -1,14 +1,20 @@
 pub const AT_FDCWD: i32 = -2;
 pub const AT_EMPTY_PATH: u32 = 1 << 16;
 
+pub const STDIN_FILENO: i32 = 0;
+pub const STDOUT_FILENO: i32 = 1;
+pub const STDERR_FILENO: i32 = 2;
+
 bitflags! {
     pub struct OpenFlags: u32 {
         const O_RDONLY =    1;
         const O_WRONLY =    2;
         const O_RDWR =      3;
-        const O_ACCESS =    0xF;
+        const O_ACCESS =    0x7;
 
         const O_CREAT =     1 << 4;
+        const O_EXEC =      1 << 5;
+        const O_CLOEXEC =   1 << 6;
     }
 }
 

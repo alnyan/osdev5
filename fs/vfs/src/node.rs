@@ -287,9 +287,20 @@ impl Vnode {
             return Err(Errno::IsADirectory);
         }
 
+        let mut open_flags = 0;
+        match flags & OpenFlags::O_ACCESS {
+            OpenFlags::O_RDONLY => open_flags |= File::READ,
+            OpenFlags::O_WRONLY => open_flags |= File::WRITE,
+            OpenFlags::O_RDWR => open_flags |= File::READ | File::WRITE,
+            _ => unimplemented!()
+        }
+        if flags.contains(OpenFlags::O_CLOEXEC) {
+            open_flags |= File::CLOEXEC;
+        }
+
         if let Some(ref mut data) = *self.data() {
             let pos = data.open(self.clone(), flags)?;
-            Ok(File::normal(self.clone(), pos))
+            Ok(File::normal(self.clone(), pos, open_flags))
         } else {
             Err(Errno::NotImplemented)
         }

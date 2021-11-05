@@ -12,7 +12,7 @@ use core::cell::UnsafeCell;
 use core::fmt;
 use core::sync::atomic::{AtomicU32, Ordering};
 use error::Errno;
-use vfs::{File, FileRef};
+use vfs::FileRef;
 use vfs::Ioctx;
 
 pub use crate::arch::platform::context::{self, Context};
@@ -55,7 +55,6 @@ struct ProcessInner {
 pub struct ProcessIo {
     ioctx: Option<Ioctx>,
     files: BTreeMap<usize, FileRef>,
-    file_bitmap: u64,
 }
 
 /// Structure describing an operating system process
@@ -146,7 +145,6 @@ impl ProcessIo {
         let mut dst = ProcessIo::new();
         for (&fd, entry) in self.files.iter() {
             dst.files.insert(fd, entry.clone());
-            dst.file_bitmap |= 1 << fd;
         }
         dst.ioctx = self.ioctx.clone();
         Ok(dst)
@@ -164,13 +162,10 @@ impl ProcessIo {
 
     /// Allocates a file descriptor and associates a [File] struct with it
     pub fn place_file(&mut self, file: FileRef) -> Result<usize, Errno> {
-        for bit in 0..64 {
-            if self.file_bitmap & (1 << bit) == 0 {
-                if self.files.insert(bit, file).is_some() {
-                    panic!("Open file bitmap is broken");
-                }
-                self.file_bitmap |= 1 << bit;
-                return Ok(bit);
+        for idx in 0..64 {
+            if self.files.get(&idx).is_none() {
+                self.files.insert(idx, file);
+                return Ok(idx);
             }
         }
         Err(Errno::TooManyDescriptors)
@@ -178,10 +173,6 @@ impl ProcessIo {
 
     /// Performs [File] close and releases its associated file descriptor `idx`
     pub fn close_file(&mut self, idx: usize) -> Result<(), Errno> {
-        if self.file_bitmap & (1 << idx) == 0 {
-            return Err(Errno::InvalidFile);
-        }
-
         let res = self.files.remove(&idx);
         assert!(res.is_some());
         Ok(())
@@ -191,9 +182,23 @@ impl ProcessIo {
     pub fn new() -> Self {
         Self {
             files: BTreeMap::new(),
-            file_bitmap: 0,
             ioctx: None,
         }
+    }
+
+    /// Assigns a descriptor number to an open file. If the number is not available,
+    /// returns [Errno::AlreadyExists].
+    pub fn set_file(&mut self, idx: usize, file: FileRef) -> Result<(), Errno> {
+        if self.files.get(&idx).is_none() {
+            self.files.insert(idx, file);
+            Ok(())
+        } else {
+            Err(Errno::AlreadyExists)
+        }
+    }
+
+    fn handle_cloexec(&mut self) {
+        self.files.retain(|_, entry| !entry.borrow().is_cloexec());
     }
 }
 
@@ -418,6 +423,8 @@ impl Process {
                 asm!("tlbi aside1, {}", in(reg) input);
             }
         }
+
+        proc.io.lock().handle_cloexec();
 
         let new_space = Space::alloc_empty()?;
         let new_space_phys = (new_space as *mut _ as usize) - mem::KERNEL_OFFSET;
