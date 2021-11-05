@@ -57,14 +57,14 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             let mut io = proc.io.lock();
             let buf = validate_user_ptr(args[1], args[2])?;
 
-            io.file(args[0])?.read(buf)
+            io.file(args[0])?.borrow_mut().read(buf)
         }
         abi::SYS_WRITE => {
             let proc = Process::current();
             let mut io = proc.io.lock();
             let buf = validate_user_ptr(args[1], args[2])?;
 
-            io.file(args[0])?.write(buf)
+            io.file(args[0])?.borrow_mut().write(buf)
         }
         abi::SYS_FSTATAT => {
             let proc = Process::current();
@@ -101,8 +101,8 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
                 drop(io);
                 node
             };
-            let mut file = node.open(OpenFlags::O_RDONLY)?;
-            Process::execve(|space| elf::load_elf(space, &mut file), 0).unwrap();
+            let file = node.open(OpenFlags::O_RDONLY)?;
+            Process::execve(|space| elf::load_elf(space, file), 0).unwrap();
             panic!();
         }
 

@@ -31,7 +31,7 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
     let ioctx = Ioctx::new(root);
 
     let node = ioctx.find(None, "/init", true).unwrap();
-    let mut file = node.open(OpenFlags::O_RDONLY).unwrap();
+    let file = node.open(OpenFlags::O_RDONLY).unwrap();
 
     proc.set_ioctx(ioctx);
 
@@ -53,6 +53,6 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
 
     drop(cfg);
 
-    Process::execve(|space| elf::load_elf(space, &mut file), 0).unwrap();
+    Process::execve(|space| elf::load_elf(space, file), 0).unwrap();
     panic!("Unreachable");
 }

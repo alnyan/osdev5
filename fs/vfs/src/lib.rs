@@ -20,6 +20,6 @@ pub use node::{Vnode, VnodeImpl, VnodeKind, VnodeRef};
 mod ioctx;
 pub use ioctx::Ioctx;
 mod file;
-pub use file::File;
+pub use file::{File, FileRef};
 mod char;
 pub use crate::char::{CharDevice, CharDeviceWrapper};

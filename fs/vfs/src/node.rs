@@ -1,4 +1,4 @@
-use crate::{File, FileMode, Filesystem, Stat, OpenFlags};
+use crate::{FileRef, File, FileMode, Filesystem, Stat, OpenFlags};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{RefCell, RefMut};
 use core::fmt;
@@ -282,7 +282,7 @@ impl Vnode {
     }
 
     /// Opens a vnode for access
-    pub fn open(self: &VnodeRef, flags: OpenFlags) -> Result<File, Errno> {
+    pub fn open(self: &VnodeRef, flags: OpenFlags) -> Result<FileRef, Errno> {
         if self.kind == VnodeKind::Directory {
             return Err(Errno::IsADirectory);
         }
@@ -290,6 +290,15 @@ impl Vnode {
         if let Some(ref mut data) = *self.data() {
             let pos = data.open(self.clone(), flags)?;
             Ok(File::normal(self.clone(), pos))
+        } else {
+            Err(Errno::NotImplemented)
+        }
+    }
+
+    /// Closes a vnode
+    pub fn close(self: &VnodeRef) -> Result<(), Errno> {
+        if let Some(ref mut data) = *self.data() {
+            data.close(self.clone())
         } else {
             Err(Errno::NotImplemented)
         }

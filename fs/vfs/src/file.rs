@@ -1,4 +1,6 @@
-use crate::{VnodeRef, VnodeKind};
+use crate::{VnodeKind, VnodeRef};
+use alloc::rc::Rc;
+use core::cell::RefCell;
 use core::cmp::min;
 use error::Errno;
 use libcommon::{Read, Seek, SeekDir, Write};
@@ -14,6 +16,8 @@ enum FileInner {
     #[allow(dead_code)]
     Socket,
 }
+
+pub type FileRef = Rc<RefCell<File>>;
 
 /// Structure representing a file/socket opened for access
 pub struct File {
@@ -75,9 +79,20 @@ impl Seek for File {
 
 impl File {
     /// Constructs a new file handle for a regular file
-    pub fn normal(vnode: VnodeRef, pos: usize) -> Self {
-        Self {
+    pub fn normal(vnode: VnodeRef, pos: usize) -> FileRef {
+        Rc::new(RefCell::new(Self {
             inner: FileInner::Normal(NormalFile { vnode, pos }),
+        }))
+    }
+}
+
+impl Drop for File {
+    fn drop(&mut self) {
+        match &mut self.inner {
+            FileInner::Normal(inner) => {
+                inner.vnode.close().ok();
+            }
+            _ => unimplemented!()
         }
     }
 }
@@ -92,7 +107,12 @@ mod tests {
     struct DummyInode;
 
     impl VnodeImpl for DummyInode {
-        fn create(&mut self, _at: VnodeRef, name: &str, kind: VnodeKind) -> Result<VnodeRef, Errno> {
+        fn create(
+            &mut self,
+            _at: VnodeRef,
+            name: &str,
+            kind: VnodeKind,
+        ) -> Result<VnodeRef, Errno> {
             let node = Vnode::new(name, kind, 0);
             node.set_data(Box::new(DummyInode {}));
             Ok(node)

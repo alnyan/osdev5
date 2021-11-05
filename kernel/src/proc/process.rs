@@ -12,7 +12,7 @@ use core::cell::UnsafeCell;
 use core::fmt;
 use core::sync::atomic::{AtomicU32, Ordering};
 use error::Errno;
-use vfs::File;
+use vfs::{File, FileRef};
 use vfs::Ioctx;
 
 pub use crate::arch::platform::context::{self, Context};
@@ -54,7 +54,7 @@ struct ProcessInner {
 /// Process I/O context. Contains file tables, root/cwd info etc.
 pub struct ProcessIo {
     ioctx: Option<Ioctx>,
-    files: BTreeMap<usize, File>,
+    files: BTreeMap<usize, FileRef>,
     file_bitmap: u64,
 }
 
@@ -143,12 +143,18 @@ impl ProcessIo {
     /// Clones this I/O context
     pub fn fork(&self) -> Result<ProcessIo, Errno> {
         // TODO
-        Ok(Self::new())
+        let mut dst = ProcessIo::new();
+        for (&fd, entry) in self.files.iter() {
+            dst.files.insert(fd, entry.clone());
+            dst.file_bitmap |= 1 << fd;
+        }
+        dst.ioctx = self.ioctx.clone();
+        Ok(dst)
     }
 
     /// Returns [File] struct referred to by file descriptor `idx`
-    pub fn file(&mut self, idx: usize) -> Result<&mut File, Errno> {
-        self.files.get_mut(&idx).ok_or(Errno::InvalidFile)
+    pub fn file(&mut self, idx: usize) -> Result<FileRef, Errno> {
+        self.files.get(&idx).cloned().ok_or(Errno::InvalidFile)
     }
 
     /// Returns [Ioctx] structure reference of this I/O context
@@ -157,7 +163,7 @@ impl ProcessIo {
     }
 
     /// Allocates a file descriptor and associates a [File] struct with it
-    pub fn place_file(&mut self, file: File) -> Result<usize, Errno> {
+    pub fn place_file(&mut self, file: FileRef) -> Result<usize, Errno> {
         for bit in 0..64 {
             if self.file_bitmap & (1 << bit) == 0 {
                 if self.files.insert(bit, file).is_some() {

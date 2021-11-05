@@ -4,6 +4,7 @@ use crate::mem::{
     phys::{self, PageUsage},
     virt::{MapAttributes, Space},
 };
+use vfs::FileRef;
 use core::mem::{size_of, MaybeUninit};
 use error::Errno;
 use libcommon::{Read, Seek, SeekDir};
@@ -126,11 +127,12 @@ where
     Ok(())
 }
 
-unsafe fn read_struct<T, F: Seek + Read>(src: &mut F, pos: usize) -> Result<T, Errno> {
+unsafe fn read_struct<T>(src: &FileRef, pos: usize) -> Result<T, Errno> {
+    let mut src_borrow = src.borrow_mut();
     let mut storage: MaybeUninit<T> = MaybeUninit::uninit();
     let size = size_of::<T>();
-    src.seek(pos as isize, SeekDir::Set)?;
-    let res = src.read(core::slice::from_raw_parts_mut(
+    src_borrow.seek(pos as isize, SeekDir::Set)?;
+    let res = src_borrow.read(core::slice::from_raw_parts_mut(
         storage.as_mut_ptr() as *mut u8,
         size,
     ))?;
@@ -142,8 +144,8 @@ unsafe fn read_struct<T, F: Seek + Read>(src: &mut F, pos: usize) -> Result<T, E
 }
 
 /// Loads an ELF program from `source` into target `space`
-pub fn load_elf<F: Seek + Read>(space: &mut Space, source: &mut F) -> Result<usize, Errno> {
-    let ehdr: Ehdr<Elf64> = unsafe { read_struct(source, 0).unwrap() };
+pub fn load_elf(space: &mut Space, source: FileRef) -> Result<usize, Errno> {
+    let ehdr: Ehdr<Elf64> = unsafe { read_struct(&source, 0).unwrap() };
 
     if &ehdr.ident[0..4] != b"\x7FELF" {
         return Err(Errno::BadExecutable);
@@ -151,7 +153,7 @@ pub fn load_elf<F: Seek + Read>(space: &mut Space, source: &mut F) -> Result<usi
 
     for i in 0..(ehdr.phnum as usize) {
         let phdr: Phdr<Elf64> = unsafe {
-            read_struct(source, ehdr.phoff as usize + ehdr.phentsize as usize * i).unwrap()
+            read_struct(&source, ehdr.phoff as usize + ehdr.phentsize as usize * i).unwrap()
         };
 
         if phdr.typ == 1
@@ -170,6 +172,7 @@ pub fn load_elf<F: Seek + Read>(space: &mut Space, source: &mut F) -> Result<usi
                         space,
                         phdr.vaddr as usize,
                         |off, dst| {
+                            let mut source = source.borrow_mut();
                             source.seek(phdr.offset as isize + off as isize, SeekDir::Set)?;
                             if source.read(dst)? == dst.len() {
                                 Ok(())

@@ -1,8 +1,9 @@
-use crate::{FileMode, VnodeKind, VnodeRef, OpenFlags, File};
+use crate::{FileMode, FileRef, VnodeKind, VnodeRef, OpenFlags, File};
 use error::Errno;
 use libcommon::{path_component_left, path_component_right};
 
 /// I/O context structure
+#[derive(Clone)]
 pub struct Ioctx {
     root: VnodeRef,
     cwd: VnodeRef,
@@ -94,7 +95,7 @@ impl Ioctx {
         path: &str,
         mode: FileMode,
         opts: OpenFlags,
-    ) -> Result<File, Errno> {
+    ) -> Result<FileRef, Errno> {
         let node = match self.find(at.clone(), path, true) {
             Err(Errno::DoesNotExist) => {
                 let (parent, name) = path_component_right(path);
