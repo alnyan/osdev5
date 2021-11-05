@@ -7,6 +7,8 @@ use alloc::collections::BTreeMap;
 pub mod elf;
 pub mod process;
 pub use process::{Pid, Process, ProcessRef, State as ProcessState};
+pub mod io;
+pub use io::ProcessIo;
 
 pub mod wait;
 

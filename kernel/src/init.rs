@@ -33,7 +33,7 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
     let node = ioctx.find(None, "/init", true).unwrap();
     let file = node.open(OpenFlags::O_RDONLY | OpenFlags::O_EXEC).unwrap();
 
-    proc.set_ioctx(ioctx);
+    proc.io.lock().set_ioctx(ioctx);
 
     // Open stdin/stdout/stderr
     {
