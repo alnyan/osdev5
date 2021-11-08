@@ -19,6 +19,10 @@ fn main() -> i32 {
     loop {
         print!("> ");
         let line = readline(libusr::sys::STDIN_FILENO, &mut buf).unwrap();
+        if line.is_empty() {
+            break;
+        }
+        let line = line.trim_end_matches('\n');
 
         println!(":: {:?}", line);
 

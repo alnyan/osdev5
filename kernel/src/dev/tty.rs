@@ -1,8 +1,9 @@
 //! Teletype (TTY) device facilities
-use crate::proc::wait::Wait;
 use crate::dev::serial::SerialDevice;
+use crate::proc::wait::Wait;
 use crate::sync::IrqSafeSpinLock;
 use error::Errno;
+use syscall::termios::{Termios, TermiosIflag, TermiosLflag, TermiosOflag};
 use vfs::CharDevice;
 
 #[derive(Debug)]
@@ -17,6 +18,7 @@ struct CharRingInner<const N: usize> {
 pub struct CharRing<const N: usize> {
     wait_read: Wait,
     wait_write: Wait,
+    config: IrqSafeSpinLock<Termios>,
     inner: IrqSafeSpinLock<CharRingInner<N>>,
 }
 
@@ -24,7 +26,9 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
     fn ring(&self) -> &CharRing<N>;
 
     fn line_send(&self, byte: u8) -> Result<(), Errno> {
-        if byte == b'\n' {
+        let config = self.ring().config.lock();
+
+        if byte == b'\n' && config.oflag.contains(TermiosOflag::ONLCR) {
             self.send(b'\r').ok();
         }
 
@@ -32,68 +36,98 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
     }
 
     fn recv_byte(&self, mut byte: u8) {
-        if byte == b'\r' {
-            // TODO ICRNL conv option
+        let ring = self.ring();
+        let config = ring.config.lock();
+
+        if byte == b'\r' && config.iflag.contains(TermiosIflag::ICRNL) {
             byte = b'\n';
         }
 
-        if byte == 4 {
-            // TODO handle EOF
-            self.ring().signal_eof();
-            return;
+        if byte == b'\n' {
+            if config.lflag.contains(TermiosLflag::ECHO)
+                || (config.is_canon() && config.lflag.contains(TermiosLflag::ECHONL))
+            {
+                if byte == b'\n' && config.oflag.contains(TermiosOflag::ONLCR) {
+                    self.send(b'\r').ok();
+                }
+                self.send(byte).ok();
+            }
+        } else if config.lflag.contains(TermiosLflag::ECHO) {
+            let echoe = (byte == config.chars.erase || byte == config.chars.werase)
+                && config.lflag.contains(TermiosLflag::ECHOE);
+            let echok = byte == config.chars.kill && config.lflag.contains(TermiosLflag::ECHOE);
+
+            if byte.is_ascii_control() {
+                if !echoe && !echok {
+                    self.send(b'^').ok();
+                    self.send(byte + 0x40).ok();
+                }
+            } else {
+                self.send(byte).ok();
+            }
         }
 
         self.ring().putc(byte, false).ok();
-
-        match byte {
-            b'\n' => {
-                // TODO ECHONL option
-                self.line_send(byte).ok();
-                // TODO ICANON
-            }
-            0x17 | 0x7F => (),
-            0x0C => {
-                // TODO ECHO option && ICANON option
-                self.raw_write(b"^L").ok();
-            },
-            0x1B => {
-                // TODO ECHO option && ICANON option
-                self.raw_write(b"^[").ok();
-            },
-            _ => {
-                // TODO ECHO option
-                self.line_send(byte).ok();
-            }
-        }
     }
 
     /// Line discipline function
     fn line_read(&self, data: &mut [u8]) -> Result<usize, Errno> {
         let ring = self.ring();
+        let mut config = ring.config.lock();
         let mut rem = data.len();
         let mut off = 0;
 
+        if !config.is_canon() {
+            todo!()
+        }
+
         while rem != 0 {
+            drop(config);
             let byte = match ring.getc() {
                 Ok(ch) => ch,
                 Err(Errno::Interrupt) => {
                     todo!()
                 }
-                Err(Errno::EndOfFile) => {
-                    break;
-                }
                 Err(e) => return Err(e),
             };
+            config = ring.config.lock();
 
-            if byte == 0x7F {
-                if off > 0 {
+            if byte == config.chars.eof && config.is_canon() {
+                break;
+            }
+            if byte == config.chars.erase && config.is_canon() {
+                if off > 0 && config.lflag.contains(TermiosLflag::ECHOE) {
                     self.raw_write(b"\x1B[D \x1B[D").ok();
                     off -= 1;
                     rem += 1;
                 }
+
                 continue;
-            } else if byte >= b' ' {
-                // TODO tty options
+            }
+            if byte == config.chars.werase && config.is_canon() {
+                if off > 0 && config.lflag.contains(TermiosLflag::ECHOE) {
+                    let idx = data[..off].iter().rposition(|&ch| ch == b' ').unwrap_or(0);
+                    let len = off;
+
+                    for i in idx..len {
+                        self.raw_write(b"\x1B[D \x1B[D").ok();
+                        off -= 1;
+                        rem += 1;
+                    }
+                }
+
+                continue;
+            }
+            if byte == config.chars.kill && config.is_canon() {
+                if off > 0 && config.lflag.contains(TermiosLflag::ECHOK) {
+                    while off != 0 {
+                        self.raw_write(b"\x1B[D \x1B[D").ok();
+                        off -= 1;
+                        rem += 1;
+                    }
+                }
+
+                continue;
             }
 
             data[off] = byte;
@@ -156,6 +190,7 @@ impl<const N: usize> CharRing<N> {
                 data: [0; N],
                 flags: 0,
             }),
+            config: IrqSafeSpinLock::new(Termios::new()),
             wait_read: Wait::new(),
             wait_write: Wait::new(),
         }
@@ -194,10 +229,5 @@ impl<const N: usize> CharRing<N> {
         lock.write_unchecked(ch);
         self.wait_read.wakeup_one();
         Ok(())
-    }
-
-    fn signal_eof(&self) {
-        self.inner.lock().flags |= 1 << 0;
-        self.wait_read.wakeup_one();
     }
 }
