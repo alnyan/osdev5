@@ -12,7 +12,7 @@ use error::Errno;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::registers::{Aliased, ReadOnly, ReadWrite};
 use tock_registers::{register_bitfields, register_structs};
-use vfs::CharDevice;
+use vfs::{CharDevice, IoctlCmd};
 
 register_bitfields! [
     u32,
@@ -132,6 +132,10 @@ impl CharDevice for Uart {
     fn write(&self, blocking: bool, data: &[u8]) -> Result<usize, Errno> {
         assert!(blocking);
         self.line_write(data)
+    }
+
+    fn ioctl(&self, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
+        self.tty_ioctl(cmd, ptr, len)
     }
 }
 

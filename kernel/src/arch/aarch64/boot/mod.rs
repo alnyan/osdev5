@@ -87,11 +87,11 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
     // Enable MMU
     virt::enable().expect("Failed to initialize virtual memory");
 
+    init_device_tree(fdt_base).expect("Device tree init failed");
+
     // Most basic machine init: initialize proper debug output
     // physical memory
     machine::init_board_early().unwrap();
-
-    init_device_tree(fdt_base).expect("Device tree init failed");
 
     // Setup a heap
     unsafe {

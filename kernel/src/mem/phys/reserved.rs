@@ -38,6 +38,7 @@ impl ReservedRegion {
 }
 static mut RESERVED_REGIONS_HEAD: *mut ReservedRegion = null_mut();
 static mut RESERVED_REGION_KERNEL: MaybeUninit<ReservedRegion> = MaybeUninit::uninit();
+static mut RESERVED_REGION_INITRD: MaybeUninit<ReservedRegion> = MaybeUninit::uninit();
 static mut RESERVED_REGION_PAGES: MaybeUninit<ReservedRegion> = MaybeUninit::uninit();
 
 /// Adds a `region` to reserved memory region list.
@@ -63,6 +64,19 @@ pub(super) unsafe fn reserve_kernel() {
 pub(super) unsafe fn reserve_pages(base: usize, count: usize) {
     RESERVED_REGION_PAGES.write(ReservedRegion::new(base, base + count * PAGE_SIZE));
     reserve("pages", RESERVED_REGION_PAGES.as_mut_ptr());
+}
+pub(super) unsafe fn reserve_initrd() {
+    use crate::config::{ConfigKey, CONFIG};
+    let cfg = CONFIG.lock();
+    let initrd_start = cfg.get_usize(ConfigKey::InitrdBase);
+    let initrd_size = cfg.get_usize(ConfigKey::InitrdSize);
+    if initrd_start != 0 {
+        RESERVED_REGION_INITRD.write(ReservedRegion::new(
+            initrd_start,
+            (initrd_start + initrd_size + 4095) & !4095,
+        ));
+        reserve("initrd", RESERVED_REGION_INITRD.as_mut_ptr());
+    }
 }
 
 /// Returns `true` if physical memory referred to by `page` cannot be

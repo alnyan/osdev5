@@ -145,6 +145,7 @@ pub unsafe fn init_from_iter<T: Iterator<Item = MemoryRegion> + Clone>(iter: T) 
     // TODO maybe instead of size_of::<...> use Layout?
     let need_pages = ((total_pages * size_of::<PageInfo>()) + 0xFFF) / 0x1000;
     reserved::reserve_kernel();
+    reserved::reserve_initrd();
     // Step 2. Allocate memory for page array
     let pages_base =
         find_contiguous(iter.clone(), need_pages).expect("Failed to allocate memory for page info");

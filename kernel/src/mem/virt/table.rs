@@ -210,6 +210,7 @@ impl Space {
     }
 
     pub fn try_cow_copy(&mut self, virt: usize) -> Result<(), Errno> {
+        let virt = virt & !0xFFF;
         let l0i = virt >> 30;
         let l1i = (virt >> 21) & 0x1FF;
         let l2i = (virt >> 12) & 0x1FF;
@@ -220,21 +221,17 @@ impl Space {
         let entry = l2_table[l2i];
 
         if !entry.is_present() {
+            warnln!("Entry is not present: {:#x}", virt);
             return Err(Errno::DoesNotExist);
         }
 
         let src_phys = unsafe { entry.address_unchecked() };
         if !entry.is_cow() {
+            warnln!("Entry is not marked as CoW: {:#x}, points to {:#x}", virt, src_phys);
             return Err(Errno::DoesNotExist);
         }
 
         let dst_phys = unsafe { phys::copy_cow_page(src_phys)? };
-        if src_phys != dst_phys {
-            unsafe {
-                asm!("tlbi vaae1, {}", in(reg) virt);
-            }
-        }
-
         unsafe {
             l2_table[l2i].set_address(dst_phys);
         }
@@ -264,11 +261,15 @@ impl Space {
 
                             let mut flags = unsafe { entry.fork_flags() };
                             if dst_phys != src_phys {
-                                res.map(virt_addr, dst_phys, flags)?;
+                                todo!();
+                                // res.map(virt_addr, dst_phys, flags)?;
                             } else {
                                 // TODO only apply CoW to writable pages
                                 flags |= MapAttributes::AP_BOTH_READONLY | MapAttributes::EX_COW;
                                 l2_table[l2i].set_cow();
+                                unsafe {
+                                    asm!("tlbi vaae1, {}", in(reg) virt_addr);
+                                }
                                 res.map(virt_addr, dst_phys, flags);
                             }
                         }

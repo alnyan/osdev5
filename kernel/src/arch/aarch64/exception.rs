@@ -95,9 +95,15 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
             let proc = Process::current();
 
             if far < mem::KERNEL_OFFSET {
-                if let Err(_) = proc.manipulate_space(|space| space.try_cow_copy(far)) {
+                if let Err(e) = proc.manipulate_space(|space| space.try_cow_copy(far)) {
                     // Kill program
-                    todo!()
+                    panic!("CoW copy returned {:?}", e);
+                }
+                unsafe {
+                    use cortex_a::registers::TTBR0_EL1;
+                    let ttbr = TTBR0_EL1.get() as usize;
+                    let asid = (ttbr >> 48) & 0xFF;
+                    asm!("tlbi aside1, {}", in(reg) (asid << 48));
                 }
                 return;
             } else {
