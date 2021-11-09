@@ -3,6 +3,8 @@
 use crate::arch::machine;
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
+use crate::proc::Process;
+use crate::mem;
 use crate::syscall;
 use ::syscall::abi;
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
@@ -84,9 +86,24 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
 
     #[allow(clippy::single_match)]
     match err_code {
-        EC_DATA_ABORT_ELX | EC_DATA_ABORT_EL0 => {
+        EC_DATA_ABORT_ELX => {
             let far = FAR_EL1.get();
             dump_data_abort(Level::Error, esr, far);
+        }
+        EC_DATA_ABORT_EL0 => {
+            let far = FAR_EL1.get() as usize;
+            let proc = Process::current();
+
+            if far < mem::KERNEL_OFFSET {
+                if let Err(_) = proc.manipulate_space(|space| space.try_cow_copy(far)) {
+                    // Kill program
+                    todo!()
+                }
+                return;
+            } else {
+                // Kill program
+                todo!()
+            }
         }
         EC_SVC_AA64 => {
             unsafe {

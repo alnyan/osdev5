@@ -168,6 +168,14 @@ impl Process {
         (&mut *ctx).enter()
     }
 
+    #[inline]
+    pub fn manipulate_space<F: FnOnce(&mut Space) -> Result<(), Errno>>(
+        &self,
+        f: F,
+    ) -> Result<(), Errno> {
+        f(self.inner.lock().space.as_mut().unwrap())
+    }
+
     /// Schedules a next thread for execution
     ///
     /// # Safety
@@ -284,6 +292,13 @@ impl Process {
             assert!(lock.exit.is_none());
             lock.exit = Some(status);
             lock.state = State::Finished;
+
+            if let Some(space) = lock.space.take() {
+                unsafe {
+                    // TODO invalidate everything related to this ASID
+                    Space::release(space);
+                }
+            }
 
             self.io.lock().handle_exit();
 

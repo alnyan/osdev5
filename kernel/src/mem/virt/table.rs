@@ -38,6 +38,8 @@ bitflags! {
         /// This page is used for device-MMIO mapping and uses MAIR attribute #1
         const DEVICE = 1 << 2;
 
+        const EX_COW = 1 << 55;
+
         /// UXN bit -- if set, page may not be used for instruction fetching from EL0
         const UXN = 1 << 54;
         /// PXN bit -- if set, page may not be used for instruction fetching from EL1
@@ -151,8 +153,28 @@ impl Entry {
         (self.0 & Self::PHYS_MASK) as usize
     }
 
+    unsafe fn set_address(&mut self, address: usize) {
+        self.0 &= !Self::PHYS_MASK;
+        self.0 |= (address as u64) & Self::PHYS_MASK;
+    }
+
     unsafe fn fork_flags(self) -> MapAttributes {
         MapAttributes::from_bits_unchecked(self.0 & !Self::PHYS_MASK)
+    }
+
+    fn set_cow(&mut self) {
+        self.0 |= (MapAttributes::AP_BOTH_READONLY | MapAttributes::EX_COW).bits();
+    }
+
+    fn clear_cow(&mut self) {
+        self.0 &= !(MapAttributes::AP_BOTH_READONLY | MapAttributes::EX_COW).bits();
+        self.0 |= MapAttributes::AP_BOTH_READWRITE.bits();
+    }
+
+    #[inline]
+    fn is_cow(self) -> bool {
+        let attrs = (MapAttributes::AP_BOTH_READONLY | MapAttributes::EX_COW).bits();
+        self.0 & attrs == attrs
     }
 }
 
@@ -181,9 +203,44 @@ impl Space {
             Err(Errno::AlreadyExists)
         } else {
             l2_table[l2i] = Entry::table(phys, flags | MapAttributes::ACCESS);
+            #[cfg(feature = "verbose")]
             debugln!("Map {:#x} -> {:#x}", virt, phys);
             Ok(())
         }
+    }
+
+    pub fn try_cow_copy(&mut self, virt: usize) -> Result<(), Errno> {
+        let l0i = virt >> 30;
+        let l1i = (virt >> 21) & 0x1FF;
+        let l2i = (virt >> 12) & 0x1FF;
+
+        let l1_table = self.0.next_level_table(l0i).ok_or(Errno::DoesNotExist)?;
+        let l2_table = l1_table.next_level_table(l1i).ok_or(Errno::DoesNotExist)?;
+
+        let entry = l2_table[l2i];
+
+        if !entry.is_present() {
+            return Err(Errno::DoesNotExist);
+        }
+
+        let src_phys = unsafe { entry.address_unchecked() };
+        if !entry.is_cow() {
+            return Err(Errno::DoesNotExist);
+        }
+
+        let dst_phys = unsafe { phys::copy_cow_page(src_phys)? };
+        if src_phys != dst_phys {
+            unsafe {
+                asm!("tlbi vaae1, {}", in(reg) virt);
+            }
+        }
+
+        unsafe {
+            l2_table[l2i].set_address(dst_phys);
+        }
+        l2_table[l2i].clear_cow();
+
+        Ok(())
     }
 
     /// Performs a copy of the address space, cloning data owned by it
@@ -196,15 +253,23 @@ impl Space {
                         for l2i in 0..512 {
                             let entry = l2_table[l2i];
 
-                            // TODO copy-on-write
-                            if entry.is_present() {
-                                assert!(entry.is_table());
-                                let src_phys = unsafe { entry.address_unchecked() };
-                                let virt_addr = (l0i << 30) | (l1i << 21) | (l2i << 12);
-                                debugln!("Fork page {:#x}:{:#x}", virt_addr, src_phys);
-                                let dst_phys = unsafe { phys::clone_page(src_phys)? };
+                            if !entry.is_present() {
+                                continue;
+                            }
 
-                                res.map(virt_addr, dst_phys, unsafe { entry.fork_flags() })?;
+                            assert!(entry.is_table());
+                            let src_phys = unsafe { entry.address_unchecked() };
+                            let virt_addr = (l0i << 30) | (l1i << 21) | (l2i << 12);
+                            let dst_phys = unsafe { phys::fork_page(src_phys)? };
+
+                            let mut flags = unsafe { entry.fork_flags() };
+                            if dst_phys != src_phys {
+                                res.map(virt_addr, dst_phys, flags)?;
+                            } else {
+                                // TODO only apply CoW to writable pages
+                                flags |= MapAttributes::AP_BOTH_READONLY | MapAttributes::EX_COW;
+                                l2_table[l2i].set_cow();
+                                res.map(virt_addr, dst_phys, flags);
                             }
                         }
                     }
@@ -212,5 +277,49 @@ impl Space {
             }
         }
         Ok(res)
+    }
+
+    pub unsafe fn release(space: &mut Self) {
+        for l0i in 0..512 {
+            let l0_entry = space.0[l0i];
+            if !l0_entry.is_present() {
+                continue;
+            }
+
+            assert!(l0_entry.is_table());
+            let l1_table =
+                unsafe { &mut *(mem::virtualize(l0_entry.address_unchecked()) as *mut Table) };
+
+            for l1i in 0..512 {
+                let l1_entry = l1_table[l1i];
+                if !l1_entry.is_present() {
+                    continue;
+                }
+                assert!(l1_entry.is_table());
+                let l2_table =
+                    unsafe { &mut *(mem::virtualize(l1_entry.address_unchecked()) as *mut Table) };
+
+                for l2i in 0..512 {
+                    let entry = l2_table[l2i];
+                    if !entry.is_present() {
+                        continue;
+                    }
+
+                    assert!(entry.is_table());
+                    unsafe {
+                        phys::free_page(unsafe { entry.address_unchecked() });
+                    }
+                }
+                unsafe {
+                    phys::free_page(unsafe { l1_entry.address_unchecked() });
+                }
+            }
+            unsafe {
+                phys::free_page(unsafe { l0_entry.address_unchecked() });
+            }
+        }
+        unsafe {
+            mem::memset(space as *mut Space as *mut u8, 0, 4096);
+        }
     }
 }

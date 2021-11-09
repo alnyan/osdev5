@@ -33,8 +33,11 @@ fn init_device_tree(fdt_base_phys: usize) -> Result<(), Errno> {
         return Ok(());
     };
 
-    use crate::debug::Level;
-    fdt.dump(Level::Debug);
+    #[cfg(feature = "verbose")]
+    {
+        use crate::debug::Level;
+        fdt.dump(Level::Debug);
+    }
 
     let mut cfg = CONFIG.lock();
 
@@ -102,7 +105,6 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
 
     machine::init_board().unwrap();
 
-    debugln!("Config: {:#x?}", CONFIG.lock());
     infoln!("Machine init finished");
 
     unsafe {

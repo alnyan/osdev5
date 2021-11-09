@@ -92,8 +92,12 @@ pub unsafe fn free_page(page: usize) -> Result<(), Errno> {
 /// # Safety
 ///
 /// Unsafe: accepts arbitrary `page` arguments
-pub unsafe fn clone_page(page: usize) -> Result<usize, Errno> {
-    MANAGER.lock().as_mut().unwrap().clone_page(page)
+pub unsafe fn fork_page(page: usize) -> Result<usize, Errno> {
+    MANAGER.lock().as_mut().unwrap().fork_page(page)
+}
+
+pub unsafe fn copy_cow_page(page: usize) -> Result<usize, Errno> {
+    MANAGER.lock().as_mut().unwrap().copy_cow_page(page)
 }
 
 fn find_contiguous<T: Iterator<Item = MemoryRegion>>(iter: T, count: usize) -> Option<usize> {

@@ -26,6 +26,7 @@ cortex-a = { version = "6.x.x" }
 [features]
 pl011 = []
 pl031 = []
+verbose = []
 
 mach_qemu = ["pl011", "pl031"]
 mach_orangepi3 = []

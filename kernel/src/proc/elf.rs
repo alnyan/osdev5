@@ -105,7 +105,7 @@ where
         let page_off = (dst_page_off + off) % mem::PAGE_SIZE;
         let count = core::cmp::min(rem, mem::PAGE_SIZE - page_off);
 
-        let page = phys::alloc_page(PageUsage::Kernel)?;
+        let page = phys::alloc_page(PageUsage::UserPrivate)?;
 
         // TODO fetch existing mapping and test flag equality instead
         //      if flags differ, bail out

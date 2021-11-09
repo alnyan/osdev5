@@ -1,5 +1,5 @@
 use super::{PageInfo, PageUsage};
-use crate::mem::{memcpy, virtualize, PAGE_SIZE};
+use crate::mem::{memcpy, memset, virtualize, PAGE_SIZE};
 use crate::sync::IrqSafeSpinLock;
 use core::mem;
 use error::Errno;
@@ -8,7 +8,8 @@ pub unsafe trait Manager {
     fn alloc_page(&mut self, pu: PageUsage) -> Result<usize, Errno>;
     fn alloc_contiguous_pages(&mut self, pu: PageUsage, count: usize) -> Result<usize, Errno>;
     fn free_page(&mut self, page: usize) -> Result<(), Errno>;
-    fn clone_page(&mut self, src: usize) -> Result<usize, Errno>;
+    fn copy_cow_page(&mut self, src: usize) -> Result<usize, Errno>;
+    fn fork_page(&mut self, src: usize) -> Result<usize, Errno>;
     // TODO status()
 }
 pub struct SimpleManager {
@@ -60,7 +61,6 @@ unsafe impl Manager for SimpleManager {
     fn alloc_page(&mut self, pu: PageUsage) -> Result<usize, Errno> {
         self.alloc_single_index(pu)
             .map(|r| (self.base_index + r) * PAGE_SIZE)
-        //return Ok((self.base_index + index) * PAGE_SIZE);
     }
     fn alloc_contiguous_pages(&mut self, pu: PageUsage, count: usize) -> Result<usize, Errno> {
         'l0: for i in 0..self.pages.len() {
@@ -79,21 +79,56 @@ unsafe impl Manager for SimpleManager {
         }
         Err(Errno::OutOfMemory)
     }
-    fn free_page(&mut self, _page: usize) -> Result<(), Errno> {
-        todo!()
+    fn free_page(&mut self, addr: usize) -> Result<(), Errno> {
+        let index = self.page_index(addr);
+        let page = &mut self.pages[index];
+
+        assert!(page.usage != PageUsage::Reserved && page.usage != PageUsage::Available);
+
+        if page.refcount > 1 {
+            page.refcount -= 1;
+        } else {
+            assert_eq!(page.refcount, 1);
+            page.usage = PageUsage::Available;
+            page.refcount = 0;
+        }
+        Ok(())
     }
 
-    fn clone_page(&mut self, src: usize) -> Result<usize, Errno> {
+    fn copy_cow_page(&mut self, src: usize) -> Result<usize, Errno> {
         let src_index = self.page_index(src);
-        let src_usage = self.pages[src_index].usage;
-        assert_eq!(self.pages[src_index].refcount, 1);
-        let dst_index = self.alloc_single_index(src_usage)?;
-        assert!(src_usage != PageUsage::Available && src_usage != PageUsage::Reserved);
-        let dst = (self.base_index + dst_index) * PAGE_SIZE;
-        unsafe {
-            memcpy(virtualize(dst) as *mut u8, virtualize(src) as *mut u8, 4096);
+        let page = &mut self.pages[src_index];
+        let usage = page.usage;
+        if usage != PageUsage::UserPrivate {
+            panic!("CoW not available for non-UserPrivate pages: {:?}", usage);
         }
-        Ok(dst)
+
+        if page.refcount > 1 {
+            page.refcount -= 1;
+            drop(page);
+            let dst_index = self.alloc_single_index(usage)?;
+            let dst = (self.base_index + dst_index) * PAGE_SIZE;
+            unsafe {
+                memcpy(virtualize(dst) as *mut u8, virtualize(src) as *mut u8, 4096);
+            }
+            Ok(dst)
+        } else {
+            assert_eq!(page.refcount, 1);
+            // No additional operations needed
+            Ok(src)
+        }
+    }
+
+    fn fork_page(&mut self, src: usize) -> Result<usize, Errno> {
+        let src_index = self.page_index(src);
+        let page = &mut self.pages[src_index];
+        let usage = page.usage;
+        if usage != PageUsage::UserPrivate {
+            todo!("Handle page types other than UserPrivate")
+        } else {
+            page.refcount += 1;
+        }
+        Ok(src)
     }
 }
 
