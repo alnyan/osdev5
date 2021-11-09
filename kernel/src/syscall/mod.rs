@@ -12,10 +12,10 @@ use syscall::{
     abi,
     stat::{AT_EMPTY_PATH, AT_FDCWD},
 };
-use vfs::{FileMode, OpenFlags, Stat, VnodeRef};
+use vfs::{FileMode, OpenFlags, Stat, VnodeRef, IoctlCmd};
 
-mod arg;
-use arg::*;
+pub mod arg;
+pub use arg::*;
 
 /// Creates a "fork" process from current one using its register frame.
 /// See [Process::fork()].
@@ -135,6 +135,16 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
                 _ => todo!()
             }
         }
+        abi::SYS_IOCTL => {
+            let fd = args[0];
+            let cmd = IoctlCmd::try_from(args[1] as u32)?;
+
+            let proc = Process::current();
+            let mut io = proc.io.lock();
+
+            let node = io.file(fd)?.borrow().node().ok_or(Errno::InvalidFile)?;
+            node.ioctl(cmd, args[2], args[3])
+        },
 
         // Extra system calls
         abi::SYS_EX_DEBUG_TRACE => {

@@ -1,4 +1,4 @@
-use crate::{File, FileMode, FileRef, Filesystem, OpenFlags, Stat};
+use crate::{File, FileMode, FileRef, Filesystem, IoctlCmd, OpenFlags, Stat};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{RefCell, RefMut};
 use core::fmt;
@@ -75,6 +75,14 @@ pub trait VnodeImpl {
 
     /// Reports the size of this filesystem object in bytes
     fn size(&mut self, node: VnodeRef) -> Result<usize, Errno>;
+
+    fn ioctl(
+        &mut self,
+        node: VnodeRef,
+        cmd: IoctlCmd,
+        ptr: usize,
+        len: usize,
+    ) -> Result<usize, Errno>;
 }
 
 impl Vnode {
@@ -372,6 +380,15 @@ impl Vnode {
     pub fn stat(self: &VnodeRef, stat: &mut Stat) -> Result<(), Errno> {
         if let Some(ref mut data) = *self.data() {
             data.stat(self.clone(), stat)
+        } else {
+            Err(Errno::NotImplemented)
+        }
+    }
+
+    /// Performs node-specific requests
+    pub fn ioctl(self: &VnodeRef, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
+        if let Some(ref mut data) = *self.data() {
+            data.ioctl(self.clone(), cmd, ptr, len)
         } else {
             Err(Errno::NotImplemented)
         }

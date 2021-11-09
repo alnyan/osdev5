@@ -1,4 +1,4 @@
-use crate::{OpenFlags, Stat, VnodeImpl, VnodeKind, VnodeRef};
+use crate::{OpenFlags, Stat, VnodeImpl, VnodeKind, VnodeRef, IoctlCmd};
 use error::Errno;
 
 /// Generic character device trait
@@ -15,6 +15,8 @@ pub trait CharDevice {
     /// `blocking` is set, will block until it's available. Otherwise,
     /// will immediately return an error.
     fn write(&self, blocking: bool, data: &[u8]) -> Result<usize, Errno>;
+
+    fn ioctl(&self, cmd: IoctlCmd, ptr: usize, lim: usize) -> Result<usize, Errno>;
 }
 
 /// Wrapper struct to attach [VnodeImpl] implementation
@@ -62,6 +64,10 @@ impl VnodeImpl for CharDeviceWrapper {
 
     fn stat(&mut self, _node: VnodeRef, _stat: &mut Stat) -> Result<(), Errno> {
         todo!();
+    }
+
+    fn ioctl(&mut self, _node: VnodeRef, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
+        self.device.ioctl(cmd, ptr, len)
     }
 }
 

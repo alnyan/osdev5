@@ -17,7 +17,7 @@ use tock_registers::{
     register_bitfields, register_structs,
     registers::{ReadOnly, ReadWrite, WriteOnly},
 };
-use vfs::CharDevice;
+use vfs::{CharDevice, IoctlCmd};
 
 register_bitfields! {
     u32,
@@ -177,6 +177,10 @@ impl CharDevice for Pl011 {
     fn write(&self, blocking: bool, data: &[u8]) -> Result<usize, Errno> {
         assert!(blocking);
         self.line_write(data)
+    }
+
+    fn ioctl(&self, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
+        self.tty_ioctl(cmd, ptr, len)
     }
 }
 

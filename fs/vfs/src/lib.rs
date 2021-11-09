@@ -10,6 +10,7 @@ extern crate std;
 extern crate alloc;
 
 pub use syscall::stat::{FileMode, OpenFlags, Stat};
+pub use syscall::ioctl::IoctlCmd;
 
 mod block;
 pub use block::BlockDevice;

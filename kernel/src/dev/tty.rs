@@ -3,7 +3,12 @@ use crate::dev::serial::SerialDevice;
 use crate::proc::wait::Wait;
 use crate::sync::IrqSafeSpinLock;
 use error::Errno;
-use syscall::termios::{Termios, TermiosIflag, TermiosLflag, TermiosOflag};
+use syscall::{
+    termios::{Termios, TermiosIflag, TermiosLflag, TermiosOflag},
+    ioctl::IoctlCmd
+};
+use core::mem::size_of;
+use crate::syscall::arg::validate_user_ptr_struct;
 use vfs::CharDevice;
 
 #[derive(Debug)]
@@ -24,6 +29,23 @@ pub struct CharRing<const N: usize> {
 
 pub trait TtyDevice<const N: usize>: SerialDevice {
     fn ring(&self) -> &CharRing<N>;
+
+    fn tty_ioctl(&self, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
+        match cmd {
+            IoctlCmd::TtyGetAttributes => {
+                // TODO validate size
+                let res = validate_user_ptr_struct::<Termios>(ptr)?;
+                *res = self.ring().config.lock().clone();
+                Ok(size_of::<Termios>())
+            },
+            IoctlCmd::TtySetAttributes => {
+                let src = validate_user_ptr_struct::<Termios>(ptr)?;
+                *self.ring().config.lock() = src.clone();
+                Ok(size_of::<Termios>())
+            },
+            _ => Err(Errno::InvalidArgument)
+        }
+    }
 
     fn line_send(&self, byte: u8) -> Result<(), Errno> {
         let config = self.ring().config.lock();
@@ -74,71 +96,73 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
     fn line_read(&self, data: &mut [u8]) -> Result<usize, Errno> {
         let ring = self.ring();
         let mut config = ring.config.lock();
-        let mut rem = data.len();
-        let mut off = 0;
+
+        if data.len() == 0 {
+            return Ok(0);
+        }
 
         if !config.is_canon() {
-            todo!()
-        }
-
-        while rem != 0 {
             drop(config);
-            let byte = match ring.getc() {
-                Ok(ch) => ch,
-                Err(Errno::Interrupt) => {
-                    todo!()
+            let byte = ring.getc()?;
+            data[0] = byte;
+            return Ok(1);
+        } else {
+            let mut rem = data.len();
+            let mut off = 0;
+            // Perform canonical read
+            while rem != 0 {
+                drop(config);
+                let byte = ring.getc()?;
+                config = ring.config.lock();
+
+                if byte == config.chars.eof && config.is_canon() {
+                    break;
                 }
-                Err(e) => return Err(e),
-            };
-            config = ring.config.lock();
-
-            if byte == config.chars.eof && config.is_canon() {
-                break;
-            }
-            if byte == config.chars.erase && config.is_canon() {
-                if off > 0 && config.lflag.contains(TermiosLflag::ECHOE) {
-                    self.raw_write(b"\x1B[D \x1B[D").ok();
-                    off -= 1;
-                    rem += 1;
-                }
-
-                continue;
-            }
-            if byte == config.chars.werase && config.is_canon() {
-                if off > 0 && config.lflag.contains(TermiosLflag::ECHOE) {
-                    let idx = data[..off].iter().rposition(|&ch| ch == b' ').unwrap_or(0);
-                    let len = off;
-
-                    for i in idx..len {
+                if byte == config.chars.erase && config.is_canon() {
+                    if off > 0 && config.lflag.contains(TermiosLflag::ECHOE) {
                         self.raw_write(b"\x1B[D \x1B[D").ok();
                         off -= 1;
                         rem += 1;
                     }
-                }
 
-                continue;
-            }
-            if byte == config.chars.kill && config.is_canon() {
-                if off > 0 && config.lflag.contains(TermiosLflag::ECHOK) {
-                    while off != 0 {
-                        self.raw_write(b"\x1B[D \x1B[D").ok();
-                        off -= 1;
-                        rem += 1;
+                    continue;
+                }
+                if byte == config.chars.werase && config.is_canon() {
+                    if off > 0 && config.lflag.contains(TermiosLflag::ECHOE) {
+                        let idx = data[..off].iter().rposition(|&ch| ch == b' ').unwrap_or(0);
+                        let len = off;
+
+                        for i in idx..len {
+                            self.raw_write(b"\x1B[D \x1B[D").ok();
+                            off -= 1;
+                            rem += 1;
+                        }
                     }
+
+                    continue;
+                }
+                if byte == config.chars.kill && config.is_canon() {
+                    if off > 0 && config.lflag.contains(TermiosLflag::ECHOK) {
+                        while off != 0 {
+                            self.raw_write(b"\x1B[D \x1B[D").ok();
+                            off -= 1;
+                            rem += 1;
+                        }
+                    }
+
+                    continue;
                 }
 
-                continue;
-            }
+                data[off] = byte;
+                off += 1;
+                rem -= 1;
 
-            data[off] = byte;
-            off += 1;
-            rem -= 1;
-
-            if byte == b'\n' || byte == b'\r' {
-                break;
+                if byte == b'\n' || byte == b'\r' {
+                    break;
+                }
             }
+            Ok(off)
         }
-        Ok(off)
     }
 
     fn line_write(&self, data: &[u8]) -> Result<usize, Errno> {

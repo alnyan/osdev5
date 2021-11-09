@@ -1,7 +1,7 @@
 use crate::{BlockAllocator, Bvec, FileInode};
 use alloc::boxed::Box;
 use error::Errno;
-use vfs::{OpenFlags, Stat, Vnode, VnodeImpl, VnodeKind, VnodeRef};
+use vfs::{OpenFlags, Stat, Vnode, VnodeImpl, VnodeKind, VnodeRef, IoctlCmd};
 
 pub struct DirInode<A: BlockAllocator + Copy + 'static> {
     alloc: A,
@@ -57,6 +57,16 @@ impl<A: BlockAllocator + Copy + 'static> VnodeImpl for DirInode<A> {
 
     fn stat(&mut self, _node: VnodeRef, _stat: &mut Stat) -> Result<(), Errno> {
         todo!();
+    }
+
+    fn ioctl(
+        &mut self,
+        node: VnodeRef,
+        cmd: IoctlCmd,
+        ptr: usize,
+        len: usize,
+    ) -> Result<usize, Errno> {
+        todo!()
     }
 }
 

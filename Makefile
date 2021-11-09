@@ -24,8 +24,7 @@ ifneq ($(MACH),)
 CARGO_BUILD_OPTS+=--features mach_$(MACH)
 endif
 
-QEMU_OPTS=-s \
-		  -chardev stdio,id=serial1,mux=on
+QEMU_OPTS=-s
 ifeq ($(ARCH),x86_64)
 $(error TODO)
 else
@@ -35,7 +34,7 @@ QEMU_OPTS+=-kernel $(O)/kernel.bin \
 		   -M virt,virtualization=on \
 		   -cpu cortex-a72 \
 		   -m 512 \
-		   -serial chardev:serial1 \
+		   -serial mon:stdio \
 		   -device qemu-xhci \
 		   -display none \
 		   -net none
@@ -44,7 +43,7 @@ ifeq ($(MACH),rpi3)
 QEMU_OPTS+=-kernel $(O)/kernel.bin \
 		   -initrd $(O)/initrd.img \
 		   -M raspi3b \
-		   -serial chardev:serial1 \
+		   -serial mon:stdio \
 		   -display none \
 		   -net none
 endif

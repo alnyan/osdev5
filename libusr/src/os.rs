@@ -1,5 +1,38 @@
 use crate::sys;
 use core::fmt;
+use core::mem::{size_of, MaybeUninit};
+use syscall::{ioctl::IoctlCmd, termios::Termios};
+
+pub fn get_tty_attrs(fd: u32) -> Result<Termios, &'static str> {
+    let mut termios = MaybeUninit::<Termios>::uninit();
+    let res = unsafe {
+        sys::sys_ioctl(
+            fd,
+            IoctlCmd::TtyGetAttributes,
+            termios.as_mut_ptr() as usize,
+            size_of::<Termios>(),
+        )
+    };
+    if res != size_of::<Termios>() as isize {
+        return Err("Failed");
+    }
+    Ok(unsafe { termios.assume_init() })
+}
+
+pub fn set_tty_attrs(fd: u32, attrs: &Termios) -> Result<(), &'static str> {
+    let res = unsafe {
+        sys::sys_ioctl(
+            fd,
+            IoctlCmd::TtySetAttributes,
+            attrs as *const _ as usize,
+            size_of::<Termios>(),
+        )
+    };
+    if res != size_of::<Termios>() as isize {
+        return Err("Failed");
+    }
+    Ok(())
+}
 
 #[macro_export]
 macro_rules! trace {

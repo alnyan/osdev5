@@ -6,6 +6,7 @@ extern crate bitflags;
 
 pub mod abi;
 pub mod stat;
+pub mod ioctl;
 pub mod termios;
 
 #[cfg(feature = "user")]

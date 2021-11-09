@@ -10,6 +10,7 @@ pub mod os;
 pub mod sys {
     pub use syscall::calls::*;
     pub use syscall::stat::*;
+    pub use syscall::termios;
 }
 
 #[link_section = ".text._start"]
