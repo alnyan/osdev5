@@ -1,5 +1,7 @@
 //! Synchronization facilities module
 
+#![allow(missing_docs)]
+
 use crate::arch::platform::{irq_mask_save, irq_restore};
 use core::cell::UnsafeCell;
 use core::fmt;
@@ -60,6 +62,7 @@ impl<T> IrqSafeSpinLock<T> {
 impl<T> Deref for IrqSafeSpinLockGuard<'_, T> {
     type Target = T;
 
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.lock.value.get() }
     }

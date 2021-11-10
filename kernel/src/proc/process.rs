@@ -5,7 +5,7 @@ use crate::mem::{
     phys::{self, PageUsage},
     virt::{MapAttributes, Space},
 };
-use crate::proc::{wait::Wait, ProcessIo, PROCESSES, SCHED};
+use crate::proc::{wait::Wait, ProcessIo, PROCESSES, sched};
 use crate::sync::IrqSafeSpinLock;
 use alloc::rc::Rc;
 use core::cell::UnsafeCell;
@@ -57,6 +57,7 @@ pub struct Process {
     exit_wait: Wait,
     /// Process I/O context
     pub io: IrqSafeSpinLock<ProcessIo>,
+    cpu: AtomicU32,
 }
 
 impl From<i32> for ExitCode {
@@ -144,10 +145,11 @@ impl fmt::Display for Pid {
 impl Process {
     const USTACK_VIRT_TOP: usize = 0x100000000;
     const USTACK_PAGES: usize = 4;
+    const CPU_NONE: u32 = u32::MAX;
 
     /// Returns currently executing process
     pub fn current() -> ProcessRef {
-        SCHED.current_process()
+        sched::current_process()
     }
 
     pub fn get(pid: Pid) -> Option<ProcessRef> {
@@ -160,9 +162,10 @@ impl Process {
     ///
     /// Unsafe: only allowed to be called once, repeated calls
     ///         will generate undefined behavior
-    pub unsafe fn enter(proc: ProcessRef) -> ! {
+    pub unsafe fn enter(cpu: u32, proc: ProcessRef) -> ! {
         // FIXME use some global lock to guarantee atomicity of thread entry?
         proc.inner.lock().state = State::Running;
+        proc.cpu.store(cpu, Ordering::SeqCst);
         let ctx = proc.ctx.get();
 
         (&mut *ctx).enter()
@@ -184,7 +187,7 @@ impl Process {
     ///
     /// * Does not ensure src and dst threads are not the same thread
     /// * Does not ensure src is actually current context
-    pub unsafe fn switch(src: ProcessRef, dst: ProcessRef, discard: bool) {
+    pub unsafe fn switch(cpu: u32, src: ProcessRef, dst: ProcessRef, discard: bool) {
         {
             let mut src_lock = src.inner.lock();
             let mut dst_lock = dst.inner.lock();
@@ -195,6 +198,9 @@ impl Process {
             }
             assert!(dst_lock.state == State::Ready || dst_lock.state == State::Waiting);
             dst_lock.state = State::Running;
+
+            src.cpu.store(Self::CPU_NONE, Ordering::SeqCst);
+            dst.cpu.store(cpu, Ordering::SeqCst);
         }
 
         let src_ctx = src.ctx.get();
@@ -209,11 +215,14 @@ impl Process {
             let mut lock = self.inner.lock();
             let drop = lock.state == State::Running;
             lock.state = State::Waiting;
-            SCHED.dequeue(lock.id);
+            sched::dequeue(lock.id);
+            // SCHED.dequeue(lock.id);
             drop
         };
         if drop {
-            SCHED.switch(true);
+            sched::switch(true);
+            // todo!();
+            // SCHED.switch(true);
         }
     }
 
@@ -232,6 +241,11 @@ impl Process {
         self.inner.lock().id
     }
 
+    ///
+    pub fn cpu(&self) -> u32 {
+        self.cpu.load(Ordering::SeqCst)
+    }
+
     /// Creates a new kernel process
     pub fn new_kernel(entry: extern "C" fn(usize) -> !, arg: usize) -> Result<ProcessRef, Errno> {
         let id = Pid::new_kernel();
@@ -246,6 +260,7 @@ impl Process {
                 wait_flag: false,
                 state: State::Ready,
             }),
+            cpu: AtomicU32::new(Self::CPU_NONE)
         });
         debugln!("New kernel process: {}", id);
         assert!(PROCESSES.lock().insert(id, res.clone()).is_none());
@@ -274,10 +289,12 @@ impl Process {
                 state: State::Ready,
                 wait_flag: false,
             }),
+            cpu: AtomicU32::new(Self::CPU_NONE)
         });
         debugln!("Process {} forked into {}", src_inner.id, dst_id);
         assert!(PROCESSES.lock().insert(dst_id, dst).is_none());
-        SCHED.enqueue(dst_id);
+        sched::enqueue(dst_id);
+        // SCHED.enqueue(dst_id);
 
         Ok(dst_id)
     }
@@ -302,12 +319,13 @@ impl Process {
 
             self.io.lock().handle_exit();
 
-            SCHED.dequeue(lock.id);
+            sched::dequeue(lock.id);
+
             drop
         };
         self.exit_wait.wakeup_all();
         if drop {
-            SCHED.switch(true);
+            sched::switch(true);
             panic!("This code should never run");
         }
     }
@@ -351,7 +369,7 @@ impl Process {
             asm!("msr daifset, #2");
         }
 
-        let proc = SCHED.current_process();
+        let proc = sched::current_process();
         let mut lock = proc.inner.lock();
         if lock.id.is_kernel() {
             let mut proc_lock = PROCESSES.lock();
@@ -368,7 +386,8 @@ impl Process {
             );
             assert!(proc_lock.insert(lock.id, proc.clone()).is_none());
             unsafe {
-                SCHED.hack_current_pid(lock.id);
+                use crate::arch::platform::cpu::Cpu;
+                Cpu::get().scheduler().hack_current_pid(lock.id);
             }
         } else {
             // Invalidate user ASID

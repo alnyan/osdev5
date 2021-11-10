@@ -34,9 +34,15 @@ impl IntSource for GenericTimer {
     fn handle_irq(&self) -> Result<(), Errno> {
         CNTP_TVAL_EL0.set(TIMER_TICK);
         CNTP_CTL_EL0.write(CNTP_CTL_EL0::ENABLE::SET);
-        use crate::proc;
-        proc::wait::tick();
-        proc::switch();
+        todo!();
+//<<<<<<< HEAD
+//        use crate::proc;
+//        proc::wait::tick();
+//        proc::switch();
+//=======
+//        use crate::proc::sched;
+//        sched::switch(false);
+//>>>>>>> 61fa9d1 (feat: dirty smp)
         Ok(())
     }
 

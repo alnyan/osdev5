@@ -72,7 +72,7 @@ pub fn local_timer() -> &'static GenericTimer {
 
 /// Returns CPU's interrupt controller device
 #[inline]
-pub fn intc() -> &'static impl IntController<IrqNumber = IrqNumber> {
+pub fn intc() -> &'static Gic {
     &GIC
 }
 

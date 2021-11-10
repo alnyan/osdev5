@@ -62,10 +62,11 @@ impl Device for Gic {
         let gicc = Gicc::new(gicc_mmio);
 
         gicd.enable();
-        gicc.enable();
 
         self.gicd.init(gicd);
         self.gicc.init(gicc);
+
+        self.enable_secondary();
 
         Ok(())
     }
@@ -87,10 +88,19 @@ impl IntController for Gic {
         }
 
         if self.scheduler_irq.0 == irq_number {
+            use crate::proc::sched;
+            use cortex_a::registers::{CNTP_TVAL_EL0, CNTP_CTL_EL0};
+            use tock_registers::interfaces::Writeable;
+            use crate::arch::platform::cpu::Cpu;
             gicc.clear_irq(irq_number as u32, ic);
+            CNTP_TVAL_EL0.set(1000000);
+            CNTP_CTL_EL0.write(CNTP_CTL_EL0::ENABLE::SET);
+            sched::switch(false);
+            return;
         }
 
         {
+            // TODO make timer interrupt a special case and drop table lock
             let table = self.table.lock();
             match table[irq_number] {
                 None => panic!("No handler registered for irq{}", irq_number),
@@ -123,6 +133,11 @@ impl IntController for Gic {
 }
 
 impl Gic {
+    ///
+    pub unsafe fn enable_secondary(&self) {
+        self.gicc.get().enable();
+    }
+
     /// Constructs an instance of GICv2.
     ///
     /// # Safety

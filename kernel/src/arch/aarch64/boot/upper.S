@@ -61,7 +61,13 @@ __aa64_enter_upper:
 
     cbnz x2, 1b
 
-.init_mmu_regs:
+__aa64_enter_upper_secondary:
+    ADR_ABS x5, KERNEL_TTBR1
+    ADR_ABS x6, KERNEL_OFFSET
+
+    // x5 = KERNEL_TTBR1 physical address
+    sub x5, x5, x6
+
     mov x0, #(MAIR_EL1_Attr0_Normal_Outer_NC | MAIR_EL1_Attr0_Normal_Inner_NC | MAIR_EL1_Attr1_Device | MAIR_EL1_Attr1_Device_nGnRE)
     msr mair_el1, x0
 

@@ -4,7 +4,9 @@ use error::Errno;
 use fdt_rs::prelude::*;
 use fdt_rs::{
     base::DevTree,
-    index::{DevTreeIndex, DevTreeIndexNode, DevTreeIndexProp},
+    index::{
+        iters::DevTreeIndexCompatibleNodeIter, DevTreeIndex, DevTreeIndexNode, DevTreeIndexProp,
+    },
 };
 use libcommon::path_component_left;
 
@@ -45,7 +47,7 @@ fn dump_node(level: Level, node: &INode, depth: usize) {
         print!(level, "{:?} = ", name);
 
         match name {
-            "compatible" => print!(level, "{:?}", prop.str().unwrap()),
+            "compatible" | "enable-method" => print!(level, "{:?}", prop.str().unwrap()),
             "#address-cells" | "#size-cells" => print!(level, "{}", prop.u32(0).unwrap()),
             "reg" => {
                 print!(level, "<");
@@ -116,6 +118,20 @@ impl DeviceTree {
 
     /// Loads a device tree from physical `base` address and
     /// creates an index for it
+    pub fn compatible<'a, 's>(&'a self, compat: &'s str) -> DevTreeIndexCompatibleNodeIter<'s, 'a, 'a, 'a> {
+        self.index.compatible_nodes(compat)
+    }
+
+    pub fn initrd(&self) -> Option<(usize, usize)> {
+        let chosen = self.node_by_path("/chosen")?;
+        let initrd_start = find_prop(chosen.clone(), "linux,initrd-start")?
+            .u32(0)
+            .ok()?;
+        let initrd_end = find_prop(chosen, "linux,initrd-end")?.u32(0).ok()?;
+
+        Some((initrd_start as usize, initrd_end as usize))
+    }
+
     pub fn from_phys(base: usize) -> Result<DeviceTree, Errno> {
         // TODO virtualize address
         let tree = unsafe { DevTree::from_raw_pointer(base as *const _) }

@@ -31,6 +31,7 @@ else
 ifeq ($(MACH),qemu)
 QEMU_OPTS+=-kernel $(O)/kernel.bin \
 		   -initrd $(O)/initrd.img \
+		   -smp cpus=4 \
 		   -M virt,virtualization=on \
 		   -cpu cortex-a72 \
 		   -m 512 \

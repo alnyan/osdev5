@@ -12,7 +12,8 @@
     panic_info_message,
     alloc_error_handler,
     linked_list_cursors,
-    const_btree_new
+    const_btree_new,
+    maybe_uninit_uninit_array,
 )]
 #![no_std]
 #![no_main]

@@ -2,7 +2,7 @@
 
 use crate::arch::machine;
 use crate::dev::timer::TimestampSource;
-use crate::proc::{self, sched::SCHED, Pid, Process};
+use crate::proc::{self, sched, Pid, Process};
 use crate::sync::IrqSafeSpinLock;
 use alloc::collections::LinkedList;
 use core::time::Duration;
@@ -31,7 +31,7 @@ pub fn tick() {
         if time > item.deadline {
             let pid = item.pid;
             cursor.remove_current();
-            SCHED.enqueue(pid);
+            sched::enqueue(pid);
         } else {
             cursor.move_next();
         }
@@ -82,7 +82,7 @@ impl Wait {
                 drop(tick_lock);
 
                 proc::process(pid).set_wait_flag(false);
-                SCHED.enqueue(pid);
+                sched::enqueue(pid);
             }
 
             limit -= 1;

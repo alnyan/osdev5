@@ -15,6 +15,22 @@
 _entry:
     mov x8, x0
 
+    // Zero .bss
+    ADR_ABS x0, __bss_start_phys
+    ADR_ABS x1, __bss_end_phys
+
+1:
+    cmp x0, x1
+    beq 2f
+
+    str xzr, [x0], #8
+
+    b 1b
+2:
+    ADR_ABS x9, __aa64_entry_upper
+    ADR_REL x10, __aa64_enter_upper
+
+_entry_common:
     // Test for EL2
     mrs x0, CurrentEL
     lsr x0, x0, #2
@@ -46,31 +62,33 @@ _entry:
     dsb sy
     isb
 
-    // Zero .bss
-    ADR_ABS x0, __bss_start_phys
-    ADR_ABS x1, __bss_end_phys
-1:
-    cmp x0, x1
-    beq 2f
-
-    str xzr, [x0], #8
-
-    b 1b
-2:
-
-    ADR_ABS x9, __aa64_entry_upper
-    b __aa64_enter_upper
+    br x10
 
 .section .text._entry_upper
 __aa64_entry_upper:
     // x0 -- fdt address
 
-    ADR_REL x1, bsp_stack_top
+    ADR_ABS x1, bsp_stack_top
     mov sp, x1
 
     mov lr, xzr
     bl __aa64_bsp_main
     b .
+
+__aa64_entry_upper_secondary:
+    // x0 -- stack
+    mov sp, x0
+    mov lr, xzr
+    bl __aa64_secondary_main
+    b .
+
+.section .text._entry_secondary
+.global _entry_secondary
+_entry_secondary:
+    mov x8, x0
+    ADR_ABS x9, __aa64_entry_upper_secondary
+    ADR_ABS x10, __aa64_enter_upper_secondary
+    b _entry_common
 
 .section .bss
 .p2align 12

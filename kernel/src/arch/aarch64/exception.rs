@@ -88,8 +88,9 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
     match err_code {
         EC_DATA_ABORT_EL0 | EC_DATA_ABORT_ELX => {
             let far = FAR_EL1.get() as usize;
+            // TODO handle scenarios when sheduler is not yet initialized
 
-            if far < mem::KERNEL_OFFSET && sched::is_ready() {
+            if far < mem::KERNEL_OFFSET {
                 let proc = Process::current();
 
                 if let Err(e) = proc.manipulate_space(|space| space.try_cow_copy(far)) {

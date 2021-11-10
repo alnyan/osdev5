@@ -12,6 +12,7 @@
 //! * [errorln!]
 
 use crate::dev::serial::SerialDevice;
+use crate::sync::IrqSafeSpinLock;
 use core::fmt;
 
 /// Kernel logging levels
@@ -102,9 +103,11 @@ macro_rules! errorln {
 
 #[doc(hidden)]
 pub fn _debug(_level: Level, args: fmt::Arguments) {
+    static LOCK: IrqSafeSpinLock<()> = IrqSafeSpinLock::new(());
     use crate::arch::machine;
     use fmt::Write;
 
+    let _lock = LOCK.lock();
     SerialOutput {
         inner: machine::console(),
     }

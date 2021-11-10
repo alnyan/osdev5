@@ -4,12 +4,15 @@ use crate::arch::{
     aarch64::reg::{CNTKCTL_EL1, CPACR_EL1},
     machine,
 };
-use crate::config::{ConfigKey, CONFIG};
-use crate::dev::{
-    fdt::{find_prop, DeviceTree},
-    irq::IntSource,
-    Device,
+use crate::arch::{
+    aarch64::{
+        cpu,
+        smp,
+    },
 };
+use crate::config::{ConfigKey, CONFIG};
+use crate::dev::fdt::find_prop;
+use crate::dev::{fdt::DeviceTree, irq::IntSource, Device};
 use crate::fs::devfs;
 use error::Errno;
 //use crate::debug::Level;
@@ -20,17 +23,17 @@ use crate::mem::{
 };
 use crate::proc;
 use cortex_a::asm::barrier::{self, dsb, isb};
-use cortex_a::registers::{SCTLR_EL1, VBAR_EL1};
-use tock_registers::interfaces::{ReadWriteable, Writeable};
+use cortex_a::registers::{MPIDR_EL1, SCTLR_EL1, VBAR_EL1};
+use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 
-fn init_device_tree(fdt_base_phys: usize) -> Result<(), Errno> {
+fn init_device_tree(fdt_base_phys: usize) -> Result<Option<DeviceTree>, Errno> {
     use fdt_rs::prelude::*;
 
     let fdt = if fdt_base_phys != 0 {
         DeviceTree::from_phys(fdt_base_phys + 0xFFFFFF8000000000)?
     } else {
         warnln!("No FDT present");
-        return Ok(());
+        return Ok(None);
     };
 
     #[cfg(feature = "verbose")]
@@ -56,11 +59,10 @@ fn init_device_tree(fdt_base_phys: usize) -> Result<(), Errno> {
         }
     }
 
-    Ok(())
+    Ok(Some(fdt))
 }
 
-#[no_mangle]
-extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
+fn cpu_setup_common() {
     // Disable FP instruction trapping
     CPACR_EL1.modify(CPACR_EL1::FPEN::TrapNone);
 
@@ -83,11 +85,35 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
         dsb(barrier::SY);
         isb(barrier::SY);
     }
+}
+
+#[no_mangle]
+extern "C" fn __aa64_secondary_main() -> ! {
+    cpu_setup_common();
+
+    infoln!("cpu{} is online!", MPIDR_EL1.get() & 0xF);
+
+    unsafe {
+        cpu::init_self();
+
+        use crate::dev::irq::IntController;
+        machine::local_timer().enable().unwrap();
+        machine::intc().enable_secondary();
+        machine::intc().enable_irq(machine::IrqNumber::new(30));
+
+        proc::enter(false);
+    }
+}
+
+#[no_mangle]
+extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
+    // Boot CPU is MPDIR_EL1 = 0
+    cpu_setup_common();
 
     // Enable MMU
     virt::enable().expect("Failed to initialize virtual memory");
 
-    init_device_tree(fdt_base).expect("Device tree init failed");
+    let fdt = init_device_tree(fdt_base).expect("Device tree init failed");
 
     // Most basic machine init: initialize proper debug output
     // physical memory
@@ -102,16 +128,23 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
     }
 
     devfs::init();
-
     machine::init_board().unwrap();
+
+    if let Some(fdt) = &fdt {
+        unsafe {
+            smp::enable_secondary_cpus(fdt);
+        }
+    }
 
     infoln!("Machine init finished");
 
     unsafe {
+        cpu::init_bsp();
+
         machine::local_timer().enable().unwrap();
         machine::local_timer().init_irqs().unwrap();
 
-        proc::enter();
+        proc::enter(true);
     }
 }
 

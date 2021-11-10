@@ -5,9 +5,11 @@ use tock_registers::interfaces::{Readable, Writeable};
 
 pub mod boot;
 pub mod context;
+pub mod cpu;
 pub mod exception;
 pub mod irq;
 pub mod reg;
+pub mod smp;
 pub mod timer;
 
 cfg_if! {
