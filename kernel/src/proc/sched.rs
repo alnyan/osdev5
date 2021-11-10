@@ -126,6 +126,10 @@ impl Scheduler {
     }
 }
 
+pub fn is_ready() -> bool {
+    SCHED.inner.is_initialized()
+}
+
 #[inline(never)]
 extern "C" fn idle_fn(_a: usize) -> ! {
     loop {

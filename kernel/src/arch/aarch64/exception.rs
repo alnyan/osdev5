@@ -3,7 +3,7 @@
 use crate::arch::machine;
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
-use crate::proc::Process;
+use crate::proc::{sched, Process};
 use crate::mem;
 use crate::syscall;
 use ::syscall::abi;
@@ -65,7 +65,7 @@ extern "C" fn __aa64_exc_irq_handler(_exc: &mut ExceptionFrame) {
 
 fn dump_data_abort(level: Level, esr: u64, far: u64) {
     let iss = esr & 0x1FFFFFF;
-    println!(level, "Data Abort:");
+    println!(level, "\x1B[41;1mData Abort:");
 
     print!(level, "  Illegal {}", data_abort_access_type(iss),);
     if iss & (1 << 24) != 0 {
@@ -86,30 +86,30 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
 
     #[allow(clippy::single_match)]
     match err_code {
-        EC_DATA_ABORT_ELX => {
-            let far = FAR_EL1.get();
-            dump_data_abort(Level::Error, esr, far);
-        }
-        EC_DATA_ABORT_EL0 => {
+        EC_DATA_ABORT_EL0 | EC_DATA_ABORT_ELX => {
             let far = FAR_EL1.get() as usize;
-            let proc = Process::current();
 
-            if far < mem::KERNEL_OFFSET {
+            if far < mem::KERNEL_OFFSET && sched::is_ready() {
+                let proc = Process::current();
+
                 if let Err(e) = proc.manipulate_space(|space| space.try_cow_copy(far)) {
                     // Kill program
+                    dump_data_abort(Level::Error, esr, far as u64);
                     panic!("CoW copy returned {:?}", e);
                 }
+
                 unsafe {
                     use cortex_a::registers::TTBR0_EL1;
                     let ttbr = TTBR0_EL1.get() as usize;
                     let asid = (ttbr >> 48) & 0xFF;
                     asm!("tlbi aside1, {}", in(reg) (asid << 48));
                 }
+
                 return;
-            } else {
-                // Kill program
-                todo!()
             }
+
+            errorln!("Unresolved data abort");
+            dump_data_abort(Level::Error, esr, far as u64);
         }
         EC_SVC_AA64 => {
             unsafe {

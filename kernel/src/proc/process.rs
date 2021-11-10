@@ -295,8 +295,8 @@ impl Process {
 
             if let Some(space) = lock.space.take() {
                 unsafe {
-                    // TODO invalidate everything related to this ASID
                     Space::release(space);
+                    asm!("tlbi aside1, {}", in(reg) ((lock.id.asid() as usize) << 48));
                 }
             }
 
