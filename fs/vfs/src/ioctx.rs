@@ -1,6 +1,8 @@
 use crate::{FileMode, FileRef, OpenFlags, VnodeKind, VnodeRef};
-use error::Errno;
-use libcommon::{path_component_left, path_component_right};
+use syscall::{
+    error::Errno,
+    path::{path_component_left, path_component_right}
+};
 
 /// I/O context structure
 #[derive(Clone)]

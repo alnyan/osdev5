@@ -2,7 +2,7 @@
 
 use crate::mem;
 use core::mem::size_of;
-use error::Errno;
+use syscall::error::Errno;
 
 fn translate(virt: usize) -> Option<usize> {
     let mut res: usize;

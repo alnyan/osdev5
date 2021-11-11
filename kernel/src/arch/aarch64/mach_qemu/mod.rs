@@ -13,7 +13,7 @@ use crate::dev::{
 };
 use crate::fs::devfs::{self, CharDeviceType};
 use crate::mem::phys;
-use error::Errno;
+use syscall::error::Errno;
 
 pub use gic::IrqNumber;
 

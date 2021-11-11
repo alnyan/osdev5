@@ -2,7 +2,7 @@
 use crate::util::InitOnce;
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicUsize, Ordering};
-use error::Errno;
+use syscall::error::Errno;
 use vfs::{CharDevice, CharDeviceWrapper, Vnode, VnodeKind, VnodeRef};
 
 /// Possible character device kinds

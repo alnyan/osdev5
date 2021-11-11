@@ -10,10 +10,8 @@ name = "kernel"
 test = false
 
 [dependencies]
-error = { path = "../error" }
 vfs = { path = "../fs/vfs" }
 memfs = { path = "../fs/memfs" }
-libcommon = { path = "../libcommon" }
 syscall = { path = "../syscall" }
 cfg-if = "1.x.x"
 tock-registers = "0.7.x"

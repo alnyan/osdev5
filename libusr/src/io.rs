@@ -1,13 +1,15 @@
-use crate::sys::{self, Stat};
 use core::fmt;
-use syscall::stat::AT_FDCWD;
+use syscall::{
+    calls::{sys_fstatat, sys_write},
+    stat::{Stat, AT_FDCWD},
+};
 
 // TODO populate this type
 pub struct Error;
 
 pub fn stat(pathname: &str) -> Result<Stat, Error> {
     let mut buf = Stat::default();
-    let res = unsafe { sys::sys_fstatat(AT_FDCWD, pathname, &mut buf, 0) };
+    let res = unsafe { sys_fstatat(AT_FDCWD, pathname, &mut buf, 0) };
     if res != 0 {
         todo!();
     }
@@ -60,6 +62,6 @@ pub fn _print(fd: i32, args: fmt::Arguments) {
     };
     writer.write_fmt(args).ok();
     unsafe {
-        sys::sys_write(fd, &BUFFER[..writer.pos]);
+        sys_write(fd, &BUFFER[..writer.pos]);
     }
 }

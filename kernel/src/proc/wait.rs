@@ -6,7 +6,7 @@ use crate::proc::{self, sched::SCHED, Pid, Process};
 use crate::sync::IrqSafeSpinLock;
 use alloc::collections::LinkedList;
 use core::time::Duration;
-use error::Errno;
+use syscall::error::Errno;
 
 /// Wait channel structure. Contains a queue of processes
 /// waiting for some event to happen.

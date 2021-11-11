@@ -5,7 +5,7 @@ use crate::mem::{
     phys::{self, PageUsage},
 };
 use core::ops::{Index, IndexMut};
-use error::Errno;
+use syscall::{error::Errno, mem::memset};
 
 /// Transparent wrapper structure representing a single
 /// translation table entry
@@ -320,7 +320,7 @@ impl Space {
             }
         }
         unsafe {
-            mem::memset(space as *mut Space as *mut u8, 0, 4096);
+            memset(space as *mut Space as *mut u8, 0, 4096);
         }
     }
 }

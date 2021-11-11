@@ -1,7 +1,7 @@
 //! Module for serial device drivers
 
 use crate::dev::Device;
-use error::Errno;
+use syscall::error::Errno;
 
 #[cfg(feature = "pl011")]
 pub mod pl011;

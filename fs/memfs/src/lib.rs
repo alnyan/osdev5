@@ -14,8 +14,10 @@ extern crate std;
 use alloc::{boxed::Box, rc::Rc};
 use core::any::Any;
 use core::cell::{Ref, RefCell};
-use error::Errno;
-use libcommon::*;
+use syscall::{
+    error::Errno,
+    path::{path_component_right, path_component_left}
+};
 use vfs::{BlockDevice, FileMode, Filesystem, Vnode, VnodeKind, VnodeRef};
 
 mod block;

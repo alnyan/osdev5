@@ -1,7 +1,7 @@
 //! Interrupt controller and handler interfaces
 use crate::dev::Device;
 use core::marker::PhantomData;
-use error::Errno;
+use syscall::error::Errno;
 
 /// Token to indicate the local core is running in IRQ context
 pub struct IrqContext<'irq_context> {

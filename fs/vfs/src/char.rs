@@ -1,5 +1,5 @@
 use crate::{OpenFlags, Stat, VnodeImpl, VnodeKind, VnodeRef, IoctlCmd};
-use error::Errno;
+use syscall::error::Errno;
 
 /// Generic character device trait
 pub trait CharDevice {

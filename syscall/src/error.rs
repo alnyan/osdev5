@@ -1,5 +1,3 @@
-#![no_std]
-
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Errno {
     AlreadyExists,

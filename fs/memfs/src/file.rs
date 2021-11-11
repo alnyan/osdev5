@@ -1,5 +1,5 @@
 use crate::{BlockAllocator, Bvec};
-use error::Errno;
+use syscall::error::Errno;
 use vfs::{OpenFlags, Stat, VnodeImpl, VnodeKind, VnodeRef, IoctlCmd};
 
 pub struct FileInode<'a, A: BlockAllocator + Copy + 'static> {

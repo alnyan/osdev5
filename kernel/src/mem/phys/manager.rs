@@ -1,8 +1,10 @@
 use super::{PageInfo, PageUsage};
-use crate::mem::{memcpy, memset, virtualize, PAGE_SIZE};
+use crate::mem::{virtualize, PAGE_SIZE};
 use crate::sync::IrqSafeSpinLock;
 use core::mem;
-use error::Errno;
+use syscall::{
+    error::Errno, mem::{memset, memcpy}
+};
 
 pub unsafe trait Manager {
     fn alloc_page(&mut self, pu: PageUsage) -> Result<usize, Errno>;

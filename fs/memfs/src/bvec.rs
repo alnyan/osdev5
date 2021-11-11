@@ -2,7 +2,7 @@ use crate::{block, BlockAllocator, BlockRef};
 use core::cmp::min;
 use core::mem::MaybeUninit;
 use core::ops::{Index, IndexMut};
-use error::Errno;
+use syscall::error::Errno;
 
 const L0_BLOCKS: usize = 32; // 128K
 const L1_BLOCKS: usize = 8; // 16M

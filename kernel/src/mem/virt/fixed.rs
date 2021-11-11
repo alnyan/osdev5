@@ -5,7 +5,7 @@ use crate::mem::{
     virt::{Entry, MapAttributes, Table},
 };
 use cortex_a::asm::barrier::{self, dsb, isb};
-use error::Errno;
+use syscall::error::Errno;
 
 const DEVICE_MAP_OFFSET: usize = mem::KERNEL_OFFSET + (256usize << 30);
 

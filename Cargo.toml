@@ -13,9 +13,7 @@ members = [
     "fs/memfs",
     "fs/fat32",
     "syscall",
-    "libcommon",
     "kernel",
     "libusr",
     "user",
-    "error"
 ]

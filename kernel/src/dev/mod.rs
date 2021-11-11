@@ -1,6 +1,6 @@
 //! Module for device interfaces and drivers
 
-use error::Errno;
+use syscall::error::Errno;
 
 // Device classes
 pub mod fdt;

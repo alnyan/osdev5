@@ -2,8 +2,10 @@ use crate::{VnodeKind, VnodeRef};
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use core::cmp::min;
-use error::Errno;
-use libcommon::{Read, Seek, SeekDir, Write};
+use syscall::{
+    traits::{Read, Seek, SeekDir, Write},
+    error::Errno
+};
 
 struct NormalFile {
     vnode: VnodeRef,

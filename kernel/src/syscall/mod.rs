@@ -6,13 +6,13 @@ use crate::proc::{elf, wait, Pid, Process, ProcessIo};
 use core::mem::size_of;
 use core::ops::DerefMut;
 use core::time::Duration;
-use error::Errno;
-use libcommon::{Read, Write};
 use syscall::{
     abi,
+    error::Errno,
     stat::{AT_EMPTY_PATH, AT_FDCWD},
+    traits::{Read, Write},
 };
-use vfs::{FileMode, OpenFlags, Stat, VnodeRef, IoctlCmd};
+use vfs::{FileMode, IoctlCmd, OpenFlags, Stat, VnodeRef};
 
 pub mod arg;
 pub use arg::*;
@@ -131,8 +131,8 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
                 Ok(exit) => {
                     *status = i32::from(exit);
                     Ok(0)
-                },
-                _ => todo!()
+                }
+                _ => todo!(),
             }
         }
         abi::SYS_IOCTL => {
@@ -144,7 +144,7 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
 
             let node = io.file(fd)?.borrow().node().ok_or(Errno::InvalidFile)?;
             node.ioctl(cmd, args[2], args[3])
-        },
+        }
 
         // Extra system calls
         abi::SYS_EX_DEBUG_TRACE => {

@@ -1,7 +1,7 @@
 use crate::{BlockAllocator, Bvec, FileInode};
 use alloc::boxed::Box;
-use error::Errno;
-use vfs::{OpenFlags, Stat, Vnode, VnodeImpl, VnodeKind, VnodeRef, IoctlCmd};
+use syscall::error::Errno;
+use vfs::{IoctlCmd, OpenFlags, Stat, Vnode, VnodeImpl, VnodeKind, VnodeRef};
 
 pub struct DirInode<A: BlockAllocator + Copy + 'static> {
     alloc: A,

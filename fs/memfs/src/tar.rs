@@ -1,4 +1,4 @@
-use error::Errno;
+use syscall::error::Errno;
 use vfs::VnodeKind;
 
 #[repr(packed)]

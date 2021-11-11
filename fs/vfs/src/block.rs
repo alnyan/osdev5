@@ -1,4 +1,4 @@
-use error::Errno;
+use syscall::error::Errno;
 
 /// Block device interface
 pub trait BlockDevice {
