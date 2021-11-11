@@ -11,7 +11,7 @@ use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use core::fmt;
-use syscall::error::Errno;
+use libsys::error::Errno;
 use tock_registers::{
     interfaces::{ReadWriteable, Readable, Writeable},
     register_bitfields, register_structs,

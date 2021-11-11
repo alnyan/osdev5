@@ -6,7 +6,7 @@ use crate::proc::{elf, wait, Pid, Process, ProcessIo};
 use core::mem::size_of;
 use core::ops::DerefMut;
 use core::time::Duration;
-use syscall::{
+use libsys::{
     abi,
     error::Errno,
     stat::{AT_EMPTY_PATH, AT_FDCWD},

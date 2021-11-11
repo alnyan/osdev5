@@ -2,7 +2,7 @@ use super::{PageInfo, PageUsage};
 use crate::mem::{virtualize, PAGE_SIZE};
 use crate::sync::IrqSafeSpinLock;
 use core::mem;
-use syscall::{
+use libsys::{
     error::Errno, mem::{memset, memcpy}
 };
 

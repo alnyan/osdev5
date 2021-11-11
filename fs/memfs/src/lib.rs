@@ -14,7 +14,7 @@ extern crate std;
 use alloc::{boxed::Box, rc::Rc};
 use core::any::Any;
 use core::cell::{Ref, RefCell};
-use syscall::{
+use libsys::{
     error::Errno,
     path::{path_component_right, path_component_left}
 };

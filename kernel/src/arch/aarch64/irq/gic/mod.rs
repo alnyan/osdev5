@@ -7,7 +7,7 @@ use crate::dev::{
 use crate::mem::virt::{DeviceMemory, DeviceMemoryIo};
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
-use syscall::error::Errno;
+use libsys::error::Errno;
 
 mod gicc;
 use gicc::Gicc;

@@ -1,5 +1,5 @@
 use crate::{FileMode, FileRef, OpenFlags, VnodeKind, VnodeRef};
-use syscall::{
+use libsys::{
     error::Errno,
     path::{path_component_left, path_component_right}
 };

@@ -5,7 +5,7 @@ use crate::mem::{
     phys::{self, PageUsage},
 };
 use core::ops::{Index, IndexMut};
-use syscall::{error::Errno, mem::memset};
+use libsys::{error::Errno, mem::memset};
 
 /// Transparent wrapper structure representing a single
 /// translation table entry

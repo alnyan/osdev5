@@ -72,24 +72,31 @@ dependencies = [
  "cfg-if",
  "cortex-a",
  "fdt-rs",
+ "libsys",
  "memfs",
- "syscall",
  "tock-registers",
  "vfs",
+]
+
+[[package]]
+name = "libsys"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
 ]
 
 [[package]]
 name = "libusr"
 version = "0.1.0"
 dependencies = [
- "syscall",
+ "libsys",
 ]
 
 [[package]]
 name = "memfs"
 version = "0.1.0"
 dependencies = [
- "syscall",
+ "libsys",
  "vfs",
 ]
 
@@ -186,13 +193,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "syscall"
-version = "0.1.0"
-dependencies = [
- "bitflags",
-]
-
-[[package]]
 name = "tock-registers"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -221,5 +221,5 @@ dependencies = [
 name = "vfs"
 version = "0.1.0"
 dependencies = [
- "syscall",
+ "libsys",
 ]

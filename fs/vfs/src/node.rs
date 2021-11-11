@@ -2,7 +2,7 @@ use crate::{File, FileMode, FileRef, Filesystem, IoctlCmd, OpenFlags, Stat};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{RefCell, RefMut};
 use core::fmt;
-use syscall::error::Errno;
+use libsys::error::Errno;
 
 /// Convenience type alias for [Rc<Vnode>]
 pub type VnodeRef = Rc<Vnode>;

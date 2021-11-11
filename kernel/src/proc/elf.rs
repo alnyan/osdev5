@@ -5,7 +5,7 @@ use crate::mem::{
     virt::{MapAttributes, Space},
 };
 use core::mem::{size_of, MaybeUninit};
-use syscall::{
+use libsys::{
     error::Errno,
     traits::{Read, Seek, SeekDir}
 };

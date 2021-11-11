@@ -3,7 +3,7 @@
 use crate::config::{ConfigKey, CONFIG};
 use crate::mem::PAGE_SIZE;
 use core::mem::size_of;
-use syscall::error::Errno;
+use libsys::error::Errno;
 
 mod manager;
 mod reserved;

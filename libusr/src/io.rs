@@ -1,5 +1,5 @@
 use core::fmt;
-use syscall::{
+use libsys::{
     calls::{sys_fstatat, sys_write},
     stat::{Stat, AT_FDCWD},
 };

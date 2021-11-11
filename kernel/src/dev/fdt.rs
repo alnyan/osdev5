@@ -5,7 +5,7 @@ use fdt_rs::{
     base::DevTree,
     index::{DevTreeIndex, DevTreeIndexNode, DevTreeIndexProp},
 };
-use syscall::{error::Errno, path::path_component_left};
+use libsys::{error::Errno, path::path_component_left};
 
 #[repr(align(16))]
 struct Wrap {

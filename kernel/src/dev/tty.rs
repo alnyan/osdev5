@@ -2,8 +2,8 @@
 use crate::dev::serial::SerialDevice;
 use crate::proc::wait::Wait;
 use crate::sync::IrqSafeSpinLock;
-use syscall::error::Errno;
-use syscall::{
+use libsys::error::Errno;
+use libsys::{
     termios::{Termios, TermiosIflag, TermiosLflag, TermiosOflag},
     ioctl::IoctlCmd
 };

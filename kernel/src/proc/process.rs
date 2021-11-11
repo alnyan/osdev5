@@ -11,7 +11,7 @@ use alloc::rc::Rc;
 use core::cell::UnsafeCell;
 use core::fmt;
 use core::sync::atomic::{AtomicU32, Ordering};
-use syscall::error::Errno;
+use libsys::error::Errno;
 
 pub use crate::arch::platform::context::{self, Context};
 

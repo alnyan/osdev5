@@ -2,7 +2,7 @@ use crate::{VnodeKind, VnodeRef};
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use core::cmp::min;
-use syscall::{
+use libsys::{
     traits::{Read, Seek, SeekDir, Write},
     error::Errno
 };

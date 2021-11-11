@@ -7,7 +7,7 @@ use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use core::fmt;
 use cortex_a::registers::MPIDR_EL1;
-use syscall::error::Errno;
+use libsys::error::Errno;
 
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::register_structs;

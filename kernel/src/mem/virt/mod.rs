@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use core::ops::Deref;
 use cortex_a::asm::barrier::{self, dsb, isb};
 use cortex_a::registers::TTBR0_EL1;
-use syscall::error::Errno;
+use libsys::error::Errno;
 use tock_registers::interfaces::Writeable;
 
 pub mod table;

@@ -2,7 +2,7 @@
 
 use crate::dev::Device;
 use core::fmt;
-use syscall::error::Errno;
+use libsys::error::Errno;
 
 pub mod pcie;
 

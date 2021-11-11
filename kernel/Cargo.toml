@@ -12,7 +12,7 @@ test = false
 [dependencies]
 vfs = { path = "../fs/vfs" }
 memfs = { path = "../fs/memfs" }
-syscall = { path = "../syscall" }
+libsys = { path = "../libsys" }
 cfg-if = "1.x.x"
 tock-registers = "0.7.x"
 fdt-rs = { version = "0.x.x", default-features = false }

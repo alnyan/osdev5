@@ -7,9 +7,9 @@ pub mod io;
 pub mod os;
 
 pub mod sys {
-    pub use syscall::calls::*;
-    pub use syscall::stat::{self, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
-    pub use syscall::termios;
+    pub use libsys::calls::*;
+    pub use libsys::stat::{self, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
+    pub use libsys::termios;
 }
 
 #[link_section = ".text._start"]

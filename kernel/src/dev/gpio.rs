@@ -1,7 +1,7 @@
 //! GPIO and pin control interfaces
 
 use crate::dev::Device;
-use syscall::error::Errno;
+use libsys::error::Errno;
 
 /// Pin function mode
 pub enum PinMode {

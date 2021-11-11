@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 vfs = { path = "../vfs" }
-syscall = { path = "../../syscall" }
+libsys = { path = "../../libsys" }
 
 [features]
 cow = []

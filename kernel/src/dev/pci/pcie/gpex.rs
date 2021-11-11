@@ -6,7 +6,7 @@ use crate::dev::{
 };
 use crate::mem::virt::DeviceMemory;
 use crate::util::InitOnce;
-use syscall::error::Errno;
+use libsys::error::Errno;
 
 /// GPEX host controller struct
 pub struct GenericPcieHost {

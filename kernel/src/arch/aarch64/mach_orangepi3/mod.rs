@@ -13,7 +13,7 @@ use crate::dev::{
 };
 use crate::fs::devfs::{self, CharDeviceType};
 use crate::mem::phys;
-use syscall::error::Errno;
+use libsys::error::Errno;
 
 mod gpio;
 mod rtc;

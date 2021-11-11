@@ -3,11 +3,11 @@
 use crate::arch::machine;
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
-use crate::proc::{sched, Process};
 use crate::mem;
+use crate::proc::{sched, Process};
 use crate::syscall;
-use ::syscall::abi;
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
+use libsys::abi;
 use tock_registers::interfaces::Readable;
 
 /// Trapped SIMD/FP functionality
