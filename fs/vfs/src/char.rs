@@ -1,9 +1,5 @@
 use crate::{VnodeImpl, VnodeKind, VnodeRef};
-use libsys::{
-    error::Errno,
-    stat::{OpenFlags, Stat},
-    ioctl::IoctlCmd
-};
+use libsys::{error::Errno, ioctl::IoctlCmd, stat::OpenFlags};
 
 /// Generic character device trait
 pub trait CharDevice {
@@ -48,7 +44,13 @@ impl VnodeImpl for CharDeviceWrapper {
         self.device.write(true, data)
     }
 
-    fn ioctl(&mut self, _node: VnodeRef, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
+    fn ioctl(
+        &mut self,
+        _node: VnodeRef,
+        cmd: IoctlCmd,
+        ptr: usize,
+        len: usize,
+    ) -> Result<usize, Errno> {
         self.device.ioctl(cmd, ptr, len)
     }
 }

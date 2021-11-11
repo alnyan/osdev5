@@ -2,7 +2,6 @@ use crate::{BlockAllocator, Bvec};
 use libsys::{
     error::Errno,
     stat::{OpenFlags, Stat},
-    ioctl::IoctlCmd
 };
 use vfs::{VnodeImpl, VnodeKind, VnodeRef};
 
