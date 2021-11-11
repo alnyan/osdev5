@@ -227,7 +227,11 @@ impl Space {
 
         let src_phys = unsafe { entry.address_unchecked() };
         if !entry.is_cow() {
-            warnln!("Entry is not marked as CoW: {:#x}, points to {:#x}", virt, src_phys);
+            warnln!(
+                "Entry is not marked as CoW: {:#x}, points to {:#x}",
+                virt,
+                src_phys
+            );
             return Err(Errno::DoesNotExist);
         }
 
@@ -270,7 +274,7 @@ impl Space {
                                 unsafe {
                                     asm!("tlbi vaae1, {}", in(reg) virt_addr);
                                 }
-                                res.map(virt_addr, dst_phys, flags);
+                                res.map(virt_addr, dst_phys, flags)?;
                             }
                         }
                     }
@@ -288,8 +292,7 @@ impl Space {
             }
 
             assert!(l0_entry.is_table());
-            let l1_table =
-                unsafe { &mut *(mem::virtualize(l0_entry.address_unchecked()) as *mut Table) };
+            let l1_table = &mut *(mem::virtualize(l0_entry.address_unchecked()) as *mut Table);
 
             for l1i in 0..512 {
                 let l1_entry = l1_table[l1i];
@@ -297,8 +300,7 @@ impl Space {
                     continue;
                 }
                 assert!(l1_entry.is_table());
-                let l2_table =
-                    unsafe { &mut *(mem::virtualize(l1_entry.address_unchecked()) as *mut Table) };
+                let l2_table = &mut *(mem::virtualize(l1_entry.address_unchecked()) as *mut Table);
 
                 for l2i in 0..512 {
                     let entry = l2_table[l2i];
@@ -307,20 +309,12 @@ impl Space {
                     }
 
                     assert!(entry.is_table());
-                    unsafe {
-                        phys::free_page(unsafe { entry.address_unchecked() });
-                    }
+                    phys::free_page(entry.address_unchecked()).unwrap();
                 }
-                unsafe {
-                    phys::free_page(unsafe { l1_entry.address_unchecked() });
-                }
+                phys::free_page(l1_entry.address_unchecked()).unwrap();
             }
-            unsafe {
-                phys::free_page(unsafe { l0_entry.address_unchecked() });
-            }
+            phys::free_page(l0_entry.address_unchecked()).unwrap();
         }
-        unsafe {
-            memset(space as *mut Space as *mut u8, 0, 4096);
-        }
+        memset(space as *mut Space as *mut u8, 0, 4096);
     }
 }

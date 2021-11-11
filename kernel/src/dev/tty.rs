@@ -9,7 +9,6 @@ use libsys::{
 };
 use core::mem::size_of;
 use crate::syscall::arg::validate_user_ptr_struct;
-use vfs::CharDevice;
 
 #[derive(Debug)]
 struct CharRingInner<const N: usize> {
@@ -30,7 +29,7 @@ pub struct CharRing<const N: usize> {
 pub trait TtyDevice<const N: usize>: SerialDevice {
     fn ring(&self) -> &CharRing<N>;
 
-    fn tty_ioctl(&self, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
+    fn tty_ioctl(&self, cmd: IoctlCmd, ptr: usize, _len: usize) -> Result<usize, Errno> {
         match cmd {
             IoctlCmd::TtyGetAttributes => {
                 // TODO validate size
@@ -132,7 +131,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
                         let idx = data[..off].iter().rposition(|&ch| ch == b' ').unwrap_or(0);
                         let len = off;
 
-                        for i in idx..len {
+                        for _ in idx..len {
                             self.raw_write(b"\x1B[D \x1B[D").ok();
                             off -= 1;
                             rem += 1;

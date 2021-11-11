@@ -3,6 +3,7 @@ use crate::error::Errno;
 
 #[derive(Clone, Copy, Debug)]
 #[repr(u32)]
+#[non_exhaustive]
 pub enum IoctlCmd {
     TtySetAttributes = 1,
     TtyGetAttributes = 2,
