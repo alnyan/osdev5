@@ -6,7 +6,7 @@ use crate::dev::irq::{IntController, IrqContext};
 use crate::proc::{sched, Process};
 use crate::mem;
 use crate::syscall;
-use ::syscall::abi;
+use ::syscall::{abi, signal::Signal};
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
 use tock_registers::interfaces::Readable;
 
@@ -76,7 +76,7 @@ fn dump_data_abort(level: Level, esr: u64, far: u64) {
     } else {
         print!(level, " at UNKNOWN");
     }
-    println!(level, "");
+    println!(level, "\x1B[0m");
 }
 
 #[no_mangle]
@@ -95,7 +95,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
                 if let Err(e) = proc.manipulate_space(|space| space.try_cow_copy(far)) {
                     // Kill program
                     dump_data_abort(Level::Error, esr, far as u64);
-                    panic!("CoW copy returned {:?}", e);
+                    proc.enter_signal(Signal::SegmentationFault);
                 }
 
                 unsafe {

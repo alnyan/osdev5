@@ -204,7 +204,7 @@ impl Space {
         } else {
             l2_table[l2i] = Entry::table(phys, flags | MapAttributes::ACCESS);
             #[cfg(feature = "verbose")]
-            debugln!("Map {:#x} -> {:#x}", virt, phys);
+            debugln!("{:#p} Map {:#x} -> {:#x}, {:?}", self, virt, phys, flags);
             Ok(())
         }
     }
@@ -322,5 +322,9 @@ impl Space {
         unsafe {
             mem::memset(space as *mut Space as *mut u8, 0, 4096);
         }
+    }
+
+    pub fn address_phys(&mut self) -> usize {
+        (self as *mut _ as usize) - mem::KERNEL_OFFSET
     }
 }

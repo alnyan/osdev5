@@ -18,7 +18,7 @@ pub struct Context {
     /// Thread's kernel stack pointer
     pub k_sp: usize, // 0x00
 
-    stack_base_phys: usize,
+    stack_base: usize,
     stack_page_count: usize,
 }
 
@@ -35,7 +35,7 @@ impl Context {
         Self {
             k_sp: stack.sp,
 
-            stack_base_phys: stack.bp,
+            stack_base: stack.bp,
             stack_page_count: 8,
         }
     }
@@ -85,7 +85,7 @@ impl Context {
         Self {
             k_sp: stack.sp,
 
-            stack_base_phys: stack.bp,
+            stack_base: stack.bp,
             stack_page_count: 8,
         }
     }
@@ -104,9 +104,31 @@ impl Context {
         Self {
             k_sp: stack.sp,
 
-            stack_base_phys: stack.bp,
+            stack_base: stack.bp,
             stack_page_count: 8,
         }
+    }
+
+    pub fn user_empty() -> Self {
+        let mut stack = Stack::new(8);
+        Self {
+            k_sp: stack.sp,
+            stack_base: stack.bp,
+            stack_page_count: 8
+        }
+    }
+
+    pub unsafe fn setup_signal_entry(&mut self, entry: usize, arg: usize, ttbr0: usize, ustack: usize) {
+        let mut stack = Stack::from_base_size(self.stack_base, self.stack_page_count);
+
+        stack.push(entry);
+        stack.push(arg);
+        stack.push(0);
+        stack.push(ustack);
+
+        stack.setup_common(__aa64_ctx_enter_user as usize, ttbr0);
+
+        self.k_sp = stack.sp;
     }
 
     /// Performs initial thread entry
@@ -137,6 +159,13 @@ impl Stack {
         Stack {
             bp,
             sp: bp + page_count * mem::PAGE_SIZE,
+        }
+    }
+
+    pub unsafe fn from_base_size(bp: usize, page_count: usize) -> Stack {
+        Stack {
+            bp,
+            sp: bp + page_count * mem::PAGE_SIZE
         }
     }
 

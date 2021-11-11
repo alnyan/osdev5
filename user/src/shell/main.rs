@@ -4,6 +4,8 @@
 #[macro_use]
 extern crate libusr;
 
+use libusr::sys::Signal;
+
 fn readline(fd: i32, buf: &mut [u8]) -> Result<&str, ()> {
     let count = unsafe { libusr::sys::sys_read(fd, buf) };
     if count >= 0 {
@@ -25,6 +27,14 @@ fn main() -> i32 {
         let line = line.trim_end_matches('\n');
 
         println!(":: {:?}", line);
+
+        if line == "test" {
+            unsafe {
+                libusr::sys::sys_ex_kill(0, Signal::Interrupt);
+            }
+            trace!("Returned from signal");
+            continue;
+        }
 
         if line == "quit" || line == "exit" {
             break;

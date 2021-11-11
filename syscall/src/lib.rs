@@ -8,6 +8,7 @@ pub mod abi;
 pub mod stat;
 pub mod ioctl;
 pub mod termios;
+pub mod signal;
 
 #[cfg(feature = "user")]
 pub mod calls;

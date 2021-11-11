@@ -10,9 +10,10 @@ use error::Errno;
 use libcommon::{Read, Write};
 use syscall::{
     abi,
+    signal::Signal,
     stat::{AT_EMPTY_PATH, AT_FDCWD},
 };
-use vfs::{FileMode, OpenFlags, Stat, VnodeRef, IoctlCmd};
+use vfs::{FileMode, IoctlCmd, OpenFlags, Stat, VnodeRef};
 
 pub mod arg;
 pub use arg::*;
@@ -131,8 +132,8 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
                 Ok(exit) => {
                     *status = i32::from(exit);
                     Ok(0)
-                },
-                _ => todo!()
+                }
+                _ => todo!(),
             }
         }
         abi::SYS_IOCTL => {
@@ -144,7 +145,7 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
 
             let node = io.file(fd)?.borrow().node().ok_or(Errno::InvalidFile)?;
             node.ioctl(cmd, args[2], args[3])
-        },
+        }
 
         // Extra system calls
         abi::SYS_EX_DEBUG_TRACE => {
@@ -168,6 +169,34 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             }
             res.map(|_| 0)
         }
-        _ => panic!("Undefined system call: {}", num),
+        abi::SYS_EX_SIGNAL => {
+            let proc = Process::current();
+            proc.setup_signal_context(args[0], args[1]);
+            Ok(0)
+        }
+        abi::SYS_EX_SIGRETURN => {
+            let proc = Process::current();
+            proc.return_from_signal();
+            panic!("This code won't run");
+        }
+        abi::SYS_EX_KILL => {
+            let pid = args[0] as i32;
+            let signal = Signal::try_from(args[1] as u32)?;
+            let proc = if pid > 0 {
+                Process::get(unsafe { Pid::from_raw(pid as u32) }).ok_or(Errno::DoesNotExist)?
+            } else if pid == 0 {
+                Process::current()
+            } else {
+                todo!()
+            };
+            proc.set_signal(signal);
+            Ok(0)
+        }
+        _ => {
+            let proc = Process::current();
+            errorln!("Undefined system call: {}", num);
+            proc.enter_signal(Signal::InvalidSystemCall);
+            todo!()
+        }
     }
 }

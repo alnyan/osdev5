@@ -12,6 +12,7 @@ use core::cell::UnsafeCell;
 use core::fmt;
 use core::sync::atomic::{AtomicU32, Ordering};
 use error::Errno;
+use syscall::signal::Signal;
 
 pub use crate::arch::platform::context::{self, Context};
 
@@ -47,14 +48,19 @@ struct ProcessInner {
     id: Pid,
     wait_flag: bool,
     exit: Option<ExitCode>,
+    signal_entry: usize,
+    signal_stack: usize,
 }
 
 /// Structure describing an operating system process
 #[allow(dead_code)]
 pub struct Process {
     ctx: UnsafeCell<Context>,
+    signal_ctx: UnsafeCell<Context>,
     inner: IrqSafeSpinLock<ProcessInner>,
     exit_wait: Wait,
+    signal_state: AtomicU32,
+    signal_pending: AtomicU32,
     /// Process I/O context
     pub io: IrqSafeSpinLock<ProcessIo>,
 }
@@ -154,6 +160,90 @@ impl Process {
         PROCESSES.lock().get(&pid).cloned()
     }
 
+    pub fn set_signal(&self, signal: Signal) {
+        let mut lock = self.inner.lock();
+
+        match lock.state {
+            State::Running => {
+                drop(lock);
+                self.enter_signal(signal);
+            }
+            State::Waiting => {
+                // TODO abort whatever the process is waiting for
+                todo!()
+            }
+            State::Ready => {
+                todo!()
+            }
+            State::Finished => {
+                // TODO report error back
+                todo!()
+            }
+        }
+    }
+
+    pub fn return_from_signal(&self) {
+        if self.signal_pending.load(Ordering::Acquire) == 0 {
+            panic!("TODO handle cases when returning from no signal");
+        }
+        self.signal_pending.store(0, Ordering::Release);
+
+        let src_ctx = self.signal_ctx.get();
+        let dst_ctx = self.ctx.get();
+
+        assert_eq!(self.inner.lock().state, State::Running);
+
+        unsafe {
+            (&mut *src_ctx).switch(&mut *dst_ctx);
+        }
+    }
+
+    pub fn enter_signal(&self, signal: Signal) {
+        if self
+            .signal_pending
+            .compare_exchange_weak(0, signal as u32, Ordering::SeqCst, Ordering::Relaxed)
+            .is_err()
+        {
+            panic!("Already handling a signal (maybe handle this case)");
+        }
+
+        let mut lock = self.inner.lock();
+        let signal_ctx = unsafe { &mut *self.signal_ctx.get() };
+
+        let dst_id = lock.id;
+        let dst_space_phys = lock.space.as_mut().unwrap().address_phys();
+        let dst_ttbr0 = dst_space_phys | ((dst_id.asid() as usize) << 48);
+
+        debugln!(
+            "Signal entry: pc={:#x}, sp={:#x}, ttbr0={:#x}",
+            lock.signal_entry,
+            lock.signal_stack,
+            dst_ttbr0
+        );
+        assert_eq!(lock.state, State::Running);
+
+        unsafe {
+            signal_ctx.setup_signal_entry(
+                lock.signal_entry,
+                signal as usize,
+                dst_ttbr0,
+                lock.signal_stack,
+            );
+        }
+        let src_ctx = self.ctx.get();
+        drop(lock);
+
+        unsafe {
+            (&mut *src_ctx).switch(signal_ctx);
+        }
+    }
+
+    pub fn setup_signal_context(&self, entry: usize, stack: usize) {
+        let mut lock = self.inner.lock();
+        lock.signal_entry = entry;
+        lock.signal_stack = stack;
+    }
+
     /// Schedules an initial thread for execution
     ///
     /// # Safety
@@ -163,9 +253,7 @@ impl Process {
     pub unsafe fn enter(proc: ProcessRef) -> ! {
         // FIXME use some global lock to guarantee atomicity of thread entry?
         proc.inner.lock().state = State::Running;
-        let ctx = proc.ctx.get();
-
-        (&mut *ctx).enter()
+        proc.current_context().enter()
     }
 
     #[inline]
@@ -174,6 +262,14 @@ impl Process {
         f: F,
     ) -> Result<(), Errno> {
         f(self.inner.lock().space.as_mut().unwrap())
+    }
+
+    fn current_context(&self) -> &mut Context {
+        if self.signal_pending.load(Ordering::Acquire) != 0 {
+            unsafe { &mut *self.signal_ctx.get() }
+        } else {
+            unsafe { &mut *self.ctx.get() }
+        }
     }
 
     /// Schedules a next thread for execution
@@ -197,8 +293,8 @@ impl Process {
             dst_lock.state = State::Running;
         }
 
-        let src_ctx = src.ctx.get();
-        let dst_ctx = dst.ctx.get();
+        let src_ctx = src.current_context();
+        let dst_ctx = dst.current_context();
 
         (&mut *src_ctx).switch(&mut *dst_ctx);
     }
@@ -237,9 +333,14 @@ impl Process {
         let id = Pid::new_kernel();
         let res = Rc::new(Self {
             ctx: UnsafeCell::new(Context::kernel(entry as usize, arg)),
+            signal_ctx: UnsafeCell::new(Context::user_empty()),
             io: IrqSafeSpinLock::new(ProcessIo::new()),
             exit_wait: Wait::new(),
+            signal_state: AtomicU32::new(0),
+            signal_pending: AtomicU32::new(0),
             inner: IrqSafeSpinLock::new(ProcessInner {
+                signal_entry: 0,
+                signal_stack: 0,
                 id,
                 exit: None,
                 space: None,
@@ -265,9 +366,14 @@ impl Process {
 
         let dst = Rc::new(Self {
             ctx: UnsafeCell::new(Context::fork(frame, dst_ttbr0)),
+            signal_ctx: UnsafeCell::new(Context::user_empty()),
             io: IrqSafeSpinLock::new(src_io.fork()?),
             exit_wait: Wait::new(),
+            signal_state: AtomicU32::new(0),
+            signal_pending: AtomicU32::new(0),
             inner: IrqSafeSpinLock::new(ProcessInner {
+                signal_entry: 0,
+                signal_stack: 0,
                 id: dst_id,
                 exit: None,
                 space: Some(dst_space),

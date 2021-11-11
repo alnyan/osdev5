@@ -1,6 +1,7 @@
 use crate::abi;
 use crate::{
     ioctl::IoctlCmd,
+    signal::Signal,
     stat::{FileMode, OpenFlags, Stat},
 };
 use core::mem::size_of;
@@ -197,4 +198,20 @@ pub unsafe fn sys_ioctl(fd: u32, cmd: IoctlCmd, ptr: usize, len: usize) -> isize
         argn!(ptr),
         argn!(len)
     ) as isize
+}
+
+#[inline(always)]
+pub unsafe fn sys_ex_signal(entry: usize, stack: usize) {
+    syscall!(abi::SYS_EX_SIGNAL, argn!(entry), argn!(stack));
+}
+
+#[inline(always)]
+pub unsafe fn sys_ex_sigreturn() -> ! {
+    syscall!(abi::SYS_EX_SIGRETURN);
+    unreachable!();
+}
+
+#[inline(always)]
+pub unsafe fn sys_ex_kill(pid: u32, signum: Signal) -> i32 {
+    syscall!(abi::SYS_EX_KILL, argn!(pid), argn!(signum as u32)) as i32
 }
