@@ -19,7 +19,7 @@
 #![warn(missing_docs)]
 
 #[macro_use]
-extern crate macros;
+extern crate kernel_macros;
 #[macro_use]
 extern crate cfg_if;
 #[macro_use]

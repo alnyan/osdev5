@@ -80,11 +80,19 @@ dependencies = [
  "cfg-if",
  "cortex-a",
  "fdt-rs",
+ "kernel-macros",
  "libsys",
- "macros",
  "memfs",
  "tock-registers",
  "vfs",
+]
+
+[[package]]
+name = "kernel-macros"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -99,14 +107,6 @@ name = "libusr"
 version = "0.1.0"
 dependencies = [
  "libsys",
-]
-
-[[package]]
-name = "macros"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn",
 ]
 
 [[package]]
