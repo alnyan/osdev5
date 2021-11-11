@@ -5,8 +5,10 @@ use crate::mem::{
     virt::{MapAttributes, Space},
 };
 use core::mem::{size_of, MaybeUninit};
-use error::Errno;
-use libcommon::{Read, Seek, SeekDir};
+use libsys::{
+    error::Errno,
+    traits::{Read, Seek, SeekDir}
+};
 use vfs::FileRef;
 
 trait Elf {

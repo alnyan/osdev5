@@ -1,4 +1,4 @@
-use error::Errno;
+use crate::error::Errno;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 #[repr(u32)]

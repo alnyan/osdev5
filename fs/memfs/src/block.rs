@@ -1,6 +1,6 @@
 use core::mem::{size_of, MaybeUninit};
 use core::ops::{Deref, DerefMut};
-use error::Errno;
+use libsys::error::Errno;
 
 pub const SIZE: usize = 4096;
 pub const ENTRY_COUNT: usize = SIZE / size_of::<usize>();

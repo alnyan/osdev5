@@ -2,7 +2,7 @@
 
 use crate::dev::Device;
 use core::time::Duration;
-use error::Errno;
+use libsys::error::Errno;
 
 /// Interface for generic timestamp source
 pub trait TimestampSource: Device {

@@ -2,7 +2,7 @@ use crate::{BlockDevice, VnodeRef};
 use alloc::rc::Rc;
 use core::any::Any;
 use core::cell::Ref;
-use error::Errno;
+use libsys::error::Errno;
 
 /// General filesystem interface
 pub trait Filesystem {

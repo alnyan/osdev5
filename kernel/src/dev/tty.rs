@@ -2,14 +2,13 @@
 use crate::dev::serial::SerialDevice;
 use crate::proc::wait::Wait;
 use crate::sync::IrqSafeSpinLock;
-use error::Errno;
-use syscall::{
+use libsys::error::Errno;
+use libsys::{
     termios::{Termios, TermiosIflag, TermiosLflag, TermiosOflag},
     ioctl::IoctlCmd
 };
 use core::mem::size_of;
 use crate::syscall::arg::validate_user_ptr_struct;
-use vfs::CharDevice;
 
 #[derive(Debug)]
 struct CharRingInner<const N: usize> {
@@ -27,10 +26,13 @@ pub struct CharRing<const N: usize> {
     inner: IrqSafeSpinLock<CharRingInner<N>>,
 }
 
+/// Generic teletype device interface
 pub trait TtyDevice<const N: usize>: SerialDevice {
+    /// Returns a reference to character device's ring buffer
     fn ring(&self) -> &CharRing<N>;
 
-    fn tty_ioctl(&self, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
+    /// Performs a TTY control request
+    fn tty_ioctl(&self, cmd: IoctlCmd, ptr: usize, _len: usize) -> Result<usize, Errno> {
         match cmd {
             IoctlCmd::TtyGetAttributes => {
                 // TODO validate size
@@ -47,6 +49,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         }
     }
 
+    /// Processes and writes output an output byte
     fn line_send(&self, byte: u8) -> Result<(), Errno> {
         let config = self.ring().config.lock();
 
@@ -57,6 +60,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         self.send(byte)
     }
 
+    /// Receives input bytes and processes them
     fn recv_byte(&self, mut byte: u8) {
         let ring = self.ring();
         let config = ring.config.lock();
@@ -105,7 +109,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         let ring = self.ring();
         let mut config = ring.config.lock();
 
-        if data.len() == 0 {
+        if data.is_empty() {
             return Ok(0);
         }
 
@@ -113,7 +117,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
             drop(config);
             let byte = ring.getc()?;
             data[0] = byte;
-            return Ok(1);
+            Ok(1)
         } else {
             let mut rem = data.len();
             let mut off = 0;
@@ -140,7 +144,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
                         let idx = data[..off].iter().rposition(|&ch| ch == b' ').unwrap_or(0);
                         let len = off;
 
-                        for i in idx..len {
+                        for _ in idx..len {
                             self.raw_write(b"\x1B[D \x1B[D").ok();
                             off -= 1;
                             rem += 1;
@@ -173,6 +177,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         }
     }
 
+    /// Processes and writes string bytes
     fn line_write(&self, data: &[u8]) -> Result<usize, Errno> {
         for &byte in data.iter() {
             self.line_send(byte)?;
@@ -180,6 +185,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         Ok(data.len())
     }
 
+    /// Writes string bytes without any processing
     fn raw_write(&self, data: &[u8]) -> Result<usize, Errno> {
         for &byte in data.iter() {
             self.send(byte)?;

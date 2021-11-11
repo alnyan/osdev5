@@ -1,6 +1,9 @@
-use crate::{FileMode, FileRef, OpenFlags, VnodeKind, VnodeRef};
-use error::Errno;
-use libcommon::{path_component_left, path_component_right};
+use crate::{FileRef, VnodeKind, VnodeRef};
+use libsys::{
+    error::Errno,
+    stat::{OpenFlags, FileMode},
+    path::{path_component_left, path_component_right},
+};
 
 /// I/O context structure
 #[derive(Clone)]
@@ -117,9 +120,11 @@ mod tests {
     use super::*;
     use crate::{Vnode, VnodeImpl, VnodeKind};
     use alloc::{boxed::Box, rc::Rc};
+    use libsys::{ioctl::IoctlCmd, stat::OpenFlags, stat::Stat};
 
     pub struct DummyInode;
 
+    #[auto_inode]
     impl VnodeImpl for DummyInode {
         fn create(
             &mut self,
@@ -132,36 +137,8 @@ mod tests {
             Ok(vnode)
         }
 
-        fn remove(&mut self, _at: VnodeRef, _name: &str) -> Result<(), Errno> {
-            todo!()
-        }
-
         fn lookup(&mut self, _at: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
             Err(Errno::DoesNotExist)
-        }
-
-        fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            todo!()
-        }
-
-        fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
-            todo!()
-        }
-
-        fn read(&mut self, _node: VnodeRef, _pos: usize, _data: &mut [u8]) -> Result<usize, Errno> {
-            todo!()
-        }
-
-        fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
-            todo!()
-        }
-
-        fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
-            todo!()
-        }
-
-        fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            todo!()
         }
     }
 

@@ -1,3 +1,11 @@
+pub fn read_le32(src: &[u8]) -> u32 {
+    (src[0] as u32) | ((src[1] as u32) << 8) | ((src[2] as u32) << 16) | ((src[3] as u32) << 24)
+}
+
+pub fn read_le16(src: &[u8]) -> u16 {
+    (src[0] as u16) | ((src[1] as u16) << 8)
+}
+
 /// See memcpy(3p).
 ///
 /// # Safety

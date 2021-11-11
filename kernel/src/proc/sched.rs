@@ -126,6 +126,7 @@ impl Scheduler {
     }
 }
 
+/// Returns `true` if the scheduler has been initialized
 pub fn is_ready() -> bool {
     SCHED.inner.is_initialized()
 }

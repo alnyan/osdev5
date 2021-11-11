@@ -8,7 +8,7 @@ use crate::dev::{
 };
 use core::time::Duration;
 use cortex_a::registers::{CNTFRQ_EL0, CNTPCT_EL0, CNTP_CTL_EL0, CNTP_TVAL_EL0};
-use error::Errno;
+use libsys::error::Errno;
 use tock_registers::interfaces::{Readable, Writeable};
 
 /// Generic timer struct

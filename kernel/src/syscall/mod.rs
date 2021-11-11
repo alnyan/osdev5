@@ -6,14 +6,15 @@ use crate::proc::{elf, wait, Pid, Process, ProcessIo};
 use core::mem::size_of;
 use core::ops::DerefMut;
 use core::time::Duration;
-use error::Errno;
-use libcommon::{Read, Write};
-use syscall::{
+use libsys::{
     abi,
     signal::Signal,
-    stat::{AT_EMPTY_PATH, AT_FDCWD},
+    error::Errno,
+    ioctl::IoctlCmd,
+    stat::{FileMode, OpenFlags, Stat, AT_EMPTY_PATH, AT_FDCWD},
+    traits::{Read, Write},
 };
-use vfs::{FileMode, IoctlCmd, OpenFlags, Stat, VnodeRef};
+use vfs::VnodeRef;
 
 pub mod arg;
 pub use arg::*;

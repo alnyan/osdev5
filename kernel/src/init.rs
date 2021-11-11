@@ -5,7 +5,8 @@ use crate::fs::{devfs, MemfsBlockAlloc};
 use crate::mem;
 use crate::proc::{elf, Process};
 use memfs::Ramfs;
-use vfs::{Filesystem, Ioctx, OpenFlags};
+use libsys::stat::OpenFlags;
+use vfs::{Filesystem, Ioctx};
 
 /// Kernel init process function
 #[inline(never)]

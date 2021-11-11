@@ -1,8 +1,8 @@
 use super::{PageInfo, PageUsage, PageStatistics};
-use crate::mem::{memcpy, memset, virtualize, PAGE_SIZE};
+use crate::mem::{virtualize, PAGE_SIZE};
 use crate::sync::IrqSafeSpinLock;
 use core::mem;
-use error::Errno;
+use libsys::{error::Errno, mem::memcpy};
 
 pub unsafe trait Manager {
     fn alloc_page(&mut self, pu: PageUsage) -> Result<usize, Errno>;
@@ -144,25 +144,28 @@ unsafe impl Manager for SimpleManager {
 
     fn copy_cow_page(&mut self, src: usize) -> Result<usize, Errno> {
         let src_index = self.page_index(src);
-        let page = &mut self.pages[src_index];
-        let usage = page.usage;
-        if usage != PageUsage::UserPrivate {
-            panic!("CoW not available for non-UserPrivate pages: {:?}", usage);
-        }
+        let (usage, refcount) = {
+            let page = &mut self.pages[src_index];
+            let usage = page.usage;
+            if usage != PageUsage::UserPrivate {
+                panic!("CoW not available for non-UserPrivate pages: {:?}", usage);
+            }
+            let count = page.refcount;
+            if count > 1 {
+                page.refcount -= 1;
+            }
+            (usage, count)
+        };
 
-        if page.refcount > 1 {
-            page.refcount -= 1;
-            drop(page);
+        if refcount == 0 {
+            Ok(src)
+        } else {
             let dst_index = self.alloc_single_index(usage)?;
             let dst = (self.base_index + dst_index) * PAGE_SIZE;
             unsafe {
                 memcpy(virtualize(dst) as *mut u8, virtualize(src) as *mut u8, 4096);
             }
             Ok(dst)
-        } else {
-            assert_eq!(page.refcount, 1);
-            // No additional operations needed
-            Ok(src)
         }
     }
 

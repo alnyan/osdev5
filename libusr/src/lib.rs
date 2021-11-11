@@ -4,14 +4,13 @@
 use core::panic::PanicInfo;
 
 pub mod io;
-pub mod mem;
 pub mod os;
 
 pub mod sys {
-    pub use syscall::calls::*;
-    pub use syscall::stat::*;
-    pub use syscall::signal::Signal;
-    pub use syscall::termios;
+    pub use libsys::signal::Signal;
+    pub use libsys::termios;
+    pub use libsys::calls::*;
+    pub use libsys::stat::{self, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 }
 
 #[inline(never)]

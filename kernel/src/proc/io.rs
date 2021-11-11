@@ -1,6 +1,6 @@
 //! Process file descriptors and I/O context
 use alloc::collections::BTreeMap;
-use error::Errno;
+use libsys::error::Errno;
 use vfs::{FileRef, Ioctx};
 
 /// Process I/O context. Contains file tables, root/cwd info etc.

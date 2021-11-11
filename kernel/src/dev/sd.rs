@@ -1,6 +1,6 @@
 //! SD host controller interface and card operation facilities
 use crate::dev::Device;
-use error::Errno;
+use libsys::error::Errno;
 use vfs::BlockDevice;
 
 /// Generic SD/MMC host controller interface

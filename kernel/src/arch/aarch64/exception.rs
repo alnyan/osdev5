@@ -3,10 +3,10 @@
 use crate::arch::machine;
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
-use crate::proc::{sched, Process};
 use crate::mem;
+use crate::proc::{sched, Process};
 use crate::syscall;
-use ::syscall::{abi, signal::Signal};
+use libsys::{abi, signal::Signal};
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
 use tock_registers::interfaces::Readable;
 

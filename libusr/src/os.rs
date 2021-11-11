@@ -1,7 +1,7 @@
 use crate::sys;
 use core::fmt;
 use core::mem::{size_of, MaybeUninit};
-use syscall::{ioctl::IoctlCmd, termios::Termios};
+use libsys::{ioctl::IoctlCmd, termios::Termios};
 
 pub fn get_tty_attrs(fd: u32) -> Result<Termios, &'static str> {
     let mut termios = MaybeUninit::<Termios>::uninit();

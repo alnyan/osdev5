@@ -5,7 +5,7 @@ use crate::mem::{
     phys::{self, PageUsage},
 };
 use core::ops::{Index, IndexMut};
-use error::Errno;
+use libsys::{error::Errno, mem::memset};
 
 /// Transparent wrapper structure representing a single
 /// translation table entry
@@ -38,6 +38,7 @@ bitflags! {
         /// This page is used for device-MMIO mapping and uses MAIR attribute #1
         const DEVICE = 1 << 2;
 
+        /// Pages marked with this bit are Copy-on-Write
         const EX_COW = 1 << 55;
 
         /// UXN bit -- if set, page may not be used for instruction fetching from EL0
@@ -209,6 +210,8 @@ impl Space {
         }
     }
 
+    /// Attempts to resolve a page fault at `virt` address by copying the
+    /// underlying Copy-on-Write mapping (if any is present)
     pub fn try_cow_copy(&mut self, virt: usize) -> Result<(), Errno> {
         let virt = virt & !0xFFF;
         let l0i = virt >> 30;
@@ -227,7 +230,11 @@ impl Space {
 
         let src_phys = unsafe { entry.address_unchecked() };
         if !entry.is_cow() {
-            warnln!("Entry is not marked as CoW: {:#x}, points to {:#x}", virt, src_phys);
+            warnln!(
+                "Entry is not marked as CoW: {:#x}, points to {:#x}",
+                virt,
+                src_phys
+            );
             return Err(Errno::DoesNotExist);
         }
 
@@ -270,7 +277,7 @@ impl Space {
                                 unsafe {
                                     asm!("tlbi vaae1, {}", in(reg) virt_addr);
                                 }
-                                res.map(virt_addr, dst_phys, flags);
+                                res.map(virt_addr, dst_phys, flags)?;
                             }
                         }
                     }
@@ -280,6 +287,13 @@ impl Space {
         Ok(res)
     }
 
+    /// Releases all the mappings from the address space. Frees all
+    /// memory pages referenced by this space as well as those used for
+    /// its paging tables.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe: may invalidate currently active address space
     pub unsafe fn release(space: &mut Self) {
         for l0i in 0..512 {
             let l0_entry = space.0[l0i];
@@ -288,8 +302,7 @@ impl Space {
             }
 
             assert!(l0_entry.is_table());
-            let l1_table =
-                unsafe { &mut *(mem::virtualize(l0_entry.address_unchecked()) as *mut Table) };
+            let l1_table = &mut *(mem::virtualize(l0_entry.address_unchecked()) as *mut Table);
 
             for l1i in 0..512 {
                 let l1_entry = l1_table[l1i];
@@ -297,8 +310,7 @@ impl Space {
                     continue;
                 }
                 assert!(l1_entry.is_table());
-                let l2_table =
-                    unsafe { &mut *(mem::virtualize(l1_entry.address_unchecked()) as *mut Table) };
+                let l2_table = &mut *(mem::virtualize(l1_entry.address_unchecked()) as *mut Table);
 
                 for l2i in 0..512 {
                     let entry = l2_table[l2i];
@@ -307,21 +319,13 @@ impl Space {
                     }
 
                     assert!(entry.is_table());
-                    unsafe {
-                        phys::free_page(unsafe { entry.address_unchecked() });
-                    }
+                    phys::free_page(entry.address_unchecked()).unwrap();
                 }
-                unsafe {
-                    phys::free_page(unsafe { l1_entry.address_unchecked() });
-                }
+                phys::free_page(l1_entry.address_unchecked()).unwrap();
             }
-            unsafe {
-                phys::free_page(unsafe { l0_entry.address_unchecked() });
-            }
+            phys::free_page(l0_entry.address_unchecked()).unwrap();
         }
-        unsafe {
-            mem::memset(space as *mut Space as *mut u8, 0, 4096);
-        }
+        memset(space as *mut Space as *mut u8, 0, 4096);
     }
 
     pub fn address_phys(&mut self) -> usize {

@@ -1,7 +1,11 @@
 use crate::{Bpb, FileInode};
 use alloc::{borrow::ToOwned, boxed::Box, string::String};
-use error::Errno;
-use libcommon::{read_le16, read_le32};
+use libsys::{
+    error::Errno,
+    ioctl::IoctlCmd,
+    mem::{read_le16, read_le32},
+    stat::{OpenFlags, Stat},
+};
 use vfs::{BlockDevice, Vnode, VnodeImpl, VnodeKind, VnodeRef};
 
 pub struct DirectoryInode {
@@ -26,20 +30,8 @@ pub struct Dirent {
     pub cluster: u32,
 }
 
+#[auto_inode]
 impl VnodeImpl for DirectoryInode {
-    fn create(
-        &mut self,
-        _parent: VnodeRef,
-        _name: &str,
-        _kind: VnodeKind,
-    ) -> Result<VnodeRef, Errno> {
-        todo!()
-    }
-
-    fn remove(&mut self, _parent: VnodeRef, _name: &str) -> Result<(), Errno> {
-        todo!()
-    }
-
     fn lookup(&mut self, parent: VnodeRef, name: &str) -> Result<VnodeRef, Errno> {
         let fs = parent.fs().unwrap();
         let dirent = {
@@ -71,30 +63,6 @@ impl VnodeImpl for DirectoryInode {
             }));
         }
         Ok(vnode)
-    }
-
-    fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-        todo!()
-    }
-
-    fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
-        todo!()
-    }
-
-    fn read(&mut self, _node: VnodeRef, _pos: usize, _data: &mut [u8]) -> Result<usize, Errno> {
-        todo!()
-    }
-
-    fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
-        todo!()
-    }
-
-    fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
-        todo!()
-    }
-
-    fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-        todo!()
     }
 }
 

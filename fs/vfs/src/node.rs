@@ -1,8 +1,12 @@
-use crate::{File, FileMode, FileRef, Filesystem, IoctlCmd, OpenFlags, Stat};
+use crate::{File, FileRef, Filesystem};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{RefCell, RefMut};
 use core::fmt;
-use error::Errno;
+use libsys::{
+    error::Errno,
+    ioctl::IoctlCmd,
+    stat::{FileMode, OpenFlags, Stat},
+};
 
 /// Convenience type alias for [Rc<Vnode>]
 pub type VnodeRef = Rc<Vnode>;
@@ -76,6 +80,7 @@ pub trait VnodeImpl {
     /// Reports the size of this filesystem object in bytes
     fn size(&mut self, node: VnodeRef) -> Result<usize, Errno>;
 
+    /// Performs filetype-specific request
     fn ioctl(
         &mut self,
         node: VnodeRef,
@@ -405,8 +410,10 @@ impl fmt::Debug for Vnode {
 mod tests {
     use super::*;
 
+    use libsys::{ioctl::IoctlCmd, stat::OpenFlags, stat::Stat};
     pub struct DummyInode;
 
+    #[auto_inode]
     impl VnodeImpl for DummyInode {
         fn create(
             &mut self,
@@ -425,30 +432,6 @@ mod tests {
 
         fn lookup(&mut self, _at: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
             Err(Errno::DoesNotExist)
-        }
-
-        fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn read(&mut self, _node: VnodeRef, _pos: usize, _data: &mut [u8]) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
         }
     }
 
@@ -469,10 +452,13 @@ mod tests {
 
         root.set_data(Box::new(DummyInode {}));
 
-        let node = root.mkdir("test", FileMode::default_dir()).unwrap();
+        let node = root
+            .create("test", FileMode::default_dir(), VnodeKind::Directory)
+            .unwrap();
 
         assert_eq!(
-            root.mkdir("test", FileMode::default_dir()).unwrap_err(),
+            root.create("test", FileMode::default_dir(), VnodeKind::Directory)
+                .unwrap_err(),
             Errno::AlreadyExists
         );
 
