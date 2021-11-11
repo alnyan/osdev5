@@ -32,6 +32,16 @@ pub enum PageUsage {
     Filesystem,
 }
 
+#[derive(Clone, Debug)]
+pub struct PageStatistics {
+    available: usize,
+    kernel: usize,
+    kernel_heap: usize,
+    paging: usize,
+    user_private: usize,
+    filesystem: usize,
+}
+
 /// Data structure representing a single physical memory page
 pub struct PageInfo {
     refcount: usize,
@@ -66,18 +76,57 @@ impl Iterator for SimpleMemoryIterator {
     }
 }
 
+#[cfg(feature = "verbose")]
+fn trace_alloc(loc: &core::panic::Location, pu: PageUsage, base: usize, count: usize) {
+    use crate::debug::Level;
+    println!(
+        Level::Debug,
+        "\x1B[36;1m[phys/alloc] {}:{} {:?} {:#x}..{:#x}\x1B[0m",
+        loc.file(),
+        loc.line(),
+        pu,
+        base,
+        base + count * PAGE_SIZE
+    );
+}
+
+#[cfg(feature = "verbose")]
+fn trace_free(loc: &core::panic::Location, page: usize) {
+    use crate::debug::Level;
+    println!(
+        Level::Debug,
+        "\x1B[36;1m[phys/free] {}:{} {:#x}..{:#x}\x1B[0m",
+        loc.file(),
+        loc.line(),
+        page,
+        page + PAGE_SIZE
+    );
+}
+
 /// Allocates a contiguous range of `count` physical memory pages.
+#[cfg_attr(feature = "verbose", track_caller)]
 pub fn alloc_contiguous_pages(pu: PageUsage, count: usize) -> Result<usize, Errno> {
-    MANAGER
+    let res = MANAGER
         .lock()
         .as_mut()
         .unwrap()
-        .alloc_contiguous_pages(pu, count)
+        .alloc_contiguous_pages(pu, count);
+    #[cfg(feature = "verbose")]
+    if let Ok(base) = res {
+        trace_alloc(&core::panic::Location::caller(), pu, base, count);
+    }
+    res
 }
 
 /// Allocates a single physical memory page.
+#[cfg_attr(feature = "verbose", track_caller)]
 pub fn alloc_page(pu: PageUsage) -> Result<usize, Errno> {
-    MANAGER.lock().as_mut().unwrap().alloc_page(pu)
+    let res = MANAGER.lock().as_mut().unwrap().alloc_page(pu);
+    #[cfg(feature = "verbose")]
+    if let Ok(base) = res {
+        trace_alloc(&core::panic::Location::caller(), pu, base, 1);
+    }
+    res
 }
 
 /// Releases a single physical memory page back for further allocation.
@@ -85,8 +134,17 @@ pub fn alloc_page(pu: PageUsage) -> Result<usize, Errno> {
 /// # Safety
 ///
 /// Unsafe: accepts arbitrary `page` arguments
+#[cfg_attr(feature = "verbose", track_caller)]
 pub unsafe fn free_page(page: usize) -> Result<(), Errno> {
+    #[cfg(feature = "verbose")]
+    {
+        trace_free(&core::panic::Location::caller(), page);
+    }
     MANAGER.lock().as_mut().unwrap().free_page(page)
+}
+
+pub fn statistics() -> PageStatistics {
+    MANAGER.lock().as_ref().unwrap().statistics()
 }
 
 /// # Safety

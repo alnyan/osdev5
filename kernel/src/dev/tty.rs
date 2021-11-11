@@ -61,6 +61,14 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         let ring = self.ring();
         let config = ring.config.lock();
 
+        if byte == b'@' {
+            use crate::mem::phys;
+            let stat = phys::statistics();
+            debugln!("Physical memory stats:");
+            debugln!("{:#?}", stat);
+            return;
+        }
+
         if byte == b'\r' && config.iflag.contains(TermiosIflag::ICRNL) {
             byte = b'\n';
         }

@@ -1,4 +1,4 @@
-use super::{PageInfo, PageUsage};
+use super::{PageInfo, PageUsage, PageStatistics};
 use crate::mem::{memcpy, memset, virtualize, PAGE_SIZE};
 use crate::sync::IrqSafeSpinLock;
 use core::mem;
@@ -10,10 +10,12 @@ pub unsafe trait Manager {
     fn free_page(&mut self, page: usize) -> Result<(), Errno>;
     fn copy_cow_page(&mut self, src: usize) -> Result<usize, Errno>;
     fn fork_page(&mut self, src: usize) -> Result<usize, Errno>;
+    fn statistics(&self) -> PageStatistics;
     // TODO status()
 }
 pub struct SimpleManager {
     pages: &'static mut [PageInfo],
+    stats: PageStatistics,
     base_index: usize,
 }
 impl SimpleManager {
@@ -32,6 +34,14 @@ impl SimpleManager {
         }
         Self {
             base_index: base / PAGE_SIZE,
+            stats: PageStatistics {
+                available: 0,
+                kernel: 0,
+                kernel_heap: 0,
+                paging: 0,
+                user_private: 0,
+                filesystem: 0
+            },
             pages,
         }
     }
@@ -39,6 +49,7 @@ impl SimpleManager {
         let page = &mut self.pages[self.page_index(addr)];
         assert!(page.refcount == 0 && page.usage == PageUsage::Reserved);
         page.usage = PageUsage::Available;
+        self.stats.available += 1;
     }
 
     fn page_index(&self, page: usize) -> usize {
@@ -56,11 +67,41 @@ impl SimpleManager {
         }
         Err(Errno::OutOfMemory)
     }
+
+    fn update_stats_alloc(&mut self, pu: PageUsage, count: usize) {
+        let field = match pu {
+            PageUsage::Kernel => &mut self.stats.kernel,
+            PageUsage::KernelHeap => &mut self.stats.kernel_heap,
+            PageUsage::Paging => &mut self.stats.paging,
+            PageUsage::UserPrivate => &mut self.stats.user_private,
+            PageUsage::Filesystem => &mut self.stats.filesystem,
+            _ => panic!("TODO {:?}", pu),
+        };
+        *field += count;
+        self.stats.available -= count;
+    }
+
+    fn update_stats_free(&mut self, pu: PageUsage, count: usize) {
+        let field = match pu {
+            PageUsage::Kernel => &mut self.stats.kernel,
+            PageUsage::KernelHeap => &mut self.stats.kernel_heap,
+            PageUsage::Paging => &mut self.stats.paging,
+            PageUsage::UserPrivate => &mut self.stats.user_private,
+            PageUsage::Filesystem => &mut self.stats.filesystem,
+            _ => panic!("TODO {:?}", pu),
+        };
+        *field -= count;
+        self.stats.available += count;
+    }
 }
 unsafe impl Manager for SimpleManager {
     fn alloc_page(&mut self, pu: PageUsage) -> Result<usize, Errno> {
-        self.alloc_single_index(pu)
-            .map(|r| (self.base_index + r) * PAGE_SIZE)
+        let res = self.alloc_single_index(pu)
+            .map(|r| (self.base_index + r) * PAGE_SIZE);
+        if res.is_ok() {
+            self.update_stats_alloc(pu, 1);
+        }
+        res
     }
     fn alloc_contiguous_pages(&mut self, pu: PageUsage, count: usize) -> Result<usize, Errno> {
         'l0: for i in 0..self.pages.len() {
@@ -75,6 +116,7 @@ unsafe impl Manager for SimpleManager {
                 page.usage = pu;
                 page.refcount = 1;
             }
+            self.update_stats_alloc(pu, count);
             return Ok((self.base_index + i) * PAGE_SIZE);
         }
         Err(Errno::OutOfMemory)
@@ -83,6 +125,7 @@ unsafe impl Manager for SimpleManager {
         let index = self.page_index(addr);
         let page = &mut self.pages[index];
 
+        let usage = page.usage;
         assert!(page.usage != PageUsage::Reserved && page.usage != PageUsage::Available);
 
         if page.refcount > 1 {
@@ -92,6 +135,10 @@ unsafe impl Manager for SimpleManager {
             page.usage = PageUsage::Available;
             page.refcount = 0;
         }
+
+        drop(page);
+        self.update_stats_free(usage, 1);
+
         Ok(())
     }
 
@@ -129,6 +176,10 @@ unsafe impl Manager for SimpleManager {
             page.refcount += 1;
         }
         Ok(src)
+    }
+
+    fn statistics(&self) -> PageStatistics {
+        self.stats.clone()
     }
 }
 

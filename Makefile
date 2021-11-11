@@ -20,6 +20,9 @@ endif
 
 CARGO_BUILD_OPTS=$(CARGO_COMMON_OPTS) \
 				 --target=../etc/$(ARCH)-$(MACH).json
+ifeq ($(VERBOSE),1)
+CARGO_BUILD_OPTS+=--features verbose
+endif
 ifneq ($(MACH),)
 CARGO_BUILD_OPTS+=--features mach_$(MACH)
 endif
