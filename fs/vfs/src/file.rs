@@ -3,8 +3,8 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 use core::cmp::min;
 use libsys::{
+    error::Errno,
     traits::{Read, Seek, SeekDir, Write},
-    error::Errno
 };
 
 struct NormalFile {
@@ -135,11 +135,13 @@ impl Drop for File {
 mod tests {
     use super::*;
     use crate::{Vnode, VnodeImpl, VnodeKind, VnodeRef};
+    use libsys::{stat::OpenFlags, ioctl::IoctlCmd, stat::Stat};
     use alloc::boxed::Box;
     use alloc::rc::Rc;
 
     struct DummyInode;
 
+    #[auto_inode]
     impl VnodeImpl for DummyInode {
         fn create(
             &mut self,
@@ -152,25 +154,17 @@ mod tests {
             Ok(node)
         }
 
-        fn remove(&mut self, _at: VnodeRef, _name: &str) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn lookup(&mut self, _at: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
-            todo!()
-        }
-
-        fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
+        fn open(&mut self, _node: VnodeRef, _flags: OpenFlags) -> Result<usize, Errno> {
             Ok(0)
         }
 
         fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
+            Ok(())
         }
 
         fn read(&mut self, _node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno> {
             #[cfg(test)]
-            println!("read {}", pos);
+            println!("read {} at {}", data.len(), pos);
             let len = 123;
             if pos >= len {
                 return Ok(0);
@@ -185,41 +179,24 @@ mod tests {
         fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
             Err(Errno::NotImplemented)
         }
-
-        fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
-        }
     }
 
     #[test]
     fn test_normal_read() {
         let node = Vnode::new("", VnodeKind::Regular, 0);
         node.set_data(Box::new(DummyInode {}));
-        let mut file = node.open().unwrap();
-
-        match &file.inner {
-            FileInner::Normal(inner) => {
-                assert!(Rc::ptr_eq(&inner.vnode, &node));
-                assert_eq!(inner.pos, 0);
-            }
-            _ => panic!("Invalid file.inner"),
-        }
-
+        let mut file = node.open(OpenFlags::O_RDONLY).unwrap();
         let mut buf = [0u8; 4096];
 
-        assert_eq!(file.read(&mut buf[0..32]).unwrap(), 32);
+        assert_eq!(file.borrow_mut().read(&mut buf[0..32]).unwrap(), 32);
         for i in 0..32 {
             assert_eq!((i & 0xFF) as u8, buf[i]);
         }
-        assert_eq!(file.read(&mut buf[0..64]).unwrap(), 64);
+        assert_eq!(file.borrow_mut().read(&mut buf[0..64]).unwrap(), 64);
         for i in 0..64 {
             assert_eq!(((i + 32) & 0xFF) as u8, buf[i]);
         }
-        assert_eq!(file.read(&mut buf[0..64]).unwrap(), 27);
+        assert_eq!(file.borrow_mut().read(&mut buf[0..64]).unwrap(), 27);
         for i in 0..27 {
             assert_eq!(((i + 96) & 0xFF) as u8, buf[i]);
         }

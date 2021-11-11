@@ -65,6 +65,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs-macros"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
@@ -230,5 +238,6 @@ dependencies = [
 name = "vfs"
 version = "0.1.0"
 dependencies = [
+ "fs-macros",
  "libsys",
 ]

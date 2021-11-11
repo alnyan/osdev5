@@ -10,6 +10,7 @@ edition = "2018"
 [workspace]
 members = [
     "fs/fat32",
+    "fs/macros",
     "fs/memfs",
     "fs/vfs",
     "kernel",

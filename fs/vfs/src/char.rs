@@ -25,19 +25,8 @@ pub struct CharDeviceWrapper {
     device: &'static dyn CharDevice,
 }
 
+#[auto_inode(error)]
 impl VnodeImpl for CharDeviceWrapper {
-    fn create(&mut self, _at: VnodeRef, _name: &str, _kind: VnodeKind) -> Result<VnodeRef, Errno> {
-        panic!();
-    }
-
-    fn remove(&mut self, _at: VnodeRef, _name: &str) -> Result<(), Errno> {
-        panic!();
-    }
-
-    fn lookup(&mut self, _at: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
-        panic!();
-    }
-
     fn open(&mut self, _node: VnodeRef, _opts: OpenFlags) -> Result<usize, Errno> {
         Ok(0)
     }
@@ -52,18 +41,6 @@ impl VnodeImpl for CharDeviceWrapper {
 
     fn write(&mut self, _node: VnodeRef, _pos: usize, data: &[u8]) -> Result<usize, Errno> {
         self.device.write(true, data)
-    }
-
-    fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
-        panic!();
-    }
-
-    fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-        panic!();
-    }
-
-    fn stat(&mut self, _node: VnodeRef, _stat: &mut Stat) -> Result<(), Errno> {
-        todo!();
     }
 
     fn ioctl(&mut self, _node: VnodeRef, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {

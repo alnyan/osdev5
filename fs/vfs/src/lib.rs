@@ -7,6 +7,9 @@
 #[macro_use]
 extern crate std;
 
+#[macro_use]
+extern crate fs_macros;
+
 extern crate alloc;
 
 pub use libsys::stat::{FileMode, OpenFlags, Stat};
