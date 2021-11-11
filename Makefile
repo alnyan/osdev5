@@ -121,7 +121,7 @@ doc-open:
 
 clippy:
 	cd kernel && cargo clippy $(CARGO_BUILD_OPTS)
-	cd init && cargo clippy \
+	cd user && cargo clippy \
 		--target=../etc/$(ARCH)-osdev5.json \
 		-Zbuild-std=core,alloc,compiler_builtins $(CARGO_COMMON_OPTS)
 

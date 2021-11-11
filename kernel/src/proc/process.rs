@@ -125,6 +125,11 @@ impl Pid {
         self.0
     }
 
+    /// Constructs [Pid] from raw [u32] value
+    ///
+    /// # Safety
+    ///
+    /// Unsafe: does not check `num`
     pub const unsafe fn from_raw(num: u32) -> Self {
         Self(num)
     }
@@ -150,6 +155,7 @@ impl Process {
         SCHED.current_process()
     }
 
+    /// Returns process (if any) to which `pid` refers
     pub fn get(pid: Pid) -> Option<ProcessRef> {
         PROCESSES.lock().get(&pid).cloned()
     }
@@ -168,6 +174,7 @@ impl Process {
         (&mut *ctx).enter()
     }
 
+    /// Executes a function allowing mutation of the process address space
     #[inline]
     pub fn manipulate_space<F: FnOnce(&mut Space) -> Result<(), Errno>>(
         &self,

@@ -3,7 +3,6 @@ use crate::{
     ioctl::IoctlCmd,
     stat::{FileMode, OpenFlags, Stat},
 };
-use core::mem::size_of;
 
 // TODO document the syscall ABI
 
@@ -188,6 +187,9 @@ pub unsafe fn sys_waitpid(pid: u32, status: &mut i32) -> i32 {
     syscall!(abi::SYS_WAITPID, argn!(pid), argp!(status as *mut i32)) as i32
 }
 
+/// # Safety
+///
+/// System call
 #[inline(always)]
 pub unsafe fn sys_ioctl(fd: u32, cmd: IoctlCmd, ptr: usize, len: usize) -> isize {
     syscall!(

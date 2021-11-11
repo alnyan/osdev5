@@ -89,6 +89,12 @@ pub unsafe fn free_page(page: usize) -> Result<(), Errno> {
     MANAGER.lock().as_mut().unwrap().free_page(page)
 }
 
+/// Clones the source page.
+///
+/// If returned address is the same as `page`, this means
+/// `page`'s refcount has increased and the page is Copy-on-Write.
+/// This case has to be handled accordingly
+///
 /// # Safety
 ///
 /// Unsafe: accepts arbitrary `page` arguments
@@ -96,6 +102,12 @@ pub unsafe fn fork_page(page: usize) -> Result<usize, Errno> {
     MANAGER.lock().as_mut().unwrap().fork_page(page)
 }
 
+/// Copies a Copy-on-Write page. If refcount is already 1,
+/// page does not need to be copied and the same address is returned.
+///
+/// # Safety
+///
+/// Unsafe: accepts arbitrary `page` arguments
 pub unsafe fn copy_cow_page(page: usize) -> Result<usize, Errno> {
     MANAGER.lock().as_mut().unwrap().copy_cow_page(page)
 }

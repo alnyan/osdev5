@@ -20,6 +20,7 @@ pub trait CharDevice {
     /// will immediately return an error.
     fn write(&self, blocking: bool, data: &[u8]) -> Result<usize, Errno>;
 
+    /// Performs a TTY control request
     fn ioctl(&self, cmd: IoctlCmd, ptr: usize, lim: usize) -> Result<usize, Errno>;
 }
 

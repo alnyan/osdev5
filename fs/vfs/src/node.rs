@@ -80,6 +80,7 @@ pub trait VnodeImpl {
     /// Reports the size of this filesystem object in bytes
     fn size(&mut self, node: VnodeRef) -> Result<usize, Errno>;
 
+    /// Performs filetype-specific request
     fn ioctl(
         &mut self,
         node: VnodeRef,

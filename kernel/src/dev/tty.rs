@@ -26,9 +26,12 @@ pub struct CharRing<const N: usize> {
     inner: IrqSafeSpinLock<CharRingInner<N>>,
 }
 
+/// Generic teletype device interface
 pub trait TtyDevice<const N: usize>: SerialDevice {
+    /// Returns a reference to character device's ring buffer
     fn ring(&self) -> &CharRing<N>;
 
+    /// Performs a TTY control request
     fn tty_ioctl(&self, cmd: IoctlCmd, ptr: usize, _len: usize) -> Result<usize, Errno> {
         match cmd {
             IoctlCmd::TtyGetAttributes => {
@@ -46,6 +49,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         }
     }
 
+    /// Processes and writes output an output byte
     fn line_send(&self, byte: u8) -> Result<(), Errno> {
         let config = self.ring().config.lock();
 
@@ -56,6 +60,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         self.send(byte)
     }
 
+    /// Receives input bytes and processes them
     fn recv_byte(&self, mut byte: u8) {
         let ring = self.ring();
         let config = ring.config.lock();
@@ -96,7 +101,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         let ring = self.ring();
         let mut config = ring.config.lock();
 
-        if data.len() == 0 {
+        if data.is_empty() {
             return Ok(0);
         }
 
@@ -104,7 +109,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
             drop(config);
             let byte = ring.getc()?;
             data[0] = byte;
-            return Ok(1);
+            Ok(1)
         } else {
             let mut rem = data.len();
             let mut off = 0;
@@ -164,6 +169,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         }
     }
 
+    /// Processes and writes string bytes
     fn line_write(&self, data: &[u8]) -> Result<usize, Errno> {
         for &byte in data.iter() {
             self.line_send(byte)?;
@@ -171,6 +177,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         Ok(data.len())
     }
 
+    /// Writes string bytes without any processing
     fn raw_write(&self, data: &[u8]) -> Result<usize, Errno> {
         for &byte in data.iter() {
             self.send(byte)?;
