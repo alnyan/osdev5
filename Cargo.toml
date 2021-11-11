@@ -9,11 +9,12 @@ edition = "2018"
 
 [workspace]
 members = [
-    "fs/vfs",
-    "fs/memfs",
     "fs/fat32",
-    "libsys",
+    "fs/memfs",
+    "fs/vfs",
     "kernel",
+    "kernel/macros",
+    "libsys",
     "libusr",
     "user",
 ]
