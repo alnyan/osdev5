@@ -1,29 +1,17 @@
 use crate::{BlockAllocator, Bvec};
-use libsys::error::Errno;
-use vfs::{OpenFlags, Stat, VnodeImpl, VnodeKind, VnodeRef, IoctlCmd};
+use libsys::{
+    error::Errno,
+    stat::{OpenFlags, Stat},
+    ioctl::IoctlCmd
+};
+use vfs::{VnodeImpl, VnodeKind, VnodeRef};
 
 pub struct FileInode<'a, A: BlockAllocator + Copy + 'static> {
     data: Bvec<'a, A>,
 }
 
+#[auto_inode]
 impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
-    fn create(
-        &mut self,
-        _parent: VnodeRef,
-        _name: &str,
-        _kind: VnodeKind,
-    ) -> Result<VnodeRef, Errno> {
-        panic!()
-    }
-
-    fn lookup(&mut self, _parent: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
-        panic!()
-    }
-
-    fn remove(&mut self, _parent: VnodeRef, _name: &str) -> Result<(), Errno> {
-        panic!()
-    }
-
     fn open(&mut self, _node: VnodeRef, _mode: OpenFlags) -> Result<usize, Errno> {
         Ok(0)
     }
@@ -53,16 +41,6 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeImpl for FileInode<'a, A> {
         stat.blksize = 4096;
         stat.mode = 0o755;
         Ok(())
-    }
-
-    fn ioctl(
-        &mut self,
-        node: VnodeRef,
-        cmd: IoctlCmd,
-        ptr: usize,
-        len: usize,
-    ) -> Result<usize, Errno> {
-        todo!()
     }
 }
 

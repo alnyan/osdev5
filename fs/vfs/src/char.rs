@@ -1,5 +1,9 @@
-use crate::{OpenFlags, Stat, VnodeImpl, VnodeKind, VnodeRef, IoctlCmd};
-use libsys::error::Errno;
+use crate::{VnodeImpl, VnodeKind, VnodeRef};
+use libsys::{
+    error::Errno,
+    stat::{OpenFlags, Stat},
+    ioctl::IoctlCmd
+};
 
 /// Generic character device trait
 pub trait CharDevice {

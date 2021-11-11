@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 vfs = { path = "../vfs" }
+fs-macros = { path = "../macros" }
 libsys = { path = "../../libsys" }
 
 [features]

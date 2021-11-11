@@ -12,8 +12,8 @@ extern crate fs_macros;
 
 extern crate alloc;
 
-pub use libsys::stat::{FileMode, OpenFlags, Stat};
-pub use libsys::ioctl::IoctlCmd;
+// pub use libsys::stat::{FileMode, OpenFlags, Stat};
+// pub use libsys::ioctl::IoctlCmd;
 
 mod block;
 pub use block::BlockDevice;

@@ -11,14 +11,18 @@ extern crate alloc;
 #[macro_use]
 extern crate std;
 
+#[macro_use]
+extern crate fs_macros;
+
 use alloc::{boxed::Box, rc::Rc};
 use core::any::Any;
 use core::cell::{Ref, RefCell};
 use libsys::{
     error::Errno,
-    path::{path_component_right, path_component_left}
+    path::{path_component_left, path_component_right},
+    stat::FileMode,
 };
-use vfs::{BlockDevice, FileMode, Filesystem, Vnode, VnodeKind, VnodeRef};
+use vfs::{BlockDevice, Filesystem, Vnode, VnodeKind, VnodeRef};
 
 mod block;
 pub use block::{BlockAllocator, BlockRef};

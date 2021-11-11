@@ -1,4 +1,4 @@
-use libcommon::{read_le16, read_le32};
+use libsys::mem::{read_le16, read_le32};
 
 #[derive(Debug)]
 pub struct Bpb {

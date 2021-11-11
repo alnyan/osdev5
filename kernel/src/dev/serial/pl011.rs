@@ -17,7 +17,7 @@ use tock_registers::{
     register_bitfields, register_structs,
     registers::{ReadOnly, ReadWrite, WriteOnly},
 };
-use vfs::{CharDevice, IoctlCmd};
+use vfs::CharDevice;
 
 register_bitfields! {
     u32,

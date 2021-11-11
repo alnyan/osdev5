@@ -1,8 +1,12 @@
-use crate::{File, FileMode, FileRef, Filesystem, IoctlCmd, OpenFlags, Stat};
+use crate::{File, FileRef, Filesystem};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{RefCell, RefMut};
 use core::fmt;
-use libsys::error::Errno;
+use libsys::{
+    error::Errno,
+    ioctl::IoctlCmd,
+    stat::{FileMode, OpenFlags, Stat},
+};
 
 /// Convenience type alias for [Rc<Vnode>]
 pub type VnodeRef = Rc<Vnode>;
@@ -405,7 +409,7 @@ impl fmt::Debug for Vnode {
 mod tests {
     use super::*;
 
-    use libsys::{stat::OpenFlags, ioctl::IoctlCmd, stat::Stat};
+    use libsys::{ioctl::IoctlCmd, stat::OpenFlags, stat::Stat};
     pub struct DummyInode;
 
     #[auto_inode]
@@ -447,10 +451,13 @@ mod tests {
 
         root.set_data(Box::new(DummyInode {}));
 
-        let node = root.create("test", FileMode::default_dir(), VnodeKind::Directory).unwrap();
+        let node = root
+            .create("test", FileMode::default_dir(), VnodeKind::Directory)
+            .unwrap();
 
         assert_eq!(
-            root.create("test", FileMode::default_dir(), VnodeKind::Directory).unwrap_err(),
+            root.create("test", FileMode::default_dir(), VnodeKind::Directory)
+                .unwrap_err(),
             Errno::AlreadyExists
         );
 

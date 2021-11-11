@@ -9,10 +9,11 @@ use core::time::Duration;
 use libsys::{
     abi,
     error::Errno,
-    stat::{AT_EMPTY_PATH, AT_FDCWD},
+    ioctl::IoctlCmd,
+    stat::{FileMode, OpenFlags, Stat, AT_EMPTY_PATH, AT_FDCWD},
     traits::{Read, Write},
 };
-use vfs::{FileMode, IoctlCmd, OpenFlags, Stat, VnodeRef};
+use vfs::VnodeRef;
 
 pub mod arg;
 pub use arg::*;

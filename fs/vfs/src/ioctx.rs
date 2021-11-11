@@ -1,6 +1,7 @@
-use crate::{FileMode, FileRef, OpenFlags, VnodeKind, VnodeRef};
+use crate::{FileRef, VnodeKind, VnodeRef};
 use libsys::{
     error::Errno,
+    stat::{OpenFlags, FileMode},
     path::{path_component_left, path_component_right},
 };
 
