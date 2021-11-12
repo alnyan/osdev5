@@ -118,6 +118,13 @@ impl File {
     pub fn is_cloexec(&self) -> bool {
         self.flags & Self::CLOEXEC != 0
     }
+
+    pub fn is_ready(&self, write: bool) -> Result<bool, Errno> {
+        match &self.inner {
+            FileInner::Normal(inner) => inner.vnode.is_ready(write),
+            _ => todo!(),
+        }
+    }
 }
 
 impl Drop for File {

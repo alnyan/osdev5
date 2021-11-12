@@ -2,7 +2,7 @@ use crate::abi;
 use crate::{
     ioctl::IoctlCmd,
     signal::Signal,
-    stat::{FileMode, OpenFlags, Stat},
+    stat::{FdSet, FileMode, OpenFlags, Stat},
 };
 
 // TODO document the syscall ABI
@@ -216,4 +216,20 @@ pub unsafe fn sys_ex_sigreturn() -> ! {
 #[inline(always)]
 pub unsafe fn sys_ex_kill(pid: u32, signum: Signal) -> i32 {
     syscall!(abi::SYS_EX_KILL, argn!(pid), argn!(signum as u32)) as i32
+}
+
+#[inline(always)]
+pub unsafe fn sys_select(
+    n: u32,
+    read_fds: Option<&mut FdSet>,
+    write_fds: Option<&mut FdSet>,
+    timeout: u64,
+) -> i32 {
+    syscall!(
+        abi::SYS_SELECT,
+        argn!(n),
+        argp!(read_fds.map(|e| e as *mut _).unwrap_or(core::ptr::null_mut())),
+        argp!(write_fds.map(|e| e as *mut _).unwrap_or(core::ptr::null_mut())),
+        argn!(timeout)
+    ) as i32
 }

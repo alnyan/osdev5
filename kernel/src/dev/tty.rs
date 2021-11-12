@@ -1,6 +1,6 @@
 //! Teletype (TTY) device facilities
 use crate::dev::serial::SerialDevice;
-use crate::proc::wait::Wait;
+use crate::proc::wait::{Wait, WAIT_SELECT};
 use crate::sync::IrqSafeSpinLock;
 use libsys::error::Errno;
 use libsys::{
@@ -30,6 +30,17 @@ pub struct CharRing<const N: usize> {
 pub trait TtyDevice<const N: usize>: SerialDevice {
     /// Returns a reference to character device's ring buffer
     fn ring(&self) -> &CharRing<N>;
+
+    fn is_ready(&self, write: bool) -> Result<bool, Errno> {
+        let ring = self.ring();
+        let config = ring.config.lock();
+
+        if write {
+            todo!()
+        } else {
+            Ok(ring.is_readable(config.lflag.contains(TermiosLflag::ICANON)))
+        }
+    }
 
     /// Performs a TTY control request
     fn tty_ioctl(&self, cmd: IoctlCmd, ptr: usize, _len: usize) -> Result<usize, Errno> {
@@ -234,6 +245,36 @@ impl<const N: usize> CharRing<N> {
         }
     }
 
+    pub fn is_readable(&self, canonical: bool) -> bool {
+        let inner = self.inner.lock();
+        if canonical {
+            // TODO optimize this somehow?
+            let mut rd = inner.rd;
+            let mut count = 0usize;
+            loop {
+                let readable = if rd <= inner.wr {
+                    (inner.wr - rd) > 0
+                } else {
+                    (inner.wr + (N - rd)) > 0
+                };
+
+                if !readable {
+                    break;
+                }
+
+                if inner.data[rd] == b'\n' {
+                    count += 1;
+                }
+
+                rd = (rd + 1) % N;
+            }
+
+            count != 0 || inner.flags != 0
+        } else {
+            inner.is_readable() || inner.flags != 0
+        }
+    }
+
     /// Performs a blocking read of a single byte from the buffer
     pub fn getc(&self) -> Result<u8, Errno> {
         let mut lock = self.inner.lock();
@@ -246,15 +287,10 @@ impl<const N: usize> CharRing<N> {
                 break;
             }
         }
-        if lock.flags != 0 {
-            if lock.flags & (1 << 0) != 0 {
-                lock.flags &= !(1 << 0);
-                return Err(Errno::EndOfFile);
-            }
-            todo!();
-        }
         let byte = lock.read_unchecked();
+        drop(lock);
         self.wait_write.wakeup_one();
+        WAIT_SELECT.wakeup_all();
         Ok(byte)
     }
 
@@ -265,7 +301,9 @@ impl<const N: usize> CharRing<N> {
             todo!()
         }
         lock.write_unchecked(ch);
+        drop(lock);
         self.wait_read.wakeup_one();
+        WAIT_SELECT.wakeup_all();
         Ok(())
     }
 }

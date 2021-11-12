@@ -80,6 +80,8 @@ pub trait VnodeImpl {
     /// Reports the size of this filesystem object in bytes
     fn size(&mut self, node: VnodeRef) -> Result<usize, Errno>;
 
+    fn is_ready(&mut self, node: VnodeRef, write: bool) -> Result<bool, Errno>;
+
     /// Performs filetype-specific request
     fn ioctl(
         &mut self,
@@ -394,6 +396,14 @@ impl Vnode {
     pub fn ioctl(self: &VnodeRef, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
         if let Some(ref mut data) = *self.data() {
             data.ioctl(self.clone(), cmd, ptr, len)
+        } else {
+            Err(Errno::NotImplemented)
+        }
+    }
+
+    pub fn is_ready(self: &VnodeRef, write: bool) -> Result<bool, Errno> {
+        if let Some(ref mut data) = *self.data() {
+            data.is_ready(self.clone(), write)
         } else {
             Err(Errno::NotImplemented)
         }

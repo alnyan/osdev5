@@ -1,3 +1,5 @@
+use core::fmt;
+
 pub const AT_FDCWD: i32 = -2;
 pub const AT_EMPTY_PATH: u32 = 1 << 16;
 
@@ -32,12 +34,91 @@ bitflags! {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct FdSet {
+    bits: [u64; 2]
+}
+
+struct FdSetIter<'a> {
+    idx: u32,
+    set: &'a FdSet
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
 pub struct Stat {
     pub mode: u32,
     pub size: u64,
     pub blksize: u32,
+}
+
+impl FdSet {
+    pub const fn empty() -> Self {
+        Self { bits: [0; 2] }
+    }
+
+    #[inline]
+    pub fn reset(&mut self) {
+        self.bits.fill(0);
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.bits.iter().find(|&&x| x != 0).is_some()
+    }
+
+    #[inline]
+    pub fn set(&mut self, fd: u32) {
+        self.bits[(fd as usize) / 64] |= 1 << (fd % 64);
+    }
+
+    #[inline]
+    pub fn clear(&mut self, fd: u32) {
+        self.bits[(fd as usize) / 64] &= !(1 << (fd % 64));
+    }
+
+    #[inline]
+    pub fn is_set(&self, fd: u32) -> bool {
+        self.bits[(fd as usize) / 64] & (1 << (fd % 64)) != 0
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+        FdSetIter {
+            idx: 0,
+            set: self
+        }
+    }
+}
+
+impl Iterator for FdSetIter<'_> {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<u32> {
+        while self.idx < 128 {
+            if self.set.is_set(self.idx) {
+                let res = self.idx;
+                self.idx += 1;
+                return Some(res);
+            }
+            self.idx += 1;
+        }
+        None
+    }
+}
+
+impl fmt::Debug for FdSet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "FdSet {{ ")?;
+        let mut count = 0;
+        for fd in self.iter() {
+            if count != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", fd)?;
+            count += 1;
+        }
+        write!(f, " }}")
+    }
 }
 
 impl FileMode {

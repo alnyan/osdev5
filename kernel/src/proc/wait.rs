@@ -2,11 +2,11 @@
 
 use crate::arch::machine;
 use crate::dev::timer::TimestampSource;
-use crate::proc::{self, sched::SCHED, Pid, Process};
+use crate::proc::{self, sched::SCHED, Pid, Process, ProcessRef};
 use crate::sync::IrqSafeSpinLock;
 use alloc::collections::LinkedList;
 use core::time::Duration;
-use libsys::error::Errno;
+use libsys::{error::Errno, stat::FdSet};
 
 /// Wait channel structure. Contains a queue of processes
 /// waiting for some event to happen.
@@ -20,6 +20,7 @@ struct Timeout {
 }
 
 static TICK_LIST: IrqSafeSpinLock<LinkedList<Timeout>> = IrqSafeSpinLock::new(LinkedList::new());
+pub static WAIT_SELECT: Wait = Wait::new();
 
 /// Checks for any timed out wait channels and interrupts them
 pub fn tick() {
@@ -51,6 +52,54 @@ pub fn sleep(timeout: Duration, remaining: &mut Duration) -> Result<(), Errno> {
         Err(Errno::TimedOut) => Ok(()),
         Ok(_) => panic!("Impossible result"),
         res => res,
+    }
+}
+
+pub fn select(
+    proc: ProcessRef,
+    n: u32,
+    mut rfds: Option<&mut FdSet>,
+    mut wfds: Option<&mut FdSet>,
+    timeout: Option<Duration>,
+) -> Result<u32, Errno> {
+    // TODO support wfds
+    if wfds.is_some() || rfds.is_none() {
+        todo!();
+    }
+    let read = rfds.as_deref().map(FdSet::clone);
+    let write = wfds.as_deref().map(FdSet::clone);
+    rfds.as_deref_mut().map(FdSet::reset);
+    wfds.as_deref_mut().map(FdSet::reset);
+
+    let deadline = timeout.map(|v| v + machine::local_timer().timestamp().unwrap());
+    let mut io = proc.io.lock();
+
+    loop {
+        if let Some(read) = &read {
+            for fd in read.iter() {
+                let file = io.file(fd as usize)?;
+                if file.borrow().is_ready(false)? {
+                    rfds.as_mut().unwrap().set(fd);
+                    return Ok(1);
+                }
+            }
+        }
+        if let Some(write) = &write {
+            for fd in write.iter() {
+                let file = io.file(fd as usize)?;
+                if file.borrow().is_ready(true)? {
+                    wfds.as_mut().unwrap().set(fd);
+                    return Ok(1);
+                }
+            }
+        }
+
+        // Suspend
+        match WAIT_SELECT.wait(deadline) {
+            Err(Errno::TimedOut) => return Ok(0),
+            Err(e) => return Err(e),
+            Ok(_) => {}
+        }
     }
 }
 

@@ -18,6 +18,8 @@ pub trait CharDevice {
 
     /// Performs a TTY control request
     fn ioctl(&self, cmd: IoctlCmd, ptr: usize, lim: usize) -> Result<usize, Errno>;
+
+    fn is_ready(&self, write: bool) -> Result<bool, Errno>;
 }
 
 /// Wrapper struct to attach [VnodeImpl] implementation
@@ -42,6 +44,10 @@ impl VnodeImpl for CharDeviceWrapper {
 
     fn write(&mut self, _node: VnodeRef, _pos: usize, data: &[u8]) -> Result<usize, Errno> {
         self.device.write(true, data)
+    }
+
+    fn is_ready(&mut self, _node: VnodeRef, write: bool) -> Result<bool, Errno> {
+        self.device.is_ready(write)
     }
 
     fn ioctl(

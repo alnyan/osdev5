@@ -18,8 +18,16 @@ fn translate(virt: usize) -> Option<usize> {
 
 /// Unwraps a slim structure pointer
 pub fn validate_user_ptr_struct<'a, T>(base: usize) -> Result<&'a mut T, Errno> {
-    let bytes = validate_user_ptr(base, size_of::<T>())?;
-    Ok(unsafe { &mut *(bytes.as_mut_ptr() as *mut T) })
+    validate_user_ptr_struct_option(base).and_then(|e| e.ok_or(Errno::InvalidArgument))
+}
+
+pub fn validate_user_ptr_struct_option<'a, T>(base: usize) -> Result<Option<&'a mut T>, Errno> {
+    if base == 0 {
+        Ok(None)
+    } else {
+        let bytes = validate_user_ptr(base, size_of::<T>())?;
+        Ok(Some(unsafe { &mut *(bytes.as_mut_ptr() as *mut T) }))
+    }
 }
 
 /// Unwraps an user buffer reference

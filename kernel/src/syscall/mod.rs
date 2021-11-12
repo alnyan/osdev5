@@ -3,16 +3,16 @@
 use crate::arch::platform::exception::ExceptionFrame;
 use crate::debug::Level;
 use crate::proc::{elf, wait, Pid, Process, ProcessIo};
+use core::cmp::Ordering;
 use core::mem::size_of;
 use core::ops::DerefMut;
 use core::time::Duration;
-use core::cmp::Ordering;
 use libsys::{
     abi,
     error::Errno,
     ioctl::IoctlCmd,
     signal::Signal,
-    stat::{FileMode, OpenFlags, Stat, AT_EMPTY_PATH, AT_FDCWD},
+    stat::{FdSet, FileMode, OpenFlags, Stat, AT_EMPTY_PATH, AT_FDCWD},
     traits::{Read, Write},
 };
 use vfs::VnodeRef;
@@ -194,6 +194,22 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             proc.set_signal(signal);
             Ok(0)
         }
+
+        abi::SYS_SELECT => {
+            let n = args[0] as u32;
+            let rfds = validate_user_ptr_struct_option::<FdSet>(args[1])?;
+            let wfds = validate_user_ptr_struct_option::<FdSet>(args[2])?;
+            let timeout = if args[3] == 0 {
+                None
+            } else {
+                Some(Duration::from_nanos(args[3] as u64))
+            };
+
+            let proc = Process::current();
+            let fd = wait::select(proc, n, rfds, wfds, timeout)?;
+            Ok(fd as usize)
+        }
+
         _ => {
             let proc = Process::current();
             errorln!("Undefined system call: {}", num);

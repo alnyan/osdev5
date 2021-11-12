@@ -33,6 +33,10 @@ pub fn derive_tty_char_device(input: TokenStream) -> TokenStream {
             {
                 crate::dev::tty::TtyDevice::tty_ioctl(self, cmd, ptr, len)
             }
+            fn is_ready(&self, write: bool) -> Result<bool, libsys::error::Errno> {
+                crate::dev::tty::TtyDevice::is_ready(self, write)
+            }
         }
-    }.into()
+    }
+    .into()
 }
