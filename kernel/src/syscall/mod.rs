@@ -6,11 +6,12 @@ use crate::proc::{elf, wait, Pid, Process, ProcessIo};
 use core::mem::size_of;
 use core::ops::DerefMut;
 use core::time::Duration;
+use core::cmp::Ordering;
 use libsys::{
     abi,
-    signal::Signal,
     error::Errno,
     ioctl::IoctlCmd,
+    signal::Signal,
     stat::{FileMode, OpenFlags, Stat, AT_EMPTY_PATH, AT_FDCWD},
     traits::{Read, Write},
 };
@@ -183,12 +184,12 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
         abi::SYS_EX_KILL => {
             let pid = args[0] as i32;
             let signal = Signal::try_from(args[1] as u32)?;
-            let proc = if pid > 0 {
-                Process::get(unsafe { Pid::from_raw(pid as u32) }).ok_or(Errno::DoesNotExist)?
-            } else if pid == 0 {
-                Process::current()
-            } else {
-                todo!()
+            let proc = match pid.cmp(&0) {
+                Ordering::Greater => {
+                    Process::get(unsafe { Pid::from_raw(pid as u32) }).ok_or(Errno::DoesNotExist)?
+                }
+                Ordering::Equal => Process::current(),
+                Ordering::Less => todo!(),
             };
             proc.set_signal(signal);
             Ok(0)

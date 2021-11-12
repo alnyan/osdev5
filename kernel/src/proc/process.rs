@@ -165,8 +165,9 @@ impl Process {
         PROCESSES.lock().get(&pid).cloned()
     }
 
+    /// Sets a pending signal for a process
     pub fn set_signal(&self, signal: Signal) {
-        let mut lock = self.inner.lock();
+        let lock = self.inner.lock();
 
         match lock.state {
             State::Running => {
@@ -187,6 +188,7 @@ impl Process {
         }
     }
 
+    /// Switches current thread back from signal handler
     pub fn return_from_signal(&self) {
         if self.signal_pending.load(Ordering::Acquire) == 0 {
             panic!("TODO handle cases when returning from no signal");
@@ -203,6 +205,7 @@ impl Process {
         }
     }
 
+    /// Switches current thread to a signal handler
     pub fn enter_signal(&self, signal: Signal) {
         if self
             .signal_pending
@@ -243,6 +246,7 @@ impl Process {
         }
     }
 
+    /// Sets up values needed for signal entry
     pub fn setup_signal_context(&self, entry: usize, stack: usize) {
         let mut lock = self.inner.lock();
         lock.signal_entry = entry;
@@ -270,6 +274,7 @@ impl Process {
         f(self.inner.lock().space.as_mut().unwrap())
     }
 
+    #[allow(clippy::mut_from_ref)]
     fn current_context(&self) -> &mut Context {
         if self.signal_pending.load(Ordering::Acquire) != 0 {
             unsafe { &mut *self.signal_ctx.get() }
@@ -339,7 +344,7 @@ impl Process {
         let id = Pid::new_kernel();
         let res = Rc::new(Self {
             ctx: UnsafeCell::new(Context::kernel(entry as usize, arg)),
-            signal_ctx: UnsafeCell::new(Context::user_empty()),
+            signal_ctx: UnsafeCell::new(Context::empty()),
             io: IrqSafeSpinLock::new(ProcessIo::new()),
             exit_wait: Wait::new(),
             signal_state: AtomicU32::new(0),
@@ -372,7 +377,7 @@ impl Process {
 
         let dst = Rc::new(Self {
             ctx: UnsafeCell::new(Context::fork(frame, dst_ttbr0)),
-            signal_ctx: UnsafeCell::new(Context::user_empty()),
+            signal_ctx: UnsafeCell::new(Context::empty()),
             io: IrqSafeSpinLock::new(src_io.fork()?),
             exit_wait: Wait::new(),
             signal_state: AtomicU32::new(0),

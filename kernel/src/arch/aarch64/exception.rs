@@ -92,7 +92,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
             if far < mem::KERNEL_OFFSET && sched::is_ready() {
                 let proc = Process::current();
 
-                if let Err(e) = proc.manipulate_space(|space| space.try_cow_copy(far)) {
+                if proc.manipulate_space(|space| space.try_cow_copy(far)).is_err() {
                     // Kill program
                     dump_data_abort(Level::Error, esr, far as u64);
                     proc.enter_signal(Signal::SegmentationFault);

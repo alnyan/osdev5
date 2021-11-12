@@ -328,6 +328,7 @@ impl Space {
         memset(space as *mut Space as *mut u8, 0, 4096);
     }
 
+    /// Returns the physical address of this structure
     pub fn address_phys(&mut self) -> usize {
         (self as *mut _ as usize) - mem::KERNEL_OFFSET
     }

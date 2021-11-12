@@ -32,14 +32,16 @@ pub enum PageUsage {
     Filesystem,
 }
 
+/// Represents counts of allocated/available pages
+#[allow(missing_docs)]
 #[derive(Clone, Debug)]
 pub struct PageStatistics {
-    available: usize,
-    kernel: usize,
-    kernel_heap: usize,
-    paging: usize,
-    user_private: usize,
-    filesystem: usize,
+    pub available: usize,
+    pub kernel: usize,
+    pub kernel_heap: usize,
+    pub paging: usize,
+    pub user_private: usize,
+    pub filesystem: usize,
 }
 
 /// Data structure representing a single physical memory page
@@ -143,6 +145,7 @@ pub unsafe fn free_page(page: usize) -> Result<(), Errno> {
     MANAGER.lock().as_mut().unwrap().free_page(page)
 }
 
+/// Returns current statistics for page allocation
 pub fn statistics() -> PageStatistics {
     MANAGER.lock().as_ref().unwrap().statistics()
 }

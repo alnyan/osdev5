@@ -109,8 +109,9 @@ impl Context {
         }
     }
 
-    pub fn user_empty() -> Self {
-        let mut stack = Stack::new(8);
+    /// Constructs an uninitialized thread context
+    pub fn empty() -> Self {
+        let stack = Stack::new(8);
         Self {
             k_sp: stack.sp,
             stack_base: stack.bp,
@@ -118,6 +119,11 @@ impl Context {
         }
     }
 
+    /// Sets up a context for signal entry
+    ///
+    /// # Safety
+    ///
+    /// Unsafe: may clobber an already active context
     pub unsafe fn setup_signal_entry(&mut self, entry: usize, arg: usize, ttbr0: usize, ustack: usize) {
         let mut stack = Stack::from_base_size(self.stack_base, self.stack_page_count);
 

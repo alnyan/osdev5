@@ -122,21 +122,23 @@ unsafe impl Manager for SimpleManager {
         Err(Errno::OutOfMemory)
     }
     fn free_page(&mut self, addr: usize) -> Result<(), Errno> {
-        let index = self.page_index(addr);
-        let page = &mut self.pages[index];
+        let usage = {
+            let index = self.page_index(addr);
+            let page = &mut self.pages[index];
 
-        let usage = page.usage;
-        assert!(page.usage != PageUsage::Reserved && page.usage != PageUsage::Available);
+            let usage = page.usage;
+            assert!(page.usage != PageUsage::Reserved && page.usage != PageUsage::Available);
 
-        if page.refcount > 1 {
-            page.refcount -= 1;
-        } else {
-            assert_eq!(page.refcount, 1);
-            page.usage = PageUsage::Available;
-            page.refcount = 0;
-        }
+            if page.refcount > 1 {
+                page.refcount -= 1;
+            } else {
+                assert_eq!(page.refcount, 1);
+                page.usage = PageUsage::Available;
+                page.refcount = 0;
+            }
 
-        drop(page);
+            usage
+        };
         self.update_stats_free(usage, 1);
 
         Ok(())
