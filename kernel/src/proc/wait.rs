@@ -2,11 +2,11 @@
 
 use crate::arch::machine;
 use crate::dev::timer::TimestampSource;
-use crate::proc::{self, sched::SCHED, Pid, Process, ProcessRef};
+use crate::proc::{self, sched::SCHED, Process, ProcessRef};
 use crate::sync::IrqSafeSpinLock;
 use alloc::collections::LinkedList;
 use core::time::Duration;
-use libsys::{error::Errno, stat::FdSet};
+use libsys::{error::Errno, stat::FdSet, proc::Pid};
 
 /// Wait channel structure. Contains a queue of processes
 /// waiting for some event to happen.

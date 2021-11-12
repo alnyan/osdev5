@@ -2,7 +2,7 @@
 
 use crate::arch::platform::exception::ExceptionFrame;
 use crate::debug::Level;
-use crate::proc::{elf, wait, Pid, Process, ProcessIo};
+use crate::proc::{elf, wait, Process, ProcessIo};
 use core::cmp::Ordering;
 use core::mem::size_of;
 use core::ops::DerefMut;
@@ -11,7 +11,8 @@ use libsys::{
     abi,
     error::Errno,
     ioctl::IoctlCmd,
-    signal::Signal,
+    proc::Pid,
+    signal::{Signal, SignalDestination},
     stat::{FdSet, FileMode, OpenFlags, Stat, AT_EMPTY_PATH, AT_FDCWD},
     traits::{Read, Write},
 };
@@ -182,16 +183,16 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             panic!("This code won't run");
         }
         abi::SYS_EX_KILL => {
-            let pid = args[0] as i32;
+            let target = SignalDestination::from(args[0] as isize);
             let signal = Signal::try_from(args[1] as u32)?;
-            let proc = match pid.cmp(&0) {
-                Ordering::Greater => {
-                    Process::get(unsafe { Pid::from_raw(pid as u32) }).ok_or(Errno::DoesNotExist)?
-                }
-                Ordering::Equal => Process::current(),
-                Ordering::Less => todo!(),
+
+            match target {
+                SignalDestination::This => Process::current().set_signal(signal),
+                SignalDestination::Process(pid) => Process::get(pid)
+                    .ok_or(Errno::DoesNotExist)?
+                    .set_signal(signal),
+                _ => todo!(),
             };
-            proc.set_signal(signal);
             Ok(0)
         }
 

@@ -11,22 +11,12 @@ use alloc::rc::Rc;
 use core::cell::UnsafeCell;
 use core::fmt;
 use core::sync::atomic::{AtomicU32, Ordering};
-use libsys::{error::Errno, signal::Signal};
+use libsys::{error::Errno, signal::Signal, proc::{ExitCode, Pid}};
 
 pub use crate::arch::platform::context::{self, Context};
 
 /// Wrapper type for a process struct reference
 pub type ProcessRef = Rc<Process>;
-
-/// Wrapper type for process exit code
-#[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Debug)]
-#[repr(transparent)]
-pub struct ExitCode(i32);
-
-/// Wrapper type for process ID
-#[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
-#[repr(transparent)]
-pub struct Pid(u32);
 
 /// List of possible process states
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -62,93 +52,6 @@ pub struct Process {
     signal_pending: AtomicU32,
     /// Process I/O context
     pub io: IrqSafeSpinLock<ProcessIo>,
-}
-
-impl From<i32> for ExitCode {
-    fn from(f: i32) -> Self {
-        Self(f)
-    }
-}
-
-impl From<()> for ExitCode {
-    fn from(_: ()) -> Self {
-        Self(0)
-    }
-}
-
-impl From<ExitCode> for i32 {
-    fn from(f: ExitCode) -> Self {
-        f.0
-    }
-}
-
-impl Pid {
-    /// Kernel idle process always has PID of zero
-    pub const IDLE: Self = Self(Self::KERNEL_BIT);
-
-    const KERNEL_BIT: u32 = 1 << 31;
-
-    /// Constructs an instance of user-space PID
-    pub const fn user(id: u32) -> Self {
-        assert!(id < 256, "PID is too high");
-        Self(id)
-    }
-
-    /// Allocates a new kernel-space PID
-    pub fn new_kernel() -> Self {
-        static LAST: AtomicU32 = AtomicU32::new(0);
-        let id = LAST.fetch_add(1, Ordering::Relaxed);
-        assert!(id & Self::KERNEL_BIT == 0, "Out of kernel PIDs");
-        Self(id | Self::KERNEL_BIT)
-    }
-
-    /// Allocates a new user-space PID.
-    ///
-    /// First user PID is #1.
-    pub fn new_user() -> Self {
-        static LAST: AtomicU32 = AtomicU32::new(1);
-        let id = LAST.fetch_add(1, Ordering::Relaxed);
-        assert!(id < 256, "Out of user PIDs");
-        Self(id)
-    }
-
-    /// Returns `true` if this PID belongs to a kernel process
-    pub fn is_kernel(self) -> bool {
-        self.0 & Self::KERNEL_BIT != 0
-    }
-
-    /// Returns address space ID of a user-space process.
-    ///
-    /// Panics if called on kernel process PID.
-    pub fn asid(self) -> u8 {
-        assert!(!self.is_kernel());
-        self.0 as u8
-    }
-
-    /// Returns bit value of this pid
-    pub const fn value(self) -> u32 {
-        self.0
-    }
-
-    /// Constructs [Pid] from raw [u32] value
-    ///
-    /// # Safety
-    ///
-    /// Unsafe: does not check `num`
-    pub const unsafe fn from_raw(num: u32) -> Self {
-        Self(num)
-    }
-}
-
-impl fmt::Display for Pid {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Pid(#{}{})",
-            if self.is_kernel() { "K" } else { "U" },
-            self.0 & !Self::KERNEL_BIT
-        )
-    }
 }
 
 impl Process {
@@ -341,7 +244,7 @@ impl Process {
 
     /// Creates a new kernel process
     pub fn new_kernel(entry: extern "C" fn(usize) -> !, arg: usize) -> Result<ProcessRef, Errno> {
-        let id = Pid::new_kernel();
+        let id = new_kernel_pid();
         let res = Rc::new(Self {
             ctx: UnsafeCell::new(Context::kernel(entry as usize, arg)),
             signal_ctx: UnsafeCell::new(Context::empty()),
@@ -359,7 +262,7 @@ impl Process {
                 state: State::Ready,
             }),
         });
-        debugln!("New kernel process: {}", id);
+        debugln!("New kernel process: {:?}", id);
         assert!(PROCESSES.lock().insert(id, res.clone()).is_none());
         Ok(res)
     }
@@ -370,7 +273,7 @@ impl Process {
         let src_io = self.io.lock();
         let mut src_inner = self.inner.lock();
 
-        let dst_id = Pid::new_user();
+        let dst_id = new_user_pid();
         let dst_space = src_inner.space.as_mut().unwrap().fork()?;
         let dst_space_phys = (dst_space as *mut _ as usize) - mem::KERNEL_OFFSET;
         let dst_ttbr0 = dst_space_phys | ((dst_id.asid() as usize) << 48);
@@ -392,7 +295,7 @@ impl Process {
                 wait_flag: false,
             }),
         });
-        debugln!("Process {} forked into {}", src_inner.id, dst_id);
+        debugln!("Process {:?} forked into {:?}", src_inner.id, dst_id);
         assert!(PROCESSES.lock().insert(dst_id, dst).is_none());
         SCHED.enqueue(dst_id);
 
@@ -405,7 +308,7 @@ impl Process {
         let drop = {
             let mut lock = self.inner.lock();
             let drop = lock.state == State::Running;
-            infoln!("Process {} is exiting: {:?}", lock.id, status);
+            infoln!("Process {:?} is exiting: {:?}", lock.id, status);
             assert!(lock.exit.is_none());
             lock.exit = Some(status);
             lock.state = State::Finished;
@@ -450,7 +353,7 @@ impl Process {
             if let Some(r) = proc.collect() {
                 // TODO drop the process struct itself
                 PROCESSES.lock().remove(&proc.id());
-                debugln!("pid {} has {} refs", proc.id(), Rc::strong_count(&proc));
+                debugln!("pid {:?} has {} refs", proc.id(), Rc::strong_count(&proc));
                 return Ok(r);
             }
 
@@ -477,9 +380,9 @@ impl Process {
                 proc_lock.remove(&old_pid).is_some(),
                 "Failed to downgrade kernel process (remove kernel pid)"
             );
-            lock.id = Pid::new_user();
+            lock.id = new_user_pid();
             debugln!(
-                "Process downgrades from kernel to user: {} -> {}",
+                "Process downgrades from kernel to user: {:?} -> {:?}",
                 old_pid,
                 lock.id
             );
@@ -541,6 +444,23 @@ impl Process {
 
 impl Drop for Process {
     fn drop(&mut self) {
-        debugln!("Dropping process {}", self.id());
+        debugln!("Dropping process {:?}", self.id());
     }
+}
+
+/// Allocates a new kernel-space PID
+pub fn new_kernel_pid() -> Pid {
+    static LAST: AtomicU32 = AtomicU32::new(0);
+    let id = LAST.fetch_add(1, Ordering::Relaxed);
+    Pid::kernel(id)
+}
+
+/// Allocates a new user-space PID.
+///
+/// First user PID is #1.
+pub fn new_user_pid() -> Pid {
+    static LAST: AtomicU32 = AtomicU32::new(1);
+    let id = LAST.fetch_add(1, Ordering::Relaxed);
+    assert!(id < 256, "Out of user PIDs");
+    Pid::user(id)
 }

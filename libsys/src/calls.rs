@@ -1,7 +1,7 @@
 use crate::abi;
 use crate::{
     ioctl::IoctlCmd,
-    signal::Signal,
+    signal::{Signal, SignalDestination},
     stat::{FdSet, FileMode, OpenFlags, Stat},
 };
 
@@ -214,8 +214,8 @@ pub unsafe fn sys_ex_sigreturn() -> ! {
 }
 
 #[inline(always)]
-pub unsafe fn sys_ex_kill(pid: u32, signum: Signal) -> i32 {
-    syscall!(abi::SYS_EX_KILL, argn!(pid), argn!(signum as u32)) as i32
+pub unsafe fn sys_ex_kill(pid: SignalDestination, signum: Signal) -> i32 {
+    syscall!(abi::SYS_EX_KILL, argn!(isize::from(pid)), argn!(signum as u32)) as i32
 }
 
 #[inline(always)]

@@ -3,10 +3,11 @@
 use crate::init;
 use crate::sync::IrqSafeSpinLock;
 use alloc::collections::BTreeMap;
+use libsys::proc::Pid;
 
 pub mod elf;
 pub mod process;
-pub use process::{Pid, Process, ProcessRef, State as ProcessState};
+pub use process::{Process, ProcessRef, State as ProcessState};
 pub mod io;
 pub use io::ProcessIo;
 

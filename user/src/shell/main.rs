@@ -4,7 +4,7 @@
 #[macro_use]
 extern crate libusr;
 
-use libusr::sys::Signal;
+use libusr::sys::{Signal, SignalDestination};
 use libusr::sys::stat::FdSet;
 
 fn readline(fd: i32, buf: &mut [u8]) -> Result<&str, ()> {
@@ -48,7 +48,7 @@ fn main() -> i32 {
 
         if line == "test" {
             unsafe {
-                libusr::sys::sys_ex_kill(0, Signal::Interrupt);
+                libusr::sys::sys_ex_kill(SignalDestination::This, Signal::Interrupt);
             }
             trace!("Returned from signal");
             continue;
