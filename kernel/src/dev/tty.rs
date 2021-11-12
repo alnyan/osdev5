@@ -33,12 +33,10 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
 
     fn is_ready(&self, write: bool) -> Result<bool, Errno> {
         let ring = self.ring();
-        let config = ring.config.lock();
-
         if write {
             todo!()
         } else {
-            Ok(ring.is_readable(config.lflag.contains(TermiosLflag::ICANON)))
+            Ok(ring.is_readable())
         }
     }
 
@@ -245,9 +243,10 @@ impl<const N: usize> CharRing<N> {
         }
     }
 
-    pub fn is_readable(&self, canonical: bool) -> bool {
+    pub fn is_readable(&self) -> bool {
         let inner = self.inner.lock();
-        if canonical {
+        let config = self.config.lock();
+        if config.lflag.contains(TermiosLflag::ICANON) {
             // TODO optimize this somehow?
             let mut rd = inner.rd;
             let mut count = 0usize;
@@ -262,7 +261,8 @@ impl<const N: usize> CharRing<N> {
                     break;
                 }
 
-                if inner.data[rd] == b'\n' {
+                let byte = inner.data[rd];
+                if byte == b'\n' || byte == config.chars.eof {
                     count += 1;
                 }
 
