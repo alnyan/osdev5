@@ -6,8 +6,8 @@ use crate::dev::irq::{IntController, IrqContext};
 use crate::mem;
 use crate::proc::{sched, Process};
 use crate::syscall;
-use libsys::{abi, signal::Signal};
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
+use libsys::{abi, signal::Signal};
 use tock_registers::interfaces::Readable;
 
 /// Trapped SIMD/FP functionality
@@ -92,7 +92,10 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
             if far < mem::KERNEL_OFFSET && sched::is_ready() {
                 let proc = Process::current();
 
-                if proc.manipulate_space(|space| space.try_cow_copy(far)).is_err() {
+                if proc
+                    .manipulate_space(|space| space.try_cow_copy(far))
+                    .is_err()
+                {
                     // Kill program
                     dump_data_abort(Level::Error, esr, far as u64);
                     proc.enter_signal(Signal::SegmentationFault);
@@ -117,8 +120,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
                     match syscall::sys_fork(exc) {
                         Ok(pid) => exc.x[0] = pid.value() as usize,
                         Err(err) => {
-                            warnln!("fork() syscall failed: {:?}", err);
-                            exc.x[0] = usize::MAX;
+                            exc.x[0] = err.to_negative_isize() as usize;
                         }
                     }
                     return;
@@ -127,8 +129,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
                 match syscall::syscall(exc.x[8], &exc.x[..6]) {
                     Ok(val) => exc.x[0] = val,
                     Err(err) => {
-                        warnln!("syscall {} failed: {:?}", exc.x[8], err);
-                        exc.x[0] = usize::MAX
+                        exc.x[0] = err.to_negative_isize() as usize;
                     }
                 }
             }

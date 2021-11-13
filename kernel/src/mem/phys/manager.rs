@@ -139,7 +139,8 @@ unsafe impl Manager for SimpleManager {
 
             usage
         };
-        self.update_stats_free(usage, 1);
+        // FIXME
+        // self.update_stats_free(usage, 1);
 
         Ok(())
     }

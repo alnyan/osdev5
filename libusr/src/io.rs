@@ -9,10 +9,8 @@ pub struct Error;
 
 pub fn stat(pathname: &str) -> Result<Stat, Error> {
     let mut buf = Stat::default();
-    let res = unsafe { sys_fstatat(None, pathname, &mut buf, 0) };
-    if res != 0 {
-        todo!();
-    }
+    // TODO error handling
+    let res = unsafe { sys_fstatat(None, pathname, &mut buf, 0).unwrap() };
     Ok(buf)
 }
 

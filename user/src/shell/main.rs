@@ -13,11 +13,8 @@ fn readline(fd: FileDescriptor, buf: &mut [u8]) -> Result<&str, ()> {
         let mut rfds = FdSet::empty();
         rfds.set(fd);
         let res = unsafe {
-            libusr::sys::sys_select(Some(&mut rfds), None, 1_000_000_000)
+            libusr::sys::sys_select(Some(&mut rfds), None, 1_000_000_000).unwrap()
         };
-        if res < 0 {
-            return Err(());
-        }
         if res == 0 {
             continue;
         }
@@ -25,12 +22,8 @@ fn readline(fd: FileDescriptor, buf: &mut [u8]) -> Result<&str, ()> {
             panic!();
         }
 
-        let count = unsafe { libusr::sys::sys_read(fd, buf) };
-        if count >= 0 {
-            return core::str::from_utf8(&buf[..count as usize]).map_err(|_| ());
-        } else {
-            return Err(());
-        }
+        let count = unsafe { libusr::sys::sys_read(fd, buf).unwrap() };
+        return core::str::from_utf8(&buf[..count as usize]).map_err(|_| ());
     }
 }
 

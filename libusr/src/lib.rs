@@ -2,9 +2,11 @@
 #![no_std]
 
 use core::panic::PanicInfo;
+use libsys::proc::ExitCode;
 
 pub mod io;
 pub mod os;
+pub mod file;
 
 pub mod sys {
     pub use libsys::signal::{Signal, SignalDestination};
@@ -33,7 +35,7 @@ extern "C" fn _start(_arg: usize) -> ! {
         SIGNAL_STACK[0] = 1;
         sys::sys_ex_signal(_signal_handler as usize, SIGNAL_STACK.as_ptr() as usize + 4096);
 
-        sys::sys_exit(main());
+        sys::sys_exit(ExitCode::from(main()));
     }
 }
 
@@ -41,7 +43,5 @@ extern "C" fn _start(_arg: usize) -> ! {
 fn panic_handler(pi: &PanicInfo) -> ! {
     // TODO formatted messages
     trace!("Panic ocurred: {}", pi);
-    unsafe {
-        sys::sys_exit(-1);
-    }
+    sys::sys_exit(ExitCode::from(-1));
 }
