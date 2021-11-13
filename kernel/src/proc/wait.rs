@@ -57,11 +57,10 @@ pub fn sleep(timeout: Duration, remaining: &mut Duration) -> Result<(), Errno> {
 
 pub fn select(
     proc: ProcessRef,
-    n: u32,
     mut rfds: Option<&mut FdSet>,
     mut wfds: Option<&mut FdSet>,
     timeout: Option<Duration>,
-) -> Result<u32, Errno> {
+) -> Result<usize, Errno> {
     // TODO support wfds
     if wfds.is_some() || rfds.is_none() {
         todo!();
@@ -77,7 +76,7 @@ pub fn select(
     loop {
         if let Some(read) = &read {
             for fd in read.iter() {
-                let file = io.file(fd as usize)?;
+                let file = io.file(fd)?;
                 if file.borrow().is_ready(false)? {
                     rfds.as_mut().unwrap().set(fd);
                     return Ok(1);
@@ -86,7 +85,7 @@ pub fn select(
         }
         if let Some(write) = &write {
             for fd in write.iter() {
-                let file = io.file(fd as usize)?;
+                let file = io.file(fd)?;
                 if file.borrow().is_ready(true)? {
                     wfds.as_mut().unwrap().set(fd);
                     return Ok(1);

@@ -1,9 +1,9 @@
 use crate::sys;
 use core::fmt;
 use core::mem::{size_of, MaybeUninit};
-use libsys::{ioctl::IoctlCmd, termios::Termios};
+use libsys::{ioctl::IoctlCmd, stat::FileDescriptor, termios::Termios};
 
-pub fn get_tty_attrs(fd: u32) -> Result<Termios, &'static str> {
+pub fn get_tty_attrs(fd: FileDescriptor) -> Result<Termios, &'static str> {
     let mut termios = MaybeUninit::<Termios>::uninit();
     let res = unsafe {
         sys::sys_ioctl(
@@ -19,7 +19,7 @@ pub fn get_tty_attrs(fd: u32) -> Result<Termios, &'static str> {
     Ok(unsafe { termios.assume_init() })
 }
 
-pub fn set_tty_attrs(fd: u32, attrs: &Termios) -> Result<(), &'static str> {
+pub fn set_tty_attrs(fd: FileDescriptor, attrs: &Termios) -> Result<(), &'static str> {
     let res = unsafe {
         sys::sys_ioctl(
             fd,

@@ -1,7 +1,7 @@
 use core::fmt;
 use libsys::{
     calls::{sys_fstatat, sys_write},
-    stat::{Stat, AT_FDCWD},
+    stat::{Stat, FileDescriptor},
 };
 
 // TODO populate this type
@@ -9,7 +9,7 @@ pub struct Error;
 
 pub fn stat(pathname: &str) -> Result<Stat, Error> {
     let mut buf = Stat::default();
-    let res = unsafe { sys_fstatat(AT_FDCWD, pathname, &mut buf, 0) };
+    let res = unsafe { sys_fstatat(None, pathname, &mut buf, 0) };
     if res != 0 {
         todo!();
     }
@@ -20,7 +20,7 @@ pub fn stat(pathname: &str) -> Result<Stat, Error> {
 
 #[macro_export]
 macro_rules! print {
-    ($($args:tt)+) => ($crate::io::_print($crate::sys::STDOUT_FILENO, format_args!($($args)+)))
+    ($($args:tt)+) => ($crate::io::_print($crate::sys::FileDescriptor::STDOUT, format_args!($($args)+)))
 }
 
 #[macro_export]
@@ -30,7 +30,7 @@ macro_rules! println {
 
 #[macro_export]
 macro_rules! eprint {
-    ($($args:tt)+) => ($crate::io::_print($crate::sys::STDERR_FILENO, format_args!($($args)+)))
+    ($($args:tt)+) => ($crate::io::_print($crate::sys::FileDescriptor::STDERR, format_args!($($args)+)))
 }
 
 #[macro_export]
@@ -53,7 +53,7 @@ impl fmt::Write for BufferWriter<'_> {
     }
 }
 
-pub fn _print(fd: i32, args: fmt::Arguments) {
+pub fn _print(fd: FileDescriptor, args: fmt::Arguments) {
     use core::fmt::Write;
     static mut BUFFER: [u8; 4096] = [0; 4096];
     let mut writer = BufferWriter {

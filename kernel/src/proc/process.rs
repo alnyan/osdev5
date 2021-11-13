@@ -9,7 +9,6 @@ use crate::proc::{wait::Wait, ProcessIo, PROCESSES, SCHED};
 use crate::sync::IrqSafeSpinLock;
 use alloc::rc::Rc;
 use core::cell::UnsafeCell;
-use core::fmt;
 use core::sync::atomic::{AtomicU32, Ordering};
 use libsys::{error::Errno, signal::Signal, proc::{ExitCode, Pid}};
 

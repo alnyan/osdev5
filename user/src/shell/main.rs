@@ -4,22 +4,24 @@
 #[macro_use]
 extern crate libusr;
 
+use libusr::sys::stat::{FdSet, FileDescriptor};
 use libusr::sys::{Signal, SignalDestination};
-use libusr::sys::stat::FdSet;
 
-fn readline(fd: i32, buf: &mut [u8]) -> Result<&str, ()> {
+fn readline(fd: FileDescriptor, buf: &mut [u8]) -> Result<&str, ()> {
     // select() just for test
     loop {
         let mut rfds = FdSet::empty();
-        rfds.set(fd as u32);
-        let res = unsafe { libusr::sys::sys_select(fd as u32 + 1, Some(&mut rfds), None, 1_000_000_000) };
+        rfds.set(fd);
+        let res = unsafe {
+            libusr::sys::sys_select(Some(&mut rfds), None, 1_000_000_000)
+        };
         if res < 0 {
             return Err(());
         }
         if res == 0 {
             continue;
         }
-        if !rfds.is_set(fd as u32) {
+        if !rfds.is_set(fd) {
             panic!();
         }
 
@@ -38,7 +40,7 @@ fn main() -> i32 {
 
     loop {
         print!("> ");
-        let line = readline(libusr::sys::STDIN_FILENO, &mut buf).unwrap();
+        let line = readline(FileDescriptor::STDIN, &mut buf).unwrap();
         if line.is_empty() {
             break;
         }

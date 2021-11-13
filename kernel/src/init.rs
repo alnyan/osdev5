@@ -4,8 +4,8 @@ use crate::config::{ConfigKey, CONFIG};
 use crate::fs::{devfs, MemfsBlockAlloc};
 use crate::mem;
 use crate::proc::{elf, Process};
+use libsys::stat::{FileDescriptor, OpenFlags};
 use memfs::Ramfs;
-use libsys::stat::OpenFlags;
 use vfs::{Filesystem, Ioctx};
 
 /// Kernel init process function
@@ -51,9 +51,9 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
         let stdout = tty_node.open(OpenFlags::O_WRONLY).unwrap();
         let stderr = stdout.clone();
 
-        io.set_file(0, stdin).unwrap();
-        io.set_file(1, stdout).unwrap();
-        io.set_file(2, stderr).unwrap();
+        io.set_file(FileDescriptor::STDIN, stdin).unwrap();
+        io.set_file(FileDescriptor::STDOUT, stdout).unwrap();
+        io.set_file(FileDescriptor::STDERR, stderr).unwrap();
     }
 
     drop(cfg);

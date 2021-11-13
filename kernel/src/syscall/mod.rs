@@ -3,7 +3,6 @@
 use crate::arch::platform::exception::ExceptionFrame;
 use crate::debug::Level;
 use crate::proc::{elf, wait, Process, ProcessIo};
-use core::cmp::Ordering;
 use core::mem::size_of;
 use core::ops::DerefMut;
 use core::time::Duration;
@@ -13,7 +12,7 @@ use libsys::{
     ioctl::IoctlCmd,
     proc::Pid,
     signal::{Signal, SignalDestination},
-    stat::{FdSet, FileMode, OpenFlags, Stat, AT_EMPTY_PATH, AT_FDCWD},
+    stat::{FdSet, FileDescriptor, FileMode, OpenFlags, Stat, AT_EMPTY_PATH},
     traits::{Read, Write},
 };
 use vfs::VnodeRef;
@@ -34,11 +33,11 @@ pub unsafe fn sys_fork(regs: &mut ExceptionFrame) -> Result<Pid, Errno> {
 
 fn find_at_node<T: DerefMut<Target = ProcessIo>>(
     io: &mut T,
-    at_fd: usize,
+    at_fd: Option<FileDescriptor>,
     filename: &str,
     empty_path: bool,
 ) -> Result<VnodeRef, Errno> {
-    let at = if at_fd as i32 != AT_FDCWD {
+    let at = if let Some(at_fd) = at_fd {
         io.file(at_fd)?.borrow().node()
     } else {
         None
@@ -62,7 +61,7 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
 
         // I/O system calls
         abi::SYS_OPENAT => {
-            let at_fd = args[0];
+            let at_fd = FileDescriptor::from_i32(args[0] as i32)?;
             let path = validate_user_str(args[1], args[2])?;
             let mode = FileMode::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
             let opts = OpenFlags::from_bits(args[4] as u32).ok_or(Errno::InvalidArgument)?;
@@ -70,31 +69,33 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             let proc = Process::current();
             let mut io = proc.io.lock();
 
-            let at = if at_fd as i32 == AT_FDCWD {
-                None
+            let at = if let Some(fd) = at_fd {
+                io.file(fd)?.borrow().node()
             } else {
-                io.file(at_fd)?.borrow().node()
+                None
             };
 
             let file = io.ioctx().open(at, path, mode, opts)?;
-            io.place_file(file)
+            Ok(u32::from(io.place_file(file)?) as usize)
         }
         abi::SYS_READ => {
             let proc = Process::current();
+            let fd = FileDescriptor::from(args[0] as u32);
             let mut io = proc.io.lock();
             let buf = validate_user_ptr(args[1], args[2])?;
 
-            io.file(args[0])?.borrow_mut().read(buf)
+            io.file(fd)?.borrow_mut().read(buf)
         }
         abi::SYS_WRITE => {
             let proc = Process::current();
+            let fd = FileDescriptor::from(args[0] as u32);
             let mut io = proc.io.lock();
             let buf = validate_user_ptr(args[1], args[2])?;
 
-            io.file(args[0])?.borrow_mut().write(buf)
+            io.file(fd)?.borrow_mut().write(buf)
         }
         abi::SYS_FSTATAT => {
-            let at_fd = args[0];
+            let at_fd = FileDescriptor::from_i32(args[0] as i32)?;
             let filename = validate_user_str(args[1], args[2])?;
             let buf = validate_user_ptr_struct::<Stat>(args[3])?;
             let flags = args[4] as u32;
@@ -107,7 +108,7 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
         abi::SYS_CLOSE => {
             let proc = Process::current();
             let mut io = proc.io.lock();
-            let fd = args[0];
+            let fd = FileDescriptor::from(args[0] as u32);
 
             io.close_file(fd)?;
             Ok(0)
@@ -140,7 +141,7 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             }
         }
         abi::SYS_IOCTL => {
-            let fd = args[0];
+            let fd = FileDescriptor::from(args[0] as u32);
             let cmd = IoctlCmd::try_from(args[1] as u32)?;
 
             let proc = Process::current();
@@ -197,18 +198,16 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
         }
 
         abi::SYS_SELECT => {
-            let n = args[0] as u32;
-            let rfds = validate_user_ptr_struct_option::<FdSet>(args[1])?;
-            let wfds = validate_user_ptr_struct_option::<FdSet>(args[2])?;
-            let timeout = if args[3] == 0 {
+            let rfds = validate_user_ptr_struct_option::<FdSet>(args[0])?;
+            let wfds = validate_user_ptr_struct_option::<FdSet>(args[1])?;
+            let timeout = if args[2] == 0 {
                 None
             } else {
-                Some(Duration::from_nanos(args[3] as u64))
+                Some(Duration::from_nanos(args[2] as u64))
             };
 
             let proc = Process::current();
-            let fd = wait::select(proc, n, rfds, wfds, timeout)?;
-            Ok(fd as usize)
+            wait::select(proc, rfds, wfds, timeout)
         }
 
         _ => {

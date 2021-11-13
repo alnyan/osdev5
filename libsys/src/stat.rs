@@ -1,11 +1,8 @@
 use core::fmt;
+use crate::error::Errno;
 
-pub const AT_FDCWD: i32 = -2;
+const AT_FDCWD: i32 = -2;
 pub const AT_EMPTY_PATH: u32 = 1 << 16;
-
-pub const STDIN_FILENO: i32 = 0;
-pub const STDOUT_FILENO: i32 = 1;
-pub const STDERR_FILENO: i32 = 2;
 
 bitflags! {
     pub struct OpenFlags: u32 {
@@ -39,6 +36,10 @@ pub struct FdSet {
     bits: [u64; 2]
 }
 
+#[derive(Clone, Copy, Debug)]
+#[repr(transparent)]
+pub struct FileDescriptor(u32);
+
 struct FdSetIter<'a> {
     idx: u32,
     set: &'a FdSet
@@ -64,25 +65,25 @@ impl FdSet {
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.bits.iter().find(|&&x| x != 0).is_some()
+        self.bits.iter().any(|&x| x != 0)
     }
 
     #[inline]
-    pub fn set(&mut self, fd: u32) {
-        self.bits[(fd as usize) / 64] |= 1 << (fd % 64);
+    pub fn set(&mut self, fd: FileDescriptor) {
+        self.bits[(fd.0 as usize) / 64] |= 1 << (fd.0 % 64);
     }
 
     #[inline]
-    pub fn clear(&mut self, fd: u32) {
-        self.bits[(fd as usize) / 64] &= !(1 << (fd % 64));
+    pub fn clear(&mut self, fd: FileDescriptor) {
+        self.bits[(fd.0 as usize) / 64] &= !(1 << (fd.0 % 64));
     }
 
     #[inline]
-    pub fn is_set(&self, fd: u32) -> bool {
-        self.bits[(fd as usize) / 64] & (1 << (fd % 64)) != 0
+    pub fn is_set(&self, fd: FileDescriptor) -> bool {
+        self.bits[(fd.0 as usize) / 64] & (1 << (fd.0 % 64)) != 0
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = FileDescriptor> + '_ {
         FdSetIter {
             idx: 0,
             set: self
@@ -91,14 +92,14 @@ impl FdSet {
 }
 
 impl Iterator for FdSetIter<'_> {
-    type Item = u32;
+    type Item = FileDescriptor;
 
-    fn next(&mut self) -> Option<u32> {
+    fn next(&mut self) -> Option<FileDescriptor> {
         while self.idx < 128 {
-            if self.set.is_set(self.idx) {
+            if self.set.is_set(FileDescriptor(self.idx)) {
                 let res = self.idx;
                 self.idx += 1;
-                return Some(res);
+                return Some(FileDescriptor::from(res));
             }
             self.idx += 1;
         }
@@ -109,13 +110,11 @@ impl Iterator for FdSetIter<'_> {
 impl fmt::Debug for FdSet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "FdSet {{ ")?;
-        let mut count = 0;
-        for fd in self.iter() {
+        for (count, fd) in self.iter().enumerate() {
             if count != 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{}", fd)?;
-            count += 1;
+            write!(f, "{:?}", fd)?;
         }
         write!(f, " }}")
     }
@@ -130,5 +129,41 @@ impl FileMode {
     /// Returns default permission set for regular files
     pub const fn default_reg() -> Self {
         unsafe { Self::from_bits_unchecked(0o644) }
+    }
+}
+
+impl FileDescriptor {
+    pub const STDIN: Self = Self(0);
+    pub const STDOUT: Self = Self(1);
+    pub const STDERR: Self = Self(2);
+
+    pub fn from_i32(u: i32) -> Result<Option<Self>, Errno> {
+        if u >= 0 {
+            Ok(Some(Self(u as u32)))
+        } else if u == AT_FDCWD {
+            Ok(None)
+        } else {
+            Err(Errno::InvalidArgument)
+        }
+    }
+
+    pub fn into_i32(u: Option<Self>) -> i32 {
+        if let Some(u) = u {
+            u.0 as i32
+        } else {
+            AT_FDCWD
+        }
+    }
+}
+
+impl From<u32> for FileDescriptor {
+    fn from(u: u32) -> Self {
+        Self(u)
+    }
+}
+
+impl From<FileDescriptor> for u32 {
+    fn from(u: FileDescriptor) -> u32 {
+        u.0
     }
 }

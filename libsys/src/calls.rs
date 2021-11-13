@@ -2,7 +2,7 @@ use crate::abi;
 use crate::{
     ioctl::IoctlCmd,
     signal::{Signal, SignalDestination},
-    stat::{FdSet, FileMode, OpenFlags, Stat},
+    stat::{FdSet, FileDescriptor, FileMode, OpenFlags, Stat},
 };
 
 // TODO document the syscall ABI
@@ -80,8 +80,8 @@ pub unsafe fn sys_exit(status: i32) -> ! {
 ///
 /// System call
 #[inline(always)]
-pub unsafe fn sys_close(fd: i32) -> i32 {
-    syscall!(abi::SYS_CLOSE, argn!(fd)) as i32
+pub unsafe fn sys_close(fd: FileDescriptor) -> i32 {
+    syscall!(abi::SYS_CLOSE, argn!(u32::from(fd))) as i32
 }
 
 /// # Safety
@@ -108,10 +108,15 @@ pub unsafe fn sys_ex_debug_trace(msg: &[u8]) -> usize {
 ///
 /// System call
 #[inline(always)]
-pub unsafe fn sys_openat(at: i32, pathname: &str, mode: FileMode, flags: OpenFlags) -> i32 {
+pub unsafe fn sys_openat(
+    at: Option<FileDescriptor>,
+    pathname: &str,
+    mode: FileMode,
+    flags: OpenFlags,
+) -> i32 {
     syscall!(
         abi::SYS_OPENAT,
-        argn!(at),
+        argn!(FileDescriptor::into_i32(at)),
         argp!(pathname.as_ptr()),
         argn!(pathname.len()),
         argn!(mode.bits()),
@@ -123,10 +128,10 @@ pub unsafe fn sys_openat(at: i32, pathname: &str, mode: FileMode, flags: OpenFla
 ///
 /// System call
 #[inline(always)]
-pub unsafe fn sys_read(fd: i32, data: &mut [u8]) -> isize {
+pub unsafe fn sys_read(fd: FileDescriptor, data: &mut [u8]) -> isize {
     syscall!(
         abi::SYS_READ,
-        argn!(fd),
+        argn!(u32::from(fd)),
         argp!(data.as_mut_ptr()),
         argn!(data.len())
     ) as isize
@@ -136,10 +141,10 @@ pub unsafe fn sys_read(fd: i32, data: &mut [u8]) -> isize {
 ///
 /// System call
 #[inline(always)]
-pub unsafe fn sys_write(fd: i32, data: &[u8]) -> isize {
+pub unsafe fn sys_write(fd: FileDescriptor, data: &[u8]) -> isize {
     syscall!(
         abi::SYS_WRITE,
-        argn!(fd),
+        argn!(u32::from(fd)),
         argp!(data.as_ptr()),
         argn!(data.len())
     ) as isize
@@ -149,10 +154,15 @@ pub unsafe fn sys_write(fd: i32, data: &[u8]) -> isize {
 ///
 /// System call
 #[inline(always)]
-pub unsafe fn sys_fstatat(at: i32, pathname: &str, statbuf: &mut Stat, flags: u32) -> i32 {
+pub unsafe fn sys_fstatat(
+    at: Option<FileDescriptor>,
+    pathname: &str,
+    statbuf: &mut Stat,
+    flags: u32,
+) -> i32 {
     syscall!(
         abi::SYS_FSTATAT,
-        argn!(at),
+        argn!(FileDescriptor::into_i32(at)),
         argp!(pathname.as_ptr()),
         argn!(pathname.len()),
         argp!(statbuf as *mut Stat),
@@ -192,10 +202,10 @@ pub unsafe fn sys_waitpid(pid: u32, status: &mut i32) -> i32 {
 ///
 /// System call
 #[inline(always)]
-pub unsafe fn sys_ioctl(fd: u32, cmd: IoctlCmd, ptr: usize, len: usize) -> isize {
+pub unsafe fn sys_ioctl(fd: FileDescriptor, cmd: IoctlCmd, ptr: usize, len: usize) -> isize {
     syscall!(
         abi::SYS_IOCTL,
-        argn!(fd),
+        argn!(u32::from(fd)),
         argn!(cmd),
         argn!(ptr),
         argn!(len)
@@ -215,21 +225,27 @@ pub unsafe fn sys_ex_sigreturn() -> ! {
 
 #[inline(always)]
 pub unsafe fn sys_ex_kill(pid: SignalDestination, signum: Signal) -> i32 {
-    syscall!(abi::SYS_EX_KILL, argn!(isize::from(pid)), argn!(signum as u32)) as i32
+    syscall!(
+        abi::SYS_EX_KILL,
+        argn!(isize::from(pid)),
+        argn!(signum as u32)
+    ) as i32
 }
 
 #[inline(always)]
 pub unsafe fn sys_select(
-    n: u32,
     read_fds: Option<&mut FdSet>,
     write_fds: Option<&mut FdSet>,
     timeout: u64,
 ) -> i32 {
     syscall!(
         abi::SYS_SELECT,
-        argn!(n),
-        argp!(read_fds.map(|e| e as *mut _).unwrap_or(core::ptr::null_mut())),
-        argp!(write_fds.map(|e| e as *mut _).unwrap_or(core::ptr::null_mut())),
+        argp!(read_fds
+            .map(|e| e as *mut _)
+            .unwrap_or(core::ptr::null_mut())),
+        argp!(write_fds
+            .map(|e| e as *mut _)
+            .unwrap_or(core::ptr::null_mut())),
         argn!(timeout)
     ) as i32
 }

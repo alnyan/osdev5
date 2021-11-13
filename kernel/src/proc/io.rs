@@ -1,12 +1,12 @@
 //! Process file descriptors and I/O context
 use alloc::collections::BTreeMap;
-use libsys::error::Errno;
+use libsys::{error::Errno, stat::FileDescriptor};
 use vfs::{FileRef, Ioctx};
 
 /// Process I/O context. Contains file tables, root/cwd info etc.
 pub struct ProcessIo {
     ioctx: Option<Ioctx>,
-    files: BTreeMap<usize, FileRef>,
+    files: BTreeMap<u32, FileRef>,
 }
 
 impl ProcessIo {
@@ -22,8 +22,8 @@ impl ProcessIo {
     }
 
     /// Returns [File] struct referred to by file descriptor `idx`
-    pub fn file(&mut self, idx: usize) -> Result<FileRef, Errno> {
-        self.files.get(&idx).cloned().ok_or(Errno::InvalidFile)
+    pub fn file(&mut self, fd: FileDescriptor) -> Result<FileRef, Errno> {
+        self.files.get(&u32::from(fd)).cloned().ok_or(Errno::InvalidFile)
     }
 
     /// Returns [Ioctx] structure reference of this I/O context
@@ -32,19 +32,19 @@ impl ProcessIo {
     }
 
     /// Allocates a file descriptor and associates a [File] struct with it
-    pub fn place_file(&mut self, file: FileRef) -> Result<usize, Errno> {
+    pub fn place_file(&mut self, file: FileRef) -> Result<FileDescriptor, Errno> {
         for idx in 0..64 {
             if self.files.get(&idx).is_none() {
                 self.files.insert(idx, file);
-                return Ok(idx);
+                return Ok(FileDescriptor::from(idx));
             }
         }
         Err(Errno::TooManyDescriptors)
     }
 
     /// Performs [File] close and releases its associated file descriptor `idx`
-    pub fn close_file(&mut self, idx: usize) -> Result<(), Errno> {
-        let res = self.files.remove(&idx);
+    pub fn close_file(&mut self, idx: FileDescriptor) -> Result<(), Errno> {
+        let res = self.files.remove(&u32::from(idx));
         assert!(res.is_some());
         Ok(())
     }
@@ -59,7 +59,8 @@ impl ProcessIo {
 
     /// Assigns a descriptor number to an open file. If the number is not available,
     /// returns [Errno::AlreadyExists].
-    pub fn set_file(&mut self, idx: usize, file: FileRef) -> Result<(), Errno> {
+    pub fn set_file(&mut self, idx: FileDescriptor, file: FileRef) -> Result<(), Errno> {
+        let idx = u32::from(idx);
         if self.files.get(&idx).is_none() {
             self.files.insert(idx, file);
             Ok(())

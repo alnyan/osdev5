@@ -10,7 +10,7 @@ pub mod sys {
     pub use libsys::signal::{Signal, SignalDestination};
     pub use libsys::termios;
     pub use libsys::calls::*;
-    pub use libsys::stat::{self, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
+    pub use libsys::stat::{self, FileDescriptor};
 }
 
 #[inline(never)]
