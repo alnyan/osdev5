@@ -4,54 +4,22 @@
 #[macro_use]
 extern crate libusr;
 
-use libusr::sys::stat::{FdSet, FileDescriptor};
-use libusr::sys::{Signal, SignalDestination};
-
-fn readline(fd: FileDescriptor, buf: &mut [u8]) -> Result<&str, ()> {
-    // select() just for test
-    loop {
-        let mut rfds = FdSet::empty();
-        rfds.set(fd);
-        let res = unsafe {
-            libusr::sys::sys_select(Some(&mut rfds), None, 1_000_000_000).unwrap()
-        };
-        if res == 0 {
-            continue;
-        }
-        if !rfds.is_set(fd) {
-            panic!();
-        }
-
-        let count = unsafe { libusr::sys::sys_read(fd, buf).unwrap() };
-        return core::str::from_utf8(&buf[..count as usize]).map_err(|_| ());
-    }
-}
+use libusr::io::{self, Read};
 
 #[no_mangle]
 fn main() -> i32 {
     let mut buf = [0; 512];
+    let mut stdin = io::stdin();
+
+    eprintln!("stderr test");
 
     loop {
-        print!("> ");
-        let line = readline(FileDescriptor::STDIN, &mut buf).unwrap();
-        if line.is_empty() {
+        let count = stdin.read(&mut buf).unwrap();
+        if count == 0 {
             break;
         }
-        let line = line.trim_end_matches('\n');
-
-        println!(":: {:?}", line);
-
-        if line == "test" {
-            unsafe {
-                libusr::sys::sys_ex_kill(SignalDestination::This, Signal::Interrupt);
-            }
-            trace!("Returned from signal");
-            continue;
-        }
-
-        if line == "quit" || line == "exit" {
-            break;
-        }
+        let line = core::str::from_utf8(&buf[..count]).unwrap();
+        println!("{:?}", line);
     }
 
     0

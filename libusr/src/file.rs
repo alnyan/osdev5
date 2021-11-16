@@ -1,12 +1,26 @@
+use crate::io::{AsRawFd, Error};
+use crate::os;
+use crate::trace;
 use libsys::stat::FileDescriptor;
-use crate::io;
 
 pub struct File {
-    fd: FileDescriptor
+    fd: FileDescriptor,
 }
 
 impl File {
-    pub fn open(path: &str) -> Result<File, io::Error> {
+    pub fn open(path: &str) -> Result<File, Error> {
         todo!()
+    }
+}
+
+impl AsRawFd for File {
+    fn as_raw_fd(&self) -> FileDescriptor {
+        self.fd
+    }
+}
+
+impl Drop for File {
+    fn drop(&mut self) {
+        todo!();
     }
 }

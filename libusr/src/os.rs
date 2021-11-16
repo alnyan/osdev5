@@ -3,35 +3,6 @@ use core::fmt;
 use core::mem::{size_of, MaybeUninit};
 use libsys::{ioctl::IoctlCmd, stat::FileDescriptor, termios::Termios};
 
-pub fn get_tty_attrs(fd: FileDescriptor) -> Result<Termios, &'static str> {
-    let mut termios = MaybeUninit::<Termios>::uninit();
-    let res = sys::sys_ioctl(
-        fd,
-        IoctlCmd::TtyGetAttributes,
-        termios.as_mut_ptr() as usize,
-        size_of::<Termios>(),
-    )
-    .unwrap();
-    if res != size_of::<Termios>() {
-        return Err("Failed");
-    }
-    Ok(unsafe { termios.assume_init() })
-}
-
-pub fn set_tty_attrs(fd: FileDescriptor, attrs: &Termios) -> Result<(), &'static str> {
-    let res = sys::sys_ioctl(
-        fd,
-        IoctlCmd::TtySetAttributes,
-        attrs as *const _ as usize,
-        size_of::<Termios>(),
-    )
-    .unwrap();
-    if res != size_of::<Termios>() {
-        return Err("Failed");
-    }
-    Ok(())
-}
-
 #[macro_export]
 macro_rules! trace {
     ($($args:tt)+) => ($crate::os::_trace(format_args!($($args)+)))
@@ -60,7 +31,5 @@ pub fn _trace(args: fmt::Arguments) {
         pos: 0,
     };
     writer.write_fmt(args).ok();
-    unsafe {
-        sys::sys_ex_debug_trace(&BUFFER[..writer.pos]);
-    }
+    sys::sys_ex_debug_trace(unsafe { &BUFFER[..writer.pos] }).ok();
 }
