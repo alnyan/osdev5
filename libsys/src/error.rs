@@ -47,6 +47,6 @@ impl Errno {
 
 impl From<usize> for Errno {
     fn from(u: usize) -> Errno {
-        todo!()
+        unsafe { core::mem::transmute(u as u32) }
     }
 }

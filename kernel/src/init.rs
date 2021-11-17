@@ -3,7 +3,7 @@
 use crate::config::{ConfigKey, CONFIG};
 use crate::fs::{devfs, MemfsBlockAlloc};
 use crate::mem;
-use crate::proc::{elf, Process};
+use crate::proc::{wait, elf, Process};
 use libsys::stat::{FileDescriptor, OpenFlags};
 use memfs::Ramfs;
 use vfs::{Filesystem, Ioctx};

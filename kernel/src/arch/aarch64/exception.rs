@@ -4,7 +4,7 @@ use crate::arch::machine;
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
 use crate::mem;
-use crate::proc::{sched, Process};
+use crate::proc::{sched, Thread, Process};
 use crate::syscall;
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
 use libsys::{abi, signal::Signal};
@@ -90,7 +90,8 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
             let far = FAR_EL1.get() as usize;
 
             if far < mem::KERNEL_OFFSET && sched::is_ready() {
-                let proc = Process::current();
+                let thread = Thread::current();
+                let proc = thread.owner().unwrap();
 
                 if proc
                     .manipulate_space(|space| space.try_cow_copy(far))
@@ -98,7 +99,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
                 {
                     // Kill program
                     dump_data_abort(Level::Error, esr, far as u64);
-                    proc.enter_signal(Signal::SegmentationFault);
+                    proc.enter_fault_signal(thread, Signal::SegmentationFault);
                 }
 
                 unsafe {
@@ -136,6 +137,11 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
             return;
         }
         _ => {}
+    }
+
+    if sched::is_ready() {
+        let thread = Thread::current();
+        errorln!("Unhandled exception in thread {}, {:?}", thread.id(), thread.owner().map(|e| e.id()));
     }
 
     errorln!(

@@ -2,7 +2,7 @@
 
 use crate::arch::machine;
 use crate::dev::timer::TimestampSource;
-use crate::proc::{self, sched::SCHED, Process, ProcessRef};
+use crate::proc::{self, sched::SCHED, Process, Thread, ThreadRef};
 use crate::sync::IrqSafeSpinLock;
 use alloc::collections::LinkedList;
 use core::time::Duration;
@@ -11,11 +11,11 @@ use libsys::{error::Errno, stat::FdSet, proc::Pid};
 /// Wait channel structure. Contains a queue of processes
 /// waiting for some event to happen.
 pub struct Wait {
-    queue: IrqSafeSpinLock<LinkedList<Pid>>,
+    queue: IrqSafeSpinLock<LinkedList<u32>>,
 }
 
 struct Timeout {
-    pid: Pid,
+    tid: u32,
     deadline: Duration,
 }
 
@@ -30,9 +30,9 @@ pub fn tick() {
 
     while let Some(item) = cursor.current() {
         if time > item.deadline {
-            let pid = item.pid;
+            let tid = item.tid;
             cursor.remove_current();
-            SCHED.enqueue(pid);
+            SCHED.enqueue(tid);
         } else {
             cursor.move_next();
         }
@@ -56,50 +56,51 @@ pub fn sleep(timeout: Duration, remaining: &mut Duration) -> Result<(), Errno> {
 }
 
 pub fn select(
-    proc: ProcessRef,
+    thread: ThreadRef,
     mut rfds: Option<&mut FdSet>,
     mut wfds: Option<&mut FdSet>,
     timeout: Option<Duration>,
 ) -> Result<usize, Errno> {
-    // TODO support wfds
-    if wfds.is_some() || rfds.is_none() {
-        todo!();
-    }
-    let read = rfds.as_deref().map(FdSet::clone);
-    let write = wfds.as_deref().map(FdSet::clone);
-    rfds.as_deref_mut().map(FdSet::reset);
-    wfds.as_deref_mut().map(FdSet::reset);
+    todo!();
+    // // TODO support wfds
+    // if wfds.is_some() || rfds.is_none() {
+    //     todo!();
+    // }
+    // let read = rfds.as_deref().map(FdSet::clone);
+    // let write = wfds.as_deref().map(FdSet::clone);
+    // rfds.as_deref_mut().map(FdSet::reset);
+    // wfds.as_deref_mut().map(FdSet::reset);
 
-    let deadline = timeout.map(|v| v + machine::local_timer().timestamp().unwrap());
-    let mut io = proc.io.lock();
+    // let deadline = timeout.map(|v| v + machine::local_timer().timestamp().unwrap());
+    // let mut io = proc.io.lock();
 
-    loop {
-        if let Some(read) = &read {
-            for fd in read.iter() {
-                let file = io.file(fd)?;
-                if file.borrow().is_ready(false)? {
-                    rfds.as_mut().unwrap().set(fd);
-                    return Ok(1);
-                }
-            }
-        }
-        if let Some(write) = &write {
-            for fd in write.iter() {
-                let file = io.file(fd)?;
-                if file.borrow().is_ready(true)? {
-                    wfds.as_mut().unwrap().set(fd);
-                    return Ok(1);
-                }
-            }
-        }
+    // loop {
+    //     if let Some(read) = &read {
+    //         for fd in read.iter() {
+    //             let file = io.file(fd)?;
+    //             if file.borrow().is_ready(false)? {
+    //                 rfds.as_mut().unwrap().set(fd);
+    //                 return Ok(1);
+    //             }
+    //         }
+    //     }
+    //     if let Some(write) = &write {
+    //         for fd in write.iter() {
+    //             let file = io.file(fd)?;
+    //             if file.borrow().is_ready(true)? {
+    //                 wfds.as_mut().unwrap().set(fd);
+    //                 return Ok(1);
+    //             }
+    //         }
+    //     }
 
-        // Suspend
-        match WAIT_SELECT.wait(deadline) {
-            Err(Errno::TimedOut) => return Ok(0),
-            Err(e) => return Err(e),
-            Ok(_) => {}
-        }
-    }
+    //     // Suspend
+    //     match WAIT_SELECT.wait(deadline) {
+    //         Err(Errno::TimedOut) => return Ok(0),
+    //         Err(e) => return Err(e),
+    //         Ok(_) => {}
+    //     }
+    // }
 }
 
 impl Wait {
@@ -115,12 +116,12 @@ impl Wait {
         let mut queue = self.queue.lock();
         let mut count = 0;
         while limit != 0 && !queue.is_empty() {
-            let pid = queue.pop_front();
-            if let Some(pid) = pid {
+            let tid = queue.pop_front();
+            if let Some(tid) = tid {
                 let mut tick_lock = TICK_LIST.lock();
                 let mut cursor = tick_lock.cursor_front_mut();
                 while let Some(item) = cursor.current() {
-                    if pid == item.pid {
+                    if tid == item.tid {
                         cursor.remove_current();
                         break;
                     } else {
@@ -129,8 +130,8 @@ impl Wait {
                 }
                 drop(tick_lock);
 
-                proc::process(pid).set_wait_flag(false);
-                SCHED.enqueue(pid);
+                Thread::get(tid).unwrap().set_wait_reached();
+                SCHED.enqueue(tid);
             }
 
             limit -= 1;
@@ -149,29 +150,54 @@ impl Wait {
         self.wakeup_some(1);
     }
 
+    pub fn abort(&self, tid: u32) {
+        let mut queue = self.queue.lock();
+        let mut tick_lock = TICK_LIST.lock();
+        let mut cursor = tick_lock.cursor_front_mut();
+        while let Some(item) = cursor.current() {
+            if tid == item.tid {
+                cursor.remove_current();
+                break;
+            } else {
+                cursor.move_next();
+            }
+        }
+
+        let mut cursor = queue.cursor_front_mut();
+        while let Some(item) = cursor.current() {
+            if tid == *item {
+                cursor.remove_current();
+                break;
+            } else {
+                cursor.move_next();
+            }
+        }
+    }
+
     /// Suspends current process until event is signalled or
     /// (optional) deadline is reached
     pub fn wait(&self, deadline: Option<Duration>) -> Result<(), Errno> {
-        let proc = Process::current();
+        let thread = Thread::current();
         //let deadline = timeout.map(|t| machine::local_timer().timestamp().unwrap() + t);
         let mut queue_lock = self.queue.lock();
 
-        queue_lock.push_back(proc.id());
-        proc.set_wait_flag(true);
+        queue_lock.push_back(thread.id());
+        thread.setup_wait(self);
+
         if let Some(deadline) = deadline {
             TICK_LIST.lock().push_back(Timeout {
-                pid: proc.id(),
+                tid: thread.id(),
                 deadline,
             });
         }
 
         loop {
-            if !proc.wait_flag() {
+            if !thread.wait_flag() {
                 return Ok(());
             }
 
             drop(queue_lock);
-            proc.enter_wait();
+            thread.enter_wait();
             queue_lock = self.queue.lock();
 
             if let Some(deadline) = deadline {
@@ -179,7 +205,7 @@ impl Wait {
                     let mut cursor = queue_lock.cursor_front_mut();
 
                     while let Some(&mut item) = cursor.current() {
-                        if proc.id() == item {
+                        if thread.id() == item {
                             cursor.remove_current();
                             break;
                         } else {

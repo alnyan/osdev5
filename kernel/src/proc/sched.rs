@@ -1,13 +1,13 @@
 //!
-use crate::proc::{Pid, Process, ProcessRef, PROCESSES};
+use crate::proc::{Pid, Process, ProcessRef, Thread, ThreadRef, PROCESSES, THREADS};
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use alloc::{collections::VecDeque, rc::Rc};
 
 struct SchedulerInner {
-    queue: VecDeque<Pid>,
-    idle: Option<Pid>,
-    current: Option<Pid>,
+    queue: VecDeque<u32>,
+    idle: Option<u32>,
+    current: Option<u32>,
 }
 
 /// Process scheduler state and queues
@@ -23,7 +23,7 @@ impl SchedulerInner {
             current: None,
         };
 
-        this.idle = Some(Process::new_kernel(idle_fn, 0).unwrap().id());
+        this.idle = Some(Thread::new_kernel(None, idle_fn, 0).unwrap().id());
 
         this
     }
@@ -39,13 +39,21 @@ impl Scheduler {
     }
 
     /// Schedules a thread for execution
-    pub fn enqueue(&self, pid: Pid) {
-        self.inner.get().lock().queue.push_back(pid);
+    pub fn enqueue(&self, tid: u32) {
+        self.inner.get().lock().queue.push_back(tid);
     }
 
-    /// Removes given `pid` from execution queue
-    pub fn dequeue(&self, pid: Pid) {
-        self.inner.get().lock().queue.retain(|&p| p != pid)
+    /// Removes given `tid` from execution queue
+    pub fn dequeue(&self, tid: u32) {
+        self.inner.get().lock().queue.retain(|&p| p != tid)
+    }
+
+    pub fn debug(&self) {
+        let lock = self.inner.get().lock();
+        debugln!("Scheduler queue:");
+        for &tid in lock.queue.iter() {
+            debugln!("TID: {:?}", tid);
+        }
     }
 
     /// Performs initial process entry.
@@ -63,11 +71,11 @@ impl Scheduler {
             };
 
             inner.current = Some(id);
-            PROCESSES.lock().get(&id).unwrap().clone()
+            THREADS.lock().get(&id).unwrap().clone()
         };
 
         asm!("msr daifset, #2");
-        Process::enter(thread)
+        Thread::enter(thread)
     }
 
     /// This hack is required to be called from execve() when downgrading current
@@ -76,8 +84,14 @@ impl Scheduler {
     /// # Safety
     ///
     /// Unsafe: only allowed to be called from Process::execve()
-    pub unsafe fn hack_current_pid(&self, new: Pid) {
-        self.inner.get().lock().current = Some(new);
+    pub unsafe fn hack_current_tid(&self, old: u32, new: u32) {
+        let mut lock = self.inner.get().lock();
+        match lock.current {
+            Some(t) if t == old => {
+                lock.current = Some(new);
+            }
+            _ => {}
+        }
     }
 
     /// Switches to the next task scheduled for execution. If there're
@@ -87,7 +101,7 @@ impl Scheduler {
             let mut inner = self.inner.get().lock();
             let current = inner.current.unwrap();
 
-            if !discard && current != Pid::IDLE {
+            if !discard && current != 0 {
                 // Put the process into the back of the queue
                 inner.queue.push_back(current);
             }
@@ -100,7 +114,7 @@ impl Scheduler {
 
             inner.current = Some(next);
             let (from, to) = {
-                let lock = PROCESSES.lock();
+                let lock = THREADS.lock();
                 (
                     lock.get(&current).unwrap().clone(),
                     lock.get(&next).unwrap().clone(),
@@ -113,17 +127,23 @@ impl Scheduler {
         if !Rc::ptr_eq(&from, &to) {
             unsafe {
                 asm!("msr daifset, #2");
-                Process::switch(from, to, discard);
+                Thread::switch(from, to, discard);
             }
         }
     }
 
-    /// Returns a Rc-reference to currently running process
-    pub fn current_process(&self) -> ProcessRef {
+    pub fn current_thread(&self) -> ThreadRef {
         let inner = self.inner.get().lock();
-        let current = inner.current.unwrap();
-        PROCESSES.lock().get(&current).unwrap().clone()
+        let id = inner.current.unwrap();
+        THREADS.lock().get(&id).unwrap().clone()
     }
+
+    // /// Returns a Rc-reference to currently running process
+    // pub fn current_process(&self) -> ProcessRef {
+    //     let inner = self.inner.get().lock();
+    //     let current = inner.current.unwrap();
+    //     PROCESSES.lock().get(&current).unwrap().clone()
+    // }
 }
 
 /// Returns `true` if the scheduler has been initialized

@@ -15,3 +15,4 @@ path = "src/shell/main.rs"
 
 [dependencies]
 libusr = { path = "../libusr" }
+lazy_static = { version = "*", features = ["spin_no_std"] }

@@ -272,6 +272,32 @@ pub fn sys_ex_kill(pid: SignalDestination, signum: Signal) -> Result<(), Errno> 
 }
 
 #[inline(always)]
+pub fn sys_ex_clone(entry: usize, stack: usize, arg: usize) -> Result<usize, Errno> {
+    Errno::from_syscall(unsafe {
+        syscall!(
+            abi::SYS_EX_CLONE,
+            argn!(entry),
+            argn!(stack),
+            argn!(arg)
+        )
+    })
+}
+
+#[inline(always)]
+pub fn sys_ex_yield() {
+    unsafe {
+        syscall!(abi::SYS_EX_YIELD);
+    }
+}
+
+#[inline(always)]
+pub fn sys_ex_undefined() {
+    unsafe {
+        syscall!(0);
+    }
+}
+
+#[inline(always)]
 pub fn sys_select(
     read_fds: Option<&mut FdSet>,
     write_fds: Option<&mut FdSet>,

@@ -13,9 +13,16 @@ pub mod os;
 pub mod sys;
 pub mod sync;
 
+use sys::Signal;
+
 #[inline(never)]
-extern "C" fn _signal_handler(arg: sys::Signal) -> ! {
+extern "C" fn _signal_handler(arg: Signal) -> ! {
     trace!("Entered signal handler: arg={:?}", arg);
+    match arg {
+        Signal::Interrupt | Signal::SegmentationFault =>
+            loop {},
+        _ => todo!()
+    }
     sys::sys_ex_sigreturn();
 }
 

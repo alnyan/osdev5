@@ -2,7 +2,7 @@
 
 use crate::arch::platform::exception::ExceptionFrame;
 use crate::debug::Level;
-use crate::proc::{elf, wait, Process, ProcessIo};
+use crate::proc::{self, elf, wait, Process, ProcessIo, Thread};
 use core::mem::size_of;
 use core::ops::DerefMut;
 use core::time::Duration;
@@ -55,7 +55,7 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
     match num {
         // Process management system calls
         abi::SYS_EXIT => {
-            Process::current().exit(args[0] as i32);
+            Process::exit(args[0] as i32);
             unreachable!();
         }
 
@@ -174,13 +174,11 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             res.map(|_| 0)
         }
         abi::SYS_EX_SIGNAL => {
-            let proc = Process::current();
-            proc.setup_signal_context(args[0], args[1]);
+            Thread::current().set_signal_entry(args[0], args[1]);
             Ok(0)
         }
         abi::SYS_EX_SIGRETURN => {
-            let proc = Process::current();
-            proc.return_from_signal();
+            Thread::current().return_from_signal();
             panic!("This code won't run");
         }
         abi::SYS_EX_KILL => {
@@ -196,6 +194,19 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             };
             Ok(0)
         }
+        abi::SYS_EX_CLONE => {
+            let entry = args[0];
+            let stack = args[1];
+            let arg = args[2];
+
+            Process::current()
+                .new_user_thread(entry, stack, arg)
+                .map(|e| e as usize)
+        }
+        abi::SYS_EX_YIELD => {
+            proc::switch();
+            Ok(0)
+        },
 
         abi::SYS_SELECT => {
             let rfds = validate_user_ptr_struct_option::<FdSet>(args[0])?;
@@ -206,15 +217,15 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
                 Some(Duration::from_nanos(args[2] as u64))
             };
 
-            let proc = Process::current();
-            wait::select(proc, rfds, wfds, timeout)
+            wait::select(Thread::current(), rfds, wfds, timeout)
         }
 
         _ => {
-            let proc = Process::current();
+            let thread = Thread::current();
+            let proc = thread.owner().unwrap();
             errorln!("Undefined system call: {}", num);
-            proc.enter_signal(Signal::InvalidSystemCall);
-            todo!()
+            proc.enter_fault_signal(thread, Signal::InvalidSystemCall);
+            Err(Errno::InvalidArgument)
         }
     }
 }

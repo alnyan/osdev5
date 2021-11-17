@@ -6,8 +6,11 @@ use alloc::collections::BTreeMap;
 use libsys::proc::Pid;
 
 pub mod elf;
+pub mod thread;
+pub use thread::{Thread, ThreadRef, State as ThreadState};
+pub(self) use thread::Context;
 pub mod process;
-pub use process::{Process, ProcessRef, State as ProcessState};
+pub use process::{Process, ProcessRef, ProcessState};
 pub mod io;
 pub use io::ProcessIo;
 
@@ -52,6 +55,9 @@ pub fn process(id: Pid) -> ProcessRef {
 pub(self) static PROCESSES: IrqSafeSpinLock<BTreeMap<Pid, ProcessRef>> =
     IrqSafeSpinLock::new(BTreeMap::new());
 
+pub(self) static THREADS: IrqSafeSpinLock<BTreeMap<u32, ThreadRef>> =
+    IrqSafeSpinLock::new(BTreeMap::new());
+
 /// Sets up initial process and enters it.
 ///
 /// See [Scheduler::enter]
@@ -61,6 +67,6 @@ pub(self) static PROCESSES: IrqSafeSpinLock<BTreeMap<Pid, ProcessRef>> =
 /// Unsafe: May only be called once.
 pub unsafe fn enter() -> ! {
     SCHED.init();
-    SCHED.enqueue(Process::new_kernel(init::init_fn, 0).unwrap().id());
+    Process::new_kernel(init::init_fn, 0).unwrap().enqueue();
     SCHED.enter();
 }

@@ -1,4 +1,5 @@
 pub use libsys::signal::{Signal, SignalDestination};
+pub use libsys::proc::ExitCode;
 pub use libsys::termios;
 pub use libsys::calls::*;
 pub use libsys::stat::{self, FileDescriptor};
@@ -28,7 +29,7 @@ impl RawMutex {
     #[inline]
     pub unsafe fn lock(&self) {
         while !self.try_lock() {
-            asm!("nop");
+            sys_ex_yield();
         }
     }
 
