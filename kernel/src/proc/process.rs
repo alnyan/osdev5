@@ -234,6 +234,38 @@ impl Process {
         panic!("This code should never run");
     }
 
+    pub fn exit_thread(thread: ThreadRef) {
+        let switch = {
+            let switch = thread.state() == ThreadState::Running;
+            let process = thread.owner().unwrap();
+            let mut lock = process.inner.lock();
+            let tid = thread.id();
+
+            if lock.threads.len() == 1 {
+                // TODO call Process::exit instead?
+                todo!();
+            }
+
+            lock.threads.retain(|&e| e != tid);
+
+            thread.terminate();
+            SCHED.dequeue(tid);
+            debugln!("Thread {} terminated", tid);
+
+            switch
+        };
+
+        if switch {
+            // TODO retain thread ID in process "finished" list and
+            //      drop it when process finishes
+            SCHED.switch(true);
+            panic!("This code should not run");
+        } else {
+            // Can drop this thread: it's not running
+            todo!();
+        }
+    }
+
     fn collect(&self) -> Option<ExitCode> {
         let lock = self.inner.lock();
         if lock.state == ProcessState::Finished {

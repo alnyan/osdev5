@@ -58,6 +58,10 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             Process::exit(args[0] as i32);
             unreachable!();
         }
+        abi::SYS_EX_THREAD_EXIT => {
+            Process::exit_thread(Thread::current());
+            unreachable!();
+        },
 
         // I/O system calls
         abi::SYS_OPENAT => {

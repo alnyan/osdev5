@@ -7,16 +7,20 @@ use libsys::proc::ExitCode;
 #[macro_use]
 extern crate lazy_static;
 
+extern crate alloc;
+
+mod allocator;
 pub mod file;
 pub mod io;
 pub mod os;
 pub mod sys;
 pub mod sync;
+pub mod thread;
 
 use sys::Signal;
 
 #[inline(never)]
-extern "C" fn _signal_handler(arg: Signal) -> ! {
+pub(crate) extern "C" fn _signal_handler(arg: Signal) -> ! {
     trace!("Entered signal handler: arg={:?}", arg);
     match arg {
         Signal::Interrupt | Signal::SegmentationFault =>

@@ -284,6 +284,14 @@ pub fn sys_ex_clone(entry: usize, stack: usize, arg: usize) -> Result<usize, Err
 }
 
 #[inline(always)]
+pub fn sys_ex_thread_exit(status: ExitCode) -> ! {
+    unsafe {
+        syscall!(abi::SYS_EX_THREAD_EXIT, argn!(i32::from(status)));
+    }
+    unreachable!();
+}
+
+#[inline(always)]
 pub fn sys_ex_yield() {
     unsafe {
         syscall!(abi::SYS_EX_YIELD);
