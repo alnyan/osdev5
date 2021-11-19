@@ -53,6 +53,7 @@ extern "C" fn _start(_arg: usize) -> ! {
 
 #[panic_handler]
 fn panic_handler(pi: &PanicInfo) -> ! {
+    // TODO handle non-main thread panics
     // TODO print to stdout/stderr (if available)
     trace!("Panic ocurred: {}", pi);
     sys::sys_exit(ExitCode::from(-1));

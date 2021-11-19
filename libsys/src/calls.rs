@@ -274,12 +274,7 @@ pub fn sys_ex_kill(pid: SignalDestination, signum: Signal) -> Result<(), Errno> 
 #[inline(always)]
 pub fn sys_ex_clone(entry: usize, stack: usize, arg: usize) -> Result<usize, Errno> {
     Errno::from_syscall(unsafe {
-        syscall!(
-            abi::SYS_EX_CLONE,
-            argn!(entry),
-            argn!(stack),
-            argn!(arg)
-        )
+        syscall!(abi::SYS_EX_CLONE, argn!(entry), argn!(stack), argn!(arg))
     })
 }
 
@@ -289,6 +284,12 @@ pub fn sys_ex_thread_exit(status: ExitCode) -> ! {
         syscall!(abi::SYS_EX_THREAD_EXIT, argn!(i32::from(status)));
     }
     unreachable!();
+}
+
+#[inline(always)]
+pub fn sys_ex_thread_wait(tid: u32) -> Result<ExitCode, Errno> {
+    Errno::from_syscall(unsafe { syscall!(abi::SYS_EX_THREAD_WAIT, argn!(tid)) })
+        .map(|_| ExitCode::from(0))
 }
 
 #[inline(always)]

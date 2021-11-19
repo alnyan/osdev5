@@ -1,9 +1,8 @@
-use alloc::boxed::Box;
-use alloc::vec;
+use alloc::{boxed::Box, sync::Arc, vec};
 use core::cell::UnsafeCell;
-use core::marker::PhantomData;
+use core::mem::MaybeUninit;
 use libsys::{
-    calls::{sys_ex_clone, sys_ex_thread_exit, sys_ex_signal},
+    calls::{sys_ex_clone, sys_ex_signal, sys_ex_thread_exit, sys_ex_thread_wait},
     error::Errno,
     proc::ExitCode,
 };
@@ -17,12 +16,24 @@ where
     T: Send + 'static,
 {
     closure: F,
+    result: Arc<UnsafeCell<MaybeUninit<T>>>,
     stack: usize,
 }
 
 pub struct JoinHandle<T> {
     native: u32,
-    _pd: PhantomData<T>,
+    result: Arc<UnsafeCell<MaybeUninit<T>>>,
+}
+
+impl<T> JoinHandle<T> {
+    pub fn join(self) -> Result<T, ()> {
+        sys_ex_thread_wait(self.native).unwrap();
+        if let Ok(result) = Arc::try_unwrap(self.result) {
+            Ok(unsafe { result.into_inner().assume_init() })
+        } else {
+            Err(())
+        }
+    }
 }
 
 pub fn spawn<F, T>(f: F) -> JoinHandle<T>
@@ -32,6 +43,7 @@ where
     T: Send + 'static,
 {
     let stack = vec![0u8; 8192].leak();
+    let result = Arc::new(UnsafeCell::new(MaybeUninit::uninit()));
 
     #[inline(never)]
     extern "C" fn thread_entry<F, T>(data: *mut NativeData<F, T>) -> !
@@ -53,8 +65,11 @@ where
             }
 
             let data: Box<NativeData<F, T>> = unsafe { Box::from_raw(data) };
-
             let res = (data.closure)();
+
+            unsafe {
+                (&mut *data.result.get()).write(res);
+            }
 
             (data.stack, 8192)
         };
@@ -65,13 +80,14 @@ where
 
     let native = unsafe {
         let stack = stack.as_mut_ptr() as usize + stack.len();
-        let data: *mut NativeData<F, T> = Box::into_raw(Box::new(NativeData { closure: f, stack }));
+        let data: *mut NativeData<F, T> = Box::into_raw(Box::new(NativeData {
+            closure: f,
+            stack,
+            result: result.clone(),
+        }));
 
         sys_ex_clone(thread_entry::<F, T> as usize, stack, data as usize).unwrap() as u32
     };
 
-    JoinHandle {
-        native,
-        _pd: PhantomData,
-    }
+    JoinHandle { native, result }
 }

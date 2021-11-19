@@ -35,6 +35,7 @@ struct ThreadInner {
 
 pub struct Thread {
     inner: IrqSafeSpinLock<ThreadInner>,
+    exit_wait: Wait,
     pub(super) ctx: UnsafeCell<Context>,
     signal_ctx: UnsafeCell<Context>,
     signal_pending: AtomicU32,
@@ -68,6 +69,7 @@ impl Thread {
             ctx: UnsafeCell::new(Context::kernel(entry as usize, arg)),
             signal_ctx: UnsafeCell::new(Context::empty()),
             signal_pending: AtomicU32::new(0),
+            exit_wait: Wait::new(),
             inner: IrqSafeSpinLock::new(ThreadInner {
                 signal_entry: 0,
                 signal_stack: 0,
@@ -97,6 +99,7 @@ impl Thread {
             ctx: UnsafeCell::new(Context::user(entry, arg, ttbr0, stack)),
             signal_ctx: UnsafeCell::new(Context::empty()),
             signal_pending: AtomicU32::new(0),
+            exit_wait: Wait::new(),
             inner: IrqSafeSpinLock::new(ThreadInner {
                 signal_entry: 0,
                 signal_stack: 0,
@@ -123,6 +126,7 @@ impl Thread {
             ctx: UnsafeCell::new(Context::fork(frame, ttbr0)),
             signal_ctx: UnsafeCell::new(Context::empty()),
             signal_pending: AtomicU32::new(0),
+            exit_wait: Wait::new(),
             inner: IrqSafeSpinLock::new(ThreadInner {
                 signal_entry: 0,
                 signal_stack: 0,
@@ -211,6 +215,23 @@ impl Thread {
         // FIXME this is not cool
         lock.pending_wait = Some(unsafe { &*wait });
         lock.wait_flag = true;
+    }
+
+    pub fn waittid(tid: u32) -> Result<(), Errno> {
+        loop {
+            let thread = THREADS
+                .lock()
+                .get(&tid)
+                .cloned()
+                .ok_or(Errno::DoesNotExist)?;
+
+            if thread.state() == State::Finished {
+                // TODO remove thread from its parent?
+                return Ok(());
+            }
+
+            thread.exit_wait.wait(None)?;
+        }
     }
 
     pub fn set_wait_reached(&self) {
@@ -308,6 +329,7 @@ impl Thread {
         if let Some(wait) = wait {
             wait.abort(tid);
         }
+        self.exit_wait.wakeup_all();
     }
 }
 

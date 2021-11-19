@@ -23,12 +23,14 @@ fn main() -> i32 {
         trace!("Closure is alive: {}", value);
         sleep(2_000_000_000);
         trace!("Closure will now exit");
+
+        value - 100
     });
     sleep(1_000_000_000);
 
     trace!("???");
 
-    loop {}
+    trace!("Thread joined: {:?}", thread.join());
 
     0
 }

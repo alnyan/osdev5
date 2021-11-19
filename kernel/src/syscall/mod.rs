@@ -144,6 +144,16 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
                 _ => todo!(),
             }
         }
+        abi::SYS_EX_THREAD_WAIT => {
+            let tid = args[0] as u32;
+
+            match Thread::waittid(tid) {
+                Ok(_) => {
+                    Ok(0)
+                },
+                _ => todo!(),
+            }
+        },
         abi::SYS_IOCTL => {
             let fd = FileDescriptor::from(args[0] as u32);
             let cmd = IoctlCmd::try_from(args[1] as u32)?;
