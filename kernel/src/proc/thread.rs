@@ -1,10 +1,11 @@
 use crate::arch::aarch64::exception::ExceptionFrame;
 use crate::proc::{wait::Wait, Process, ProcessRef, SCHED, THREADS};
 use crate::sync::IrqSafeSpinLock;
+use crate::util::InitOnce;
 use alloc::{rc::Rc, vec::Vec};
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU32, Ordering};
-use libsys::{error::Errno, proc::Pid, signal::Signal};
+use libsys::{error::Errno, proc::{Pid, ExitCode}, signal::Signal};
 
 pub use crate::arch::platform::context::{self, Context};
 
@@ -36,6 +37,7 @@ struct ThreadInner {
 pub struct Thread {
     inner: IrqSafeSpinLock<ThreadInner>,
     exit_wait: Wait,
+    exit_status: InitOnce<ExitCode>,
     pub(super) ctx: UnsafeCell<Context>,
     signal_ctx: UnsafeCell<Context>,
     signal_pending: AtomicU32,
@@ -70,6 +72,7 @@ impl Thread {
             signal_ctx: UnsafeCell::new(Context::empty()),
             signal_pending: AtomicU32::new(0),
             exit_wait: Wait::new(),
+            exit_status: InitOnce::new(),
             inner: IrqSafeSpinLock::new(ThreadInner {
                 signal_entry: 0,
                 signal_stack: 0,
@@ -100,6 +103,7 @@ impl Thread {
             signal_ctx: UnsafeCell::new(Context::empty()),
             signal_pending: AtomicU32::new(0),
             exit_wait: Wait::new(),
+            exit_status: InitOnce::new(),
             inner: IrqSafeSpinLock::new(ThreadInner {
                 signal_entry: 0,
                 signal_stack: 0,
@@ -127,6 +131,7 @@ impl Thread {
             signal_ctx: UnsafeCell::new(Context::empty()),
             signal_pending: AtomicU32::new(0),
             exit_wait: Wait::new(),
+            exit_status: InitOnce::new(),
             inner: IrqSafeSpinLock::new(ThreadInner {
                 signal_entry: 0,
                 signal_stack: 0,
@@ -295,7 +300,7 @@ impl Thread {
         let mut lock = self.inner.lock();
         if lock.signal_entry == 0 || lock.signal_stack == 0 {
             drop(lock);
-            Process::exit_thread(self);
+            Process::exit_thread(self, ExitCode::from(-1));
             panic!();
         }
 
@@ -322,7 +327,7 @@ impl Thread {
         }
     }
 
-    pub fn terminate(&self) {
+    pub fn terminate(&self, status: ExitCode) {
         let mut lock = self.inner.lock();
         lock.state = State::Finished;
         let tid = lock.id;
@@ -331,6 +336,7 @@ impl Thread {
         if let Some(wait) = wait {
             wait.abort(tid);
         }
+        self.exit_status.init(status);
         self.exit_wait.wakeup_all();
     }
 }

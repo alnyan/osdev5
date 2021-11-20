@@ -32,27 +32,6 @@ __aa64_ctx_enter_kernel:
     eret
 
 __aa64_ctx_enter_from_fork:
-    // stack.push(frame.x[18]);
-    // stack.push(frame.x[17]);
-    // stack.push(frame.x[16]);
-    // stack.push(frame.x[15]);
-    // stack.push(frame.x[14]);
-    // stack.push(frame.x[13]);
-    // stack.push(frame.x[12]);
-    // stack.push(frame.x[11]);
-    // stack.push(frame.x[10]);
-    // stack.push(frame.x[9]);
-    // stack.push(frame.x[8]);
-    // stack.push(frame.x[7]);
-    // stack.push(frame.x[6]);
-    // stack.push(frame.x[5]);
-    // stack.push(frame.x[4]);
-    // stack.push(frame.x[3]);
-    // stack.push(frame.x[2]);
-    // stack.push(frame.x[1]);
-
-    // stack.push(frame.elr_el1 as usize);
-    // stack.push(frame.sp_el0 as usize);
     ldp x0,  x1,  [sp, #16 * 0]
     msr sp_el0, x0
     msr elr_el1, x1
@@ -82,7 +61,8 @@ __aa64_ctx_switch:
     stp x27, x28, [sp, #16 * 4]
     stp x29, x30, [sp, #16 * 5]
     mrs x19, TTBR0_EL1
-    stp x19, xzr, [sp, #16 * 6]
+    mrs x20, TPIDR_EL0
+    stp x19, x20, [sp, #16 * 6]
 
     mov x19, sp
     str x19, [x1]
@@ -90,8 +70,9 @@ __aa64_ctx_switch_to:
     ldr x0, [x0]
     mov sp, x0
 
-    ldp x19, xzr, [sp, #16 * 6]
+    ldp x19, x20, [sp, #16 * 6]
     msr TTBR0_EL1, x19
+    msr TPIDR_EL0, x20
     ldp x19, x20, [sp, #16 * 0]
     ldp x21, x22, [sp, #16 * 1]
     ldp x23, x24, [sp, #16 * 2]

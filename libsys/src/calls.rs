@@ -188,7 +188,7 @@ pub fn sys_fstatat(
 ///
 /// System call
 #[inline(always)]
-pub fn sys_fork() -> Result<Option<Pid>, Errno> {
+pub unsafe fn sys_fork() -> Result<Option<Pid>, Errno> {
     Errno::from_syscall(unsafe { syscall!(abi::SYS_FORK) }).map(|res| {
         if res != 0 {
             Some(unsafe { Pid::from_raw(res as u32) })
@@ -343,4 +343,11 @@ pub fn sys_faccessat(
             argn!(flags)
         )
     })
+}
+
+#[inline(always)]
+pub fn sys_ex_gettid() -> u32 {
+    unsafe {
+        syscall!(abi::SYS_EX_GETTID) as u32
+    }
 }

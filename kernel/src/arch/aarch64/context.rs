@@ -67,7 +67,7 @@ impl Context {
         stack.push(frame.sp_el0 as usize);
 
         // Setup common
-        stack.push(0);
+        stack.push(0);          // tpidr_el0
         stack.push(ttbr0);
         stack.push(__aa64_ctx_enter_from_fork as usize); // x30/lr
         stack.push(frame.x[29]); // x29
@@ -96,7 +96,7 @@ impl Context {
 
         stack.push(entry);
         stack.push(arg);
-        stack.push(/* ttbr0 */ 0);
+        stack.push(0);
         stack.push(ustack);
 
         stack.setup_common(__aa64_ctx_enter_user as usize, ttbr0);
@@ -176,20 +176,20 @@ impl Stack {
     }
 
     pub fn setup_common(&mut self, entry: usize, ttbr: usize) {
-        self.push(0);
+        self.push(0);       // tpidr_el0
         self.push(ttbr);
-        self.push(entry); // x30/lr
-        self.push(0); // x29
-        self.push(0); // x28
-        self.push(0); // x27
-        self.push(0); // x26
-        self.push(0); // x25
-        self.push(0); // x24
-        self.push(0); // x23
-        self.push(0); // x22
-        self.push(0); // x21
-        self.push(0); // x20
-        self.push(0); // x19
+        self.push(entry);   // x30/lr
+        self.push(0);       // x29
+        self.push(0);       // x28
+        self.push(0);       // x27
+        self.push(0);       // x26
+        self.push(0);       // x25
+        self.push(0);       // x24
+        self.push(0);       // x23
+        self.push(0);       // x22
+        self.push(0);       // x21
+        self.push(0);       // x20
+        self.push(0);       // x19
     }
 
     pub fn push(&mut self, value: usize) {

@@ -27,7 +27,7 @@ fn execute(line: &str) -> Result<ExitCode, Errno> {
     let mut words = line.split(' ');
     let cmd = words.next().unwrap();
 
-    if let Some(pid) = sys_fork()? {
+    if let Some(pid) = unsafe { sys_fork()? } {
         let mut status = 0;
         sys_waitpid(pid, &mut status)?;
         Ok(ExitCode::from(status))

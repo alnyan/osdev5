@@ -16,21 +16,8 @@ pub mod os;
 pub mod sys;
 pub mod sync;
 pub mod thread;
+pub mod signal;
 
-use sys::Signal;
-
-#[inline(never)]
-pub(crate) extern "C" fn _signal_handler(arg: Signal) -> ! {
-    trace!("Entered signal handler: arg={:?}", arg);
-    match arg {
-        Signal::Interrupt | Signal::SegmentationFault =>
-            loop {},
-        _ => todo!()
-    }
-    sys::sys_ex_sigreturn();
-}
-
-static mut SIGNAL_STACK: [u8; 4096] = [0; 4096];
 
 #[link_section = ".text._start"]
 #[no_mangle]
@@ -40,11 +27,7 @@ extern "C" fn _start(_arg: usize) -> ! {
     }
 
     unsafe {
-        sys::sys_ex_signal(
-            _signal_handler as usize,
-            SIGNAL_STACK.as_ptr() as usize + 4096,
-        )
-        .unwrap();
+        thread::init_main();
     }
 
     let res = unsafe { main() };
@@ -53,8 +36,9 @@ extern "C" fn _start(_arg: usize) -> ! {
 
 #[panic_handler]
 fn panic_handler(pi: &PanicInfo) -> ! {
-    // TODO handle non-main thread panics
+    // TODO unwind to send panic argument back to parent thread
     // TODO print to stdout/stderr (if available)
-    trace!("Panic ocurred: {}", pi);
+    let thread = thread::current();
+    trace!("{:?} panicked: {:?}", thread, pi);
     sys::sys_exit(ExitCode::from(-1));
 }

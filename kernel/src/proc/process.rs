@@ -197,11 +197,10 @@ impl Process {
 
     // TODO a way to terminate a single thread?
     /// Terminates a process.
-    pub fn exit<I: Into<ExitCode>>(status: I) {
+    pub fn exit(status: ExitCode) {
         unsafe {
             asm!("msr daifclr, #0xF");
         }
-        let status = status.into();
         let thread = Thread::current();
         let process = thread.owner().unwrap();
         let mut lock = process.inner.lock();
@@ -213,7 +212,7 @@ impl Process {
 
         for &tid in lock.threads.iter() {
             debugln!("Dequeue {:?}", tid);
-            Thread::get(tid).unwrap().terminate();
+            Thread::get(tid).unwrap().terminate(status);
             SCHED.dequeue(tid);
         }
         SCHED.debug();
@@ -234,7 +233,7 @@ impl Process {
         panic!("This code should never run");
     }
 
-    pub fn exit_thread(thread: ThreadRef) {
+    pub fn exit_thread(thread: ThreadRef, status: ExitCode) {
         let switch = {
             let switch = thread.state() == ThreadState::Running;
             let process = thread.owner().unwrap();
@@ -244,13 +243,13 @@ impl Process {
             if lock.threads.len() == 1 {
                 // TODO call Process::exit instead?
                 drop(lock);
-                Process::exit(ExitCode::from(0));
+                Process::exit(status);
                 panic!();
             }
 
             lock.threads.retain(|&e| e != tid);
 
-            thread.terminate();
+            thread.terminate(status);
             SCHED.dequeue(tid);
             debugln!("Thread {} terminated", tid);
 

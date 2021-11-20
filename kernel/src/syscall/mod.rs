@@ -10,7 +10,7 @@ use libsys::{
     abi,
     error::Errno,
     ioctl::IoctlCmd,
-    proc::Pid,
+    proc::{ExitCode, Pid},
     signal::{Signal, SignalDestination},
     stat::{FdSet, AccessMode, FileDescriptor, FileMode, OpenFlags, Stat, AT_EMPTY_PATH},
     traits::{Read, Write},
@@ -55,12 +55,15 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
     match num {
         // Process management system calls
         abi::SYS_EXIT => {
-            Process::exit(args[0] as i32);
+            Process::exit(ExitCode::from(args[0] as i32));
             unreachable!();
         }
         abi::SYS_EX_THREAD_EXIT => {
-            Process::exit_thread(Thread::current());
+            Process::exit_thread(Thread::current(), ExitCode::from(args[0] as i32));
             unreachable!();
+        },
+        abi::SYS_EX_GETTID => {
+            Ok(Thread::current().id() as usize)
         },
 
         // I/O system calls

@@ -7,7 +7,7 @@ extern crate libusr;
 
 #[no_mangle]
 fn main() -> i32 {
-    let pid = libusr::sys::sys_fork().unwrap();
+    let pid = unsafe { libusr::sys::sys_fork().unwrap() };
 
     if let Some(pid) = pid {
         let mut status = 0;
