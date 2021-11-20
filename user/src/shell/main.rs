@@ -3,34 +3,56 @@
 
 #[macro_use]
 extern crate libusr;
-#[macro_use]
-extern crate lazy_static;
+extern crate alloc;
 
-use libusr::thread;
+use alloc::borrow::ToOwned;
+use libusr::sys::{sys_faccessat, sys_exit, sys_execve, sys_waitpid, sys_fork, ExitCode, Errno, AccessMode};
 use libusr::io::{self, Read};
-use libusr::sys::{Signal, SignalDestination};
-use libusr::sync::Mutex;
 
-fn sleep(ns: u64) {
-    let mut rem = [0; 2];
-    libusr::sys::sys_ex_nanosleep(ns, &mut rem).unwrap();
+fn readline<'a, F: Read>(f: &mut F, bytes: &'a mut [u8]) -> Result<Option<&'a str>, io::Error> {
+    let size = f.read(bytes)?;
+    Ok(if size == 0 {
+        None
+    } else {
+        Some(core::str::from_utf8(&bytes[..size]).unwrap().trim_end_matches('\n'))
+    })
+}
+
+fn execvp(cmd: &str) -> ! {
+    sys_execve(&("/bin/".to_owned() + cmd));
+    sys_exit(ExitCode::from(-1));
+}
+
+fn execute(line: &str) -> Result<ExitCode, Errno> {
+    let mut words = line.split(' ');
+    let cmd = words.next().unwrap();
+
+    if let Some(pid) = sys_fork()? {
+        let mut status = 0;
+        sys_waitpid(pid, &mut status)?;
+        Ok(ExitCode::from(status))
+    } else {
+        execvp(cmd);
+    }
 }
 
 #[no_mangle]
 fn main() -> i32 {
-    let value = 1234;
-    let thread = thread::spawn(move || {
-        trace!("Closure is alive: {}", value);
-        sleep(2_000_000_000);
-        trace!("Closure will now exit");
+    let mut buf = [0; 256];
+    let mut stdin = io::stdin();
 
-        value - 100
-    });
-    sleep(1_000_000_000);
+    loop {
+        print!("> ");
+        let line = readline(&mut stdin, &mut buf).unwrap();
+        if line.is_none() {
+            break;
+        }
+        let line = line.unwrap().trim_start_matches(' ');
+        if line.is_empty() {
+            continue;
+        }
 
-    trace!("???");
-
-    trace!("Thread joined: {:?}", thread.join());
-
+        execute(line);
+    }
     0
 }

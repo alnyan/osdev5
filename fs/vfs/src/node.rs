@@ -1,11 +1,11 @@
-use crate::{File, FileRef, Filesystem};
+use crate::{Ioctx, File, FileRef, Filesystem};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{RefCell, RefMut};
 use core::fmt;
 use libsys::{
     error::Errno,
     ioctl::IoctlCmd,
-    stat::{FileMode, OpenFlags, Stat},
+    stat::{AccessMode, FileMode, OpenFlags, Stat},
 };
 
 /// Convenience type alias for [Rc<Vnode>]
@@ -31,7 +31,7 @@ pub(crate) struct TreeNode {
 
 /// File property cache struct
 pub struct VnodeProps {
-    mode: FileMode,
+    pub mode: FileMode,
 }
 
 /// Virtual filesystem node struct, generalizes access to
@@ -120,6 +120,11 @@ impl Vnode {
     /// Returns [Vnode]'s path element name
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Returns a borrowed reference to cached file properties
+    pub fn props_mut(&self) -> RefMut<VnodeProps> {
+        self.props.borrow_mut()
     }
 
     /// Sets an associated [VnodeImpl] for the [Vnode]
@@ -406,6 +411,38 @@ impl Vnode {
             data.is_ready(self.clone(), write)
         } else {
             Err(Errno::NotImplemented)
+        }
+    }
+
+    pub fn check_access(&self, ioctx: &Ioctx, access: AccessMode) -> Result<(), Errno> {
+        let props = self.props.borrow();
+        let mode = props.mode;
+
+        if access.contains(AccessMode::F_OK) {
+            if access.intersects(AccessMode::R_OK | AccessMode::W_OK | AccessMode::X_OK) {
+                return Err(Errno::InvalidArgument);
+            }
+            return Ok(());
+        } else {
+            if access.contains(AccessMode::F_OK) {
+                return Err(Errno::InvalidArgument);
+            }
+
+            // Check user
+            if access.contains(AccessMode::R_OK) && !mode.contains(FileMode::USER_READ) {
+                return Err(Errno::PermissionDenied);
+            }
+            if access.contains(AccessMode::W_OK) && !mode.contains(FileMode::USER_WRITE) {
+                return Err(Errno::PermissionDenied);
+            }
+            if access.contains(AccessMode::X_OK) && !mode.contains(FileMode::USER_EXEC) {
+                return Err(Errno::PermissionDenied);
+            }
+
+            // TODO check group
+            // TODO check other
+
+            return Ok(());
         }
     }
 }

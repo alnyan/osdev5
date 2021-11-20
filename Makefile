@@ -95,6 +95,7 @@ initrd:
 	mkdir -p $(O)/rootfs/bin
 	cp target/$(ARCH)-osdev5/$(PROFILE)/init $(O)/rootfs/init
 	cp target/$(ARCH)-osdev5/$(PROFILE)/shell $(O)/rootfs/bin
+	cp target/$(ARCH)-osdev5/$(PROFILE)/fuzzy $(O)/rootfs/bin
 	cd $(O)/rootfs && tar cf ../initrd.img `find -type f -printf "%P\n"`
 ifeq ($(MACH),orangepi3)
 	$(MKIMAGE) \

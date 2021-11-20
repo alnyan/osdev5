@@ -4,7 +4,7 @@ use crate::{
     ioctl::IoctlCmd,
     proc::{ExitCode, Pid},
     signal::{Signal, SignalDestination},
-    stat::{FdSet, FileDescriptor, FileMode, OpenFlags, Stat},
+    stat::{AccessMode, FdSet, FileDescriptor, FileMode, OpenFlags, Stat},
 };
 
 // TODO document the syscall ABI
@@ -322,6 +322,25 @@ pub fn sys_select(
                 .map(|e| e as *mut _)
                 .unwrap_or(core::ptr::null_mut())),
             argn!(timeout)
+        )
+    })
+}
+
+#[inline(always)]
+pub fn sys_faccessat(
+    fd: Option<FileDescriptor>,
+    name: &str,
+    mode: AccessMode,
+    flags: u32,
+) -> Result<(), Errno> {
+    Errno::from_syscall_unit(unsafe {
+        syscall!(
+            abi::SYS_FACCESSAT,
+            argn!(FileDescriptor::into_i32(fd)),
+            argp!(name.as_ptr()),
+            argn!(name.len()),
+            argn!(mode.bits()),
+            argn!(flags)
         )
     })
 }

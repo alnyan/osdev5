@@ -1,4 +1,4 @@
-use libsys::error::Errno;
+use libsys::{error::Errno, stat::FileMode};
 use vfs::VnodeKind;
 
 #[repr(packed)]
@@ -79,6 +79,10 @@ impl Tar {
             b'5' => VnodeKind::Directory,
             p => panic!("Unrecognized tar entry type: '{}'", p as char),
         }
+    }
+
+    pub fn mode(&self) -> FileMode {
+        FileMode::from_bits(from_octal(&self.mode) as u32).unwrap()
     }
 
     pub fn data(&self) -> &[u8] {

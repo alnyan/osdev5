@@ -20,3 +20,4 @@ pub const SYS_EXECVE: usize = 8;
 pub const SYS_WAITPID: usize = 9;
 pub const SYS_IOCTL: usize = 10;
 pub const SYS_SELECT: usize = 11;
+pub const SYS_FACCESSAT: usize = 12;

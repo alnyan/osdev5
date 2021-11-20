@@ -31,6 +31,15 @@ bitflags! {
     }
 }
 
+bitflags! {
+    pub struct AccessMode: u32 {
+        const R_OK = 1 << 0;
+        const W_OK = 1 << 1;
+        const X_OK = 1 << 2;
+        const F_OK = 1 << 3;
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct FdSet {
     bits: [u64; 2]

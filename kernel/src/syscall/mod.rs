@@ -12,7 +12,7 @@ use libsys::{
     ioctl::IoctlCmd,
     proc::Pid,
     signal::{Signal, SignalDestination},
-    stat::{FdSet, FileDescriptor, FileMode, OpenFlags, Stat, AT_EMPTY_PATH},
+    stat::{FdSet, AccessMode, FileDescriptor, FileMode, OpenFlags, Stat, AT_EMPTY_PATH},
     traits::{Read, Write},
 };
 use vfs::VnodeRef;
@@ -233,6 +233,18 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
 
             wait::select(Thread::current(), rfds, wfds, timeout)
         }
+        abi::SYS_FACCESSAT => {
+            let at_fd = FileDescriptor::from_i32(args[0] as i32)?;
+            let path = validate_user_str(args[1], args[2])?;
+            let mode = AccessMode::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
+            let flags = args[4] as u32;
+
+            let proc = Process::current();
+            let mut io = proc.io.lock();
+
+            find_at_node(&mut io, at_fd, path, flags & AT_EMPTY_PATH != 0)?.check_access(io.ioctx(), mode)?;
+            Ok(0)
+        },
 
         _ => {
             let thread = Thread::current();

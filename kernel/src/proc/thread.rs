@@ -283,7 +283,7 @@ impl Thread {
     }
 
     /// Switches process main thread to a signal handler
-    pub fn enter_signal(&self, signal: Signal, ttbr0: usize) {
+    pub fn enter_signal(self: ThreadRef, signal: Signal, ttbr0: usize) {
         if self
             .signal_pending
             .compare_exchange_weak(0, signal as u32, Ordering::SeqCst, Ordering::Relaxed)
@@ -294,7 +294,9 @@ impl Thread {
 
         let mut lock = self.inner.lock();
         if lock.signal_entry == 0 || lock.signal_stack == 0 {
-            todo!();
+            drop(lock);
+            Process::exit_thread(self);
+            panic!();
         }
 
         let signal_ctx = unsafe { &mut *self.signal_ctx.get() };

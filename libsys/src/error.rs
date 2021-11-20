@@ -15,6 +15,7 @@ pub enum Errno {
     NotADirectory,
     NotImplemented,
     OutOfMemory,
+    PermissionDenied,
     ReadOnly,
     TimedOut,
     TooManyDescriptors,

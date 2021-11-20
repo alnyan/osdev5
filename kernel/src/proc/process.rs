@@ -243,7 +243,9 @@ impl Process {
 
             if lock.threads.len() == 1 {
                 // TODO call Process::exit instead?
-                todo!();
+                drop(lock);
+                Process::exit(ExitCode::from(0));
+                panic!();
             }
 
             lock.threads.retain(|&e| e != tid);
