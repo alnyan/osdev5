@@ -1,4 +1,4 @@
-use crate::abi;
+use crate::abi::SystemCall;
 use crate::{
     error::Errno,
     ioctl::IoctlCmd,
@@ -14,42 +14,42 @@ use core::time::Duration;
 macro_rules! syscall {
     ($num:expr) => {{
         let mut res: usize;
-        asm!("svc #0", out("x0") res, in("x8") $num, options(nostack));
+        asm!("svc #0", out("x0") res, in("x8") $num.repr(), options(nostack));
         res
     }};
     ($num:expr, $a0:expr) => {{
         let mut res: usize = $a0;
         asm!("svc #0",
              inout("x0") res,
-             in("x8") $num, options(nostack));
+             in("x8") $num.repr(), options(nostack));
         res
     }};
     ($num:expr, $a0:expr, $a1:expr) => {{
         let mut res: usize = $a0;
         asm!("svc #0",
              inout("x0") res, in("x1") $a1,
-             in("x8") $num, options(nostack));
+             in("x8") $num.repr(), options(nostack));
         res
     }};
     ($num:expr, $a0:expr, $a1:expr, $a2:expr) => {{
         let mut res: usize = $a0;
         asm!("svc #0",
              inout("x0") res, in("x1") $a1, in("x2") $a2,
-             in("x8") $num, options(nostack));
+             in("x8") $num.repr(), options(nostack));
         res
     }};
     ($num:expr, $a0:expr, $a1:expr, $a2:expr, $a3:expr) => {{
         let mut res: usize = $a0;
         asm!("svc #0",
              inout("x0") res, in("x1") $a1, in("x2") $a2,
-             in("x3") $a3, in("x8") $num, options(nostack));
+             in("x3") $a3, in("x8") $num.repr(), options(nostack));
         res
     }};
     ($num:expr, $a0:expr, $a1:expr, $a2:expr, $a3:expr, $a4:expr) => {{
         let mut res: usize = $a0;
         asm!("svc #0",
              inout("x0") res, in("x1") $a1, in("x2") $a2,
-             in("x3") $a3, in("x4") $a4, in("x8") $num, options(nostack));
+             in("x3") $a3, in("x4") $a4, in("x8") $num.repr(), options(nostack));
         res
     }};
 }
@@ -77,7 +77,7 @@ macro_rules! argp {
 #[inline(always)]
 pub fn sys_exit(code: ExitCode) -> ! {
     unsafe {
-        syscall!(abi::SYS_EXIT, argn!(i32::from(code)));
+        syscall!(SystemCall::Exit, argn!(i32::from(code)), argn!(0));
     }
     unreachable!();
 }
@@ -87,7 +87,7 @@ pub fn sys_exit(code: ExitCode) -> ! {
 /// System call
 #[inline(always)]
 pub fn sys_close(fd: FileDescriptor) -> Result<(), Errno> {
-    Errno::from_syscall_unit(unsafe { syscall!(abi::SYS_CLOSE, argn!(u32::from(fd))) })
+    Errno::from_syscall_unit(unsafe { syscall!(SystemCall::Close, argn!(u32::from(fd))) })
 }
 
 /// # Safety
@@ -96,7 +96,7 @@ pub fn sys_close(fd: FileDescriptor) -> Result<(), Errno> {
 #[inline(always)]
 pub fn sys_ex_nanosleep(ns: u64, rem: &mut [u64; 2]) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
-        syscall!(abi::SYS_EX_NANOSLEEP, argn!(ns), argp!(rem.as_mut_ptr()))
+        syscall!(SystemCall::Sleep, argn!(ns), argp!(rem.as_mut_ptr()))
     })
 }
 
@@ -107,7 +107,7 @@ pub fn sys_ex_nanosleep(ns: u64, rem: &mut [u64; 2]) -> Result<(), Errno> {
 pub fn sys_ex_debug_trace(msg: &[u8]) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
         syscall!(
-            abi::SYS_EX_DEBUG_TRACE,
+            SystemCall::DebugTrace,
             argp!(msg.as_ptr()),
             argn!(msg.len())
         )
@@ -126,7 +126,7 @@ pub fn sys_openat(
 ) -> Result<FileDescriptor, Errno> {
     Errno::from_syscall(unsafe {
         syscall!(
-            abi::SYS_OPENAT,
+            SystemCall::Open,
             argn!(FileDescriptor::into_i32(at)),
             argp!(pathname.as_ptr()),
             argn!(pathname.len()),
@@ -144,7 +144,7 @@ pub fn sys_openat(
 pub fn sys_read(fd: FileDescriptor, data: &mut [u8]) -> Result<usize, Errno> {
     Errno::from_syscall(unsafe {
         syscall!(
-            abi::SYS_READ,
+            SystemCall::Read,
             argn!(u32::from(fd)),
             argp!(data.as_mut_ptr()),
             argn!(data.len())
@@ -156,7 +156,7 @@ pub fn sys_read(fd: FileDescriptor, data: &mut [u8]) -> Result<usize, Errno> {
 pub fn sys_write(fd: FileDescriptor, data: &[u8]) -> Result<usize, Errno> {
     Errno::from_syscall(unsafe {
         syscall!(
-            abi::SYS_WRITE,
+            SystemCall::Write,
             argn!(u32::from(fd)),
             argp!(data.as_ptr()),
             argn!(data.len())
@@ -176,7 +176,7 @@ pub fn sys_fstatat(
 ) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
         syscall!(
-            abi::SYS_FSTATAT,
+            SystemCall::FileStatus,
             argn!(FileDescriptor::into_i32(at)),
             argp!(pathname.as_ptr()),
             argn!(pathname.len()),
@@ -191,7 +191,7 @@ pub fn sys_fstatat(
 /// System call
 #[inline(always)]
 pub unsafe fn sys_fork() -> Result<Option<Pid>, Errno> {
-    Errno::from_syscall(unsafe { syscall!(abi::SYS_FORK) }).map(|res| {
+    Errno::from_syscall(unsafe { syscall!(SystemCall::Fork) }).map(|res| {
         if res != 0 {
             Some(unsafe { Pid::from_raw(res as u32) })
         } else {
@@ -207,7 +207,7 @@ pub unsafe fn sys_fork() -> Result<Option<Pid>, Errno> {
 pub fn sys_execve(pathname: &str) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
         syscall!(
-            abi::SYS_EXECVE,
+            SystemCall::Exec,
             argp!(pathname.as_ptr()),
             argn!(pathname.len())
         )
@@ -221,7 +221,7 @@ pub fn sys_execve(pathname: &str) -> Result<(), Errno> {
 pub fn sys_waitpid(pid: Pid, status: &mut i32) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
         syscall!(
-            abi::SYS_WAITPID,
+            SystemCall::WaitPid,
             argn!(pid.value()),
             argp!(status as *mut i32)
         )
@@ -240,7 +240,7 @@ pub fn sys_ioctl(
 ) -> Result<usize, Errno> {
     Errno::from_syscall(unsafe {
         syscall!(
-            abi::SYS_IOCTL,
+            SystemCall::Ioctl,
             argn!(u32::from(fd)),
             argn!(cmd),
             argn!(ptr),
@@ -252,19 +252,19 @@ pub fn sys_ioctl(
 #[inline(always)]
 pub fn sys_ex_getcputime() -> Result<Duration, Errno> {
     Errno::from_syscall(unsafe {
-        syscall!(abi::SYS_EX_GETCPUTIME)
+        syscall!(SystemCall::GetCpuTime)
     }).map(|e| Duration::from_nanos(e as u64))
 }
 
 #[inline(always)]
 pub fn sys_ex_signal(entry: usize, stack: usize) -> Result<(), Errno> {
-    Errno::from_syscall_unit(unsafe { syscall!(abi::SYS_EX_SIGNAL, argn!(entry), argn!(stack)) })
+    Errno::from_syscall_unit(unsafe { syscall!(SystemCall::SetSignalEntry, argn!(entry), argn!(stack)) })
 }
 
 #[inline(always)]
 pub fn sys_ex_sigreturn() -> ! {
     unsafe {
-        syscall!(abi::SYS_EX_SIGRETURN);
+        syscall!(SystemCall::SignalReturn);
     }
     unreachable!();
 }
@@ -273,7 +273,7 @@ pub fn sys_ex_sigreturn() -> ! {
 pub fn sys_ex_kill(pid: SignalDestination, signum: Signal) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
         syscall!(
-            abi::SYS_EX_KILL,
+            SystemCall::SendSignal,
             argn!(isize::from(pid)),
             argn!(signum as u32)
         )
@@ -283,35 +283,28 @@ pub fn sys_ex_kill(pid: SignalDestination, signum: Signal) -> Result<(), Errno> 
 #[inline(always)]
 pub fn sys_ex_clone(entry: usize, stack: usize, arg: usize) -> Result<usize, Errno> {
     Errno::from_syscall(unsafe {
-        syscall!(abi::SYS_EX_CLONE, argn!(entry), argn!(stack), argn!(arg))
+        syscall!(SystemCall::Clone, argn!(entry), argn!(stack), argn!(arg))
     })
 }
 
 #[inline(always)]
 pub fn sys_ex_thread_exit(status: ExitCode) -> ! {
     unsafe {
-        syscall!(abi::SYS_EX_THREAD_EXIT, argn!(i32::from(status)));
+        syscall!(SystemCall::Exit, argn!(i32::from(status)), argn!(1));
     }
     unreachable!();
 }
 
 #[inline(always)]
 pub fn sys_ex_thread_wait(tid: u32) -> Result<ExitCode, Errno> {
-    Errno::from_syscall(unsafe { syscall!(abi::SYS_EX_THREAD_WAIT, argn!(tid)) })
+    Errno::from_syscall(unsafe { syscall!(SystemCall::WaitTid, argn!(tid)) })
         .map(|_| ExitCode::from(0))
 }
 
 #[inline(always)]
 pub fn sys_ex_yield() {
     unsafe {
-        syscall!(abi::SYS_EX_YIELD);
-    }
-}
-
-#[inline(always)]
-pub fn sys_ex_undefined() {
-    unsafe {
-        syscall!(0);
+        syscall!(SystemCall::Yield);
     }
 }
 
@@ -323,7 +316,7 @@ pub fn sys_select(
 ) -> Result<usize, Errno> {
     Errno::from_syscall(unsafe {
         syscall!(
-            abi::SYS_SELECT,
+            SystemCall::Select,
             argp!(read_fds
                 .map(|e| e as *mut _)
                 .unwrap_or(core::ptr::null_mut())),
@@ -344,7 +337,7 @@ pub fn sys_faccessat(
 ) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
         syscall!(
-            abi::SYS_FACCESSAT,
+            SystemCall::Access,
             argn!(FileDescriptor::into_i32(fd)),
             argp!(name.as_ptr()),
             argn!(name.len()),
@@ -357,6 +350,6 @@ pub fn sys_faccessat(
 #[inline(always)]
 pub fn sys_ex_gettid() -> u32 {
     unsafe {
-        syscall!(abi::SYS_EX_GETTID) as u32
+        syscall!(SystemCall::GetTid) as u32
     }
 }

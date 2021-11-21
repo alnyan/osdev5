@@ -7,7 +7,7 @@ use crate::mem;
 use crate::proc::{sched, Thread, Process};
 use crate::syscall;
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
-use libsys::{abi, signal::Signal};
+use libsys::{abi::SystemCall, signal::Signal};
 use tock_registers::interfaces::Readable;
 
 /// Trapped SIMD/FP functionality
@@ -116,24 +116,30 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
             dump_data_abort(Level::Error, esr, far as u64);
         }
         EC_SVC_AA64 => {
-            unsafe {
-                if exc.x[8] == abi::SYS_FORK {
-                    match syscall::sys_fork(exc) {
-                        Ok(pid) => exc.x[0] = pid.value() as usize,
-                        Err(err) => {
-                            exc.x[0] = err.to_negative_isize() as usize;
-                        }
-                    }
-                    return;
-                }
+            let num = SystemCall::from_repr(exc.x[8]);
+            if num.is_none() {
+                todo!();
+                return;
+            }
+            let num = num.unwrap();
 
-                match syscall::syscall(exc.x[8], &exc.x[..6]) {
-                    Ok(val) => exc.x[0] = val,
+            if num == SystemCall::Fork {
+                match unsafe { syscall::sys_fork(exc) } {
+                    Ok(pid) => exc.x[0] = pid.value() as usize,
                     Err(err) => {
                         exc.x[0] = err.to_negative_isize() as usize;
                     }
                 }
+                return;
             }
+
+            match syscall::syscall(num, &exc.x[..6]) {
+                Ok(val) => exc.x[0] = val,
+                Err(err) => {
+                    exc.x[0] = err.to_negative_isize() as usize;
+                }
+            }
+
             return;
         }
         _ => {}

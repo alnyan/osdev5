@@ -5,7 +5,7 @@
 #[macro_use]
 extern crate libusr;
 
-use libusr::sys::{abi, stat::Stat, Signal};
+use libusr::sys::{abi::SystemCall, stat::Stat, Signal};
 use libusr::signal::{self, SignalHandler};
 
 static mut STATE: u64 = 0;
@@ -122,12 +122,12 @@ fn main() -> i32 {
 
     // Test non-utf8 input fed into syscalls expecting strings
     // let old_signal = signal::set_handler(Signal::InvalidSystemCall, SignalHandler::Ignore);
-    for _ in 0..10000 {
+    for _ in 0..100 {
         random_bytes(&mut buf);
         let mut stat = Stat::default();
 
         unsafe {
-            syscall!(abi::SYS_FSTATAT, (-2i32) as usize, buf.as_mut_ptr() as usize, buf.len(), (&mut stat) as *mut _ as usize);
+            syscall!(SystemCall::FileStatus.repr(), (-2i32) as usize, buf.as_mut_ptr() as usize, buf.len(), (&mut stat) as *mut _ as usize);
         }
     }
     // signal::set_handler(Signal::InvalidSystemCall, old_signal);

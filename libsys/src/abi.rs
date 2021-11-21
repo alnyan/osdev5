@@ -1,26 +1,33 @@
-pub const SYS_EX_DEBUG_TRACE: usize = 128;
-pub const SYS_EX_NANOSLEEP: usize = 129;
+use enum_repr::EnumRepr;
 
-pub const SYS_EX_SIGNAL: usize = 130;
-pub const SYS_EX_SIGRETURN: usize = 131;
-pub const SYS_EX_KILL: usize = 132;
-pub const SYS_EX_CLONE: usize = 133;
-pub const SYS_EX_YIELD: usize = 134;
-pub const SYS_EX_THREAD_EXIT: usize = 135;
-pub const SYS_EX_THREAD_WAIT: usize = 136;
-pub const SYS_EX_GETTID: usize = 137;
-pub const SYS_EX_GETCPUTIME: usize = 138;
-
-pub const SYS_EXIT: usize = 1;
-pub const SYS_READ: usize = 2;
-pub const SYS_WRITE: usize = 3;
-pub const SYS_OPENAT: usize = 4;
-pub const SYS_FSTATAT: usize = 5;
-pub const SYS_CLOSE: usize = 6;
-pub const SYS_FORK: usize = 7;
-pub const SYS_EXECVE: usize = 8;
-pub const SYS_WAITPID: usize = 9;
-pub const SYS_IOCTL: usize = 10;
-pub const SYS_SELECT: usize = 11;
-pub const SYS_FACCESSAT: usize = 12;
-// pub const SYS_GETPID: usize = 13;
+#[EnumRepr(type = "usize")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SystemCall {
+    // I/O
+    Read = 1,
+    Write = 2,
+    Open = 3,
+    Close = 4,
+    FileStatus = 5,
+    Ioctl = 6,
+    Select = 7,
+    Access = 8,
+    // Process manipulation
+    Fork = 32,
+    Clone = 33,
+    Exec = 34,
+    Exit = 35,
+    WaitPid = 36,
+    WaitTid = 37,
+    GetPid = 38,
+    GetTid = 39,
+    Sleep = 40,
+    SetSignalEntry = 41,
+    SignalReturn = 42,
+    SendSignal = 43,
+    Yield = 44,
+    // System
+    GetCpuTime = 64,
+    // Debugging
+    DebugTrace = 128
+}
