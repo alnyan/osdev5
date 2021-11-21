@@ -19,7 +19,6 @@ use libsys::{
 use vfs::VnodeRef;
 
 pub mod arg;
-pub use arg::*;
 
 /// Creates a "fork" process from current one using its register frame.
 /// See [Process::fork()].
@@ -59,7 +58,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let proc = Process::current();
             let fd = FileDescriptor::from(args[0] as u32);
             let mut io = proc.io.lock();
-            let buf = validate_user_ptr(args[1], args[2])?;
+            let buf = arg::buf_mut(args[1], args[2])?;
 
             io.file(fd)?.borrow_mut().read(buf)
         },
@@ -67,13 +66,13 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let proc = Process::current();
             let fd = FileDescriptor::from(args[0] as u32);
             let mut io = proc.io.lock();
-            let buf = validate_user_ptr(args[1], args[2])?;
+            let buf = arg::buf_ref(args[1], args[2])?;
 
             io.file(fd)?.borrow_mut().write(buf)
         },
         SystemCall::Open => {
             let at_fd = FileDescriptor::from_i32(args[0] as i32)?;
-            let path = validate_user_str(args[1], args[2])?;
+            let path = arg::str_ref(args[1], args[2])?;
             let mode = FileMode::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
             let opts = OpenFlags::from_bits(args[4] as u32).ok_or(Errno::InvalidArgument)?;
 
@@ -99,8 +98,8 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
         },
         SystemCall::FileStatus => {
             let at_fd = FileDescriptor::from_i32(args[0] as i32)?;
-            let filename = validate_user_str(args[1], args[2])?;
-            let buf = validate_user_ptr_struct::<Stat>(args[3])?;
+            let filename = arg::str_ref(args[1], args[2])?;
+            let buf = arg::struct_mut::<Stat>(args[3])?;
             let flags = args[4] as u32;
 
             let proc = Process::current();
@@ -119,8 +118,8 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             node.ioctl(cmd, args[2], args[3])
         },
         SystemCall::Select => {
-            let rfds = validate_user_ptr_struct_option::<FdSet>(args[0])?;
-            let wfds = validate_user_ptr_struct_option::<FdSet>(args[1])?;
+            let rfds = arg::option_struct_mut::<FdSet>(args[0])?;
+            let wfds = arg::option_struct_mut::<FdSet>(args[1])?;
             let timeout = if args[2] == 0 {
                 None
             } else {
@@ -131,7 +130,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
         },
         SystemCall::Access => {
             let at_fd = FileDescriptor::from_i32(args[0] as i32)?;
-            let path = validate_user_str(args[1], args[2])?;
+            let path = arg::str_ref(args[1], args[2])?;
             let mode = AccessMode::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
             let flags = args[4] as u32;
 
@@ -156,14 +155,14 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let node = {
                 let proc = Process::current();
                 let mut io = proc.io.lock();
-                let filename = validate_user_str(args[0], args[1])?;
+                let filename = arg::str_ref(args[0], args[1])?;
                 // TODO argv, envp array passing ABI?
                 let node = io.ioctx().find(None, filename, true)?;
                 drop(io);
                 node
             };
             let file = node.open(OpenFlags::O_RDONLY)?;
-            Process::execve(|space| elf::load_elf(space, file), 0).unwrap();
+            Process::execve(move |space| elf::load_elf(space, file), 0).unwrap();
             panic!();
         },
         SystemCall::Exit => {
@@ -181,7 +180,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
         SystemCall::WaitPid => {
             // TODO special "pid" values
             let pid = unsafe { Pid::from_raw(args[0] as u32) };
-            let status = validate_user_ptr_struct::<i32>(args[1])?;
+            let status = arg::struct_mut::<i32>(args[1])?;
 
             match Process::waitpid(pid) {
                 Ok(exit) => {
@@ -204,7 +203,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
         SystemCall::GetPid => todo!(),
         SystemCall::GetTid => Ok(Thread::current().id() as usize),
         SystemCall::Sleep => {
-            let rem_buf = validate_user_ptr_null(args[1], size_of::<u64>() * 2)?;
+            let rem_buf = arg::option_buf_ref(args[1], size_of::<u64>() * 2)?;
             let mut rem = Duration::new(0, 0);
             let res = wait::sleep(Duration::from_nanos(args[0] as u64), &mut rem);
             if res == Err(Errno::Interrupt) {
@@ -249,11 +248,9 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
 
         // Debugging
         SystemCall::DebugTrace => {
-            let buf = validate_user_ptr(args[0], args[1])?;
+            let buf = arg::str_ref(args[0], args[1])?;
             print!(Level::Debug, "[trace] ");
-            for &byte in buf.iter() {
-                print!(Level::Debug, "{}", byte as char);
-            }
+            print!(Level::Debug, "{}", buf);
             println!(Level::Debug, "");
             Ok(args[1])
         },

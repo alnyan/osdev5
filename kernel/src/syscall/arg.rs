@@ -1,6 +1,7 @@
 //! System call argument ABI helpers
 
 use crate::mem;
+use core::alloc::Layout;
 use core::mem::size_of;
 use libsys::error::Errno;
 
@@ -22,34 +23,62 @@ macro_rules! invalid_memory {
     }
 }
 
-fn translate(virt: usize) -> Option<usize> {
+#[inline(always)]
+fn is_el0_accessible(virt: usize, write: bool) -> bool {
     let mut res: usize;
     unsafe {
-        asm!("at s1e1r, {}; mrs {}, par_el1", in(reg) virt, out(reg) res);
+        if write {
+            asm!("at s1e0w, {}; mrs {}, par_el1", in(reg) virt, out(reg) res);
+        } else {
+            asm!("at s1e0r, {}; mrs {}, par_el1", in(reg) virt, out(reg) res);
+        }
     }
-    if res & 1 == 0 {
-        Some(res & !(0xFFF | (0xFF << 56)))
-    } else {
-        None
-    }
+    res & 1 == 0
 }
 
-/// Unwraps a slim structure pointer
-pub fn validate_user_ptr_struct<'a, T>(base: usize) -> Result<&'a mut T, Errno> {
-    validate_user_ptr_struct_option(base).and_then(|e| e.ok_or(Errno::InvalidArgument))
+pub fn struct_ref<'a, T>(base: usize) -> Result<&'a T, Errno> {
+    let layout = Layout::new::<T>();
+    if base % layout.align() != 0 {
+        invalid_memory!(
+            "Structure pointer is misaligned: base={:#x}, expected {:?}",
+            base,
+            layout
+        );
+    }
+    let bytes = buf_ref(base, layout.size())?;
+    Ok(unsafe { &*(bytes.as_ptr() as *const T) })
 }
 
-pub fn validate_user_ptr_struct_option<'a, T>(base: usize) -> Result<Option<&'a mut T>, Errno> {
+pub fn struct_mut<'a, T>(base: usize) -> Result<&'a mut T, Errno> {
+    let layout = Layout::new::<T>();
+    if base % layout.align() != 0 {
+        invalid_memory!(
+            "Structure pointer is misaligned: base={:#x}, expected {:?}",
+            base,
+            layout
+        );
+    }
+    let bytes = buf_mut(base, layout.size())?;
+    Ok(unsafe { &mut *(bytes.as_mut_ptr() as *mut T) })
+}
+
+pub fn option_struct_ref<'a, T>(base: usize) -> Result<Option<&'a T>, Errno> {
     if base == 0 {
         Ok(None)
     } else {
-        let bytes = validate_user_ptr(base, size_of::<T>())?;
-        Ok(Some(unsafe { &mut *(bytes.as_mut_ptr() as *mut T) }))
+        struct_ref(base).map(Some)
     }
 }
 
-/// Unwraps an user buffer reference
-pub fn validate_user_ptr<'a>(base: usize, len: usize) -> Result<&'a mut [u8], Errno> {
+pub fn option_struct_mut<'a, T>(base: usize) -> Result<Option<&'a mut T>, Errno> {
+    if base == 0 {
+        Ok(None)
+    } else {
+        struct_mut(base).map(Some)
+    }
+}
+
+fn validate_ptr(base: usize, len: usize, writable: bool) -> Result<(), Errno> {
     if base > mem::KERNEL_OFFSET || base + len > mem::KERNEL_OFFSET {
         invalid_memory!(
             "User region refers to kernel memory: base={:#x}, len={:#x}",
@@ -59,9 +88,9 @@ pub fn validate_user_ptr<'a>(base: usize, len: usize) -> Result<&'a mut [u8], Er
     }
 
     for i in (base / mem::PAGE_SIZE)..((base + len + mem::PAGE_SIZE - 1) / mem::PAGE_SIZE) {
-        if translate(i * mem::PAGE_SIZE).is_none() {
+        if !is_el0_accessible(i * mem::PAGE_SIZE, writable) {
             invalid_memory!(
-                "User region refers to unmapped memory: base={:#x}, len={:#x} (page {:#x})",
+                "User region refers to inaccessible/unmapped memory: base={:#x}, len={:#x} (page {:#x})",
                 base,
                 len,
                 i * mem::PAGE_SIZE
@@ -69,21 +98,38 @@ pub fn validate_user_ptr<'a>(base: usize, len: usize) -> Result<&'a mut [u8], Er
         }
     }
 
+    Ok(())
+}
+
+pub fn buf_ref<'a>(base: usize, len: usize) -> Result<&'a [u8], Errno> {
+    validate_ptr(base, len, false)?;
+    Ok(unsafe { core::slice::from_raw_parts(base as *const u8, len) })
+}
+
+pub fn buf_mut<'a>(base: usize, len: usize) -> Result<&'a mut [u8], Errno> {
+    validate_ptr(base, len, true)?;
     Ok(unsafe { core::slice::from_raw_parts_mut(base as *mut u8, len) })
 }
 
-/// Unwraps a nullable user buffer reference
-pub fn validate_user_ptr_null<'a>(base: usize, len: usize) -> Result<Option<&'a mut [u8]>, Errno> {
+pub fn option_buf_ref<'a>(base: usize, len: usize) -> Result<Option<&'a [u8]>, Errno> {
     if base == 0 {
         Ok(None)
     } else {
-        validate_user_ptr(base, len).map(Some)
+        buf_ref(base, len).map(Some)
+    }
+}
+
+pub fn option_buf_mut<'a>(base: usize, len: usize) -> Result<Option<&'a mut [u8]>, Errno> {
+    if base == 0 {
+        Ok(None)
+    } else {
+        buf_mut(base, len).map(Some)
     }
 }
 
 /// Unwraps user string argument
-pub fn validate_user_str<'a>(base: usize, len: usize) -> Result<&'a str, Errno> {
-    let bytes = validate_user_ptr(base, len)?;
+pub fn str_ref<'a>(base: usize, len: usize) -> Result<&'a str, Errno> {
+    let bytes = buf_ref(base, len)?;
     core::str::from_utf8(bytes).map_err(|_| {
         warnln!(
             "User string contains invalid UTF-8 characters: base={:#x}, len={:#x}",

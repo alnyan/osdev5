@@ -271,12 +271,17 @@ impl Space {
                                 todo!();
                                 // res.map(virt_addr, dst_phys, flags)?;
                             } else {
-                                // TODO only apply CoW to writable pages
-                                flags |= MapAttributes::AP_BOTH_READONLY | MapAttributes::EX_COW;
-                                l2_table[l2i].set_cow();
-                                unsafe {
-                                    asm!("tlbi vaae1, {}", in(reg) virt_addr);
+                                let writable = flags & MapAttributes::AP_BOTH_READONLY == MapAttributes::AP_BOTH_READWRITE;
+
+                                if writable {
+                                    flags |= MapAttributes::AP_BOTH_READONLY | MapAttributes::EX_COW;
+                                    l2_table[l2i].set_cow();
+
+                                    unsafe {
+                                        asm!("tlbi vaae1, {}", in(reg) virt_addr);
+                                    }
                                 }
+
                                 res.map(virt_addr, dst_phys, flags)?;
                             }
                         }

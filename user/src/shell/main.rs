@@ -41,16 +41,6 @@ fn main() -> i32 {
     let mut buf = [0; 256];
     let mut stdin = io::stdin();
 
-    let delay = libusr::thread::spawn(|| {
-        let mut t = [0; 2];
-        libusr::sys::sys_ex_nanosleep(1_000_000_000, &mut t);
-    });
-
-    delay.join();
-
-    libusr::signal::set_handler(libusr::sys::Signal::Interrupt, libusr::signal::SignalHandler::Ignore);
-    libusr::sys::sys_ex_kill(libusr::sys::SignalDestination::This, libusr::sys::Signal::Interrupt);
-
     loop {
         print!("> ");
         let line = readline(&mut stdin, &mut buf).unwrap();

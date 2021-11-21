@@ -8,7 +8,7 @@ use libsys::{
     ioctl::IoctlCmd
 };
 use core::mem::size_of;
-use crate::syscall::arg::validate_user_ptr_struct;
+use crate::syscall::arg;
 
 #[derive(Debug)]
 struct CharRingInner<const N: usize> {
@@ -45,12 +45,12 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         match cmd {
             IoctlCmd::TtyGetAttributes => {
                 // TODO validate size
-                let res = validate_user_ptr_struct::<Termios>(ptr)?;
+                let res = arg::struct_mut::<Termios>(ptr)?;
                 *res = self.ring().config.lock().clone();
                 Ok(size_of::<Termios>())
             },
             IoctlCmd::TtySetAttributes => {
-                let src = validate_user_ptr_struct::<Termios>(ptr)?;
+                let src = arg::struct_ref::<Termios>(ptr)?;
                 *self.ring().config.lock() = src.clone();
                 Ok(size_of::<Termios>())
             },
