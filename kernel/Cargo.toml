@@ -23,9 +23,11 @@ kernel-macros = { path = "macros" }
 cortex-a = { version = "6.x.x" }
 
 [features]
+default = ["aggressive_syscall"]
 pl011 = []
 pl031 = []
 verbose = []
+aggressive_syscall = []
 
 mach_qemu = ["pl011", "pl031"]
 mach_orangepi3 = []
