@@ -9,6 +9,7 @@ pub const SYS_EX_YIELD: usize = 134;
 pub const SYS_EX_THREAD_EXIT: usize = 135;
 pub const SYS_EX_THREAD_WAIT: usize = 136;
 pub const SYS_EX_GETTID: usize = 137;
+pub const SYS_EX_GETCPUTIME: usize = 138;
 
 pub const SYS_EXIT: usize = 1;
 pub const SYS_READ: usize = 2;

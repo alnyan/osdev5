@@ -1,6 +1,6 @@
 use crate::{BlockAllocator, Bvec, FileInode};
 use alloc::boxed::Box;
-use libsys::error::Errno;
+use libsys::{error::Errno, stat::Stat};
 use vfs::{Vnode, VnodeImpl, VnodeKind, VnodeRef};
 
 pub struct DirInode<A: BlockAllocator + Copy + 'static> {
@@ -29,6 +29,10 @@ impl<A: BlockAllocator + Copy + 'static> VnodeImpl for DirInode<A> {
     }
 
     fn remove(&mut self, _parent: VnodeRef, _name: &str) -> Result<(), Errno> {
+        Ok(())
+    }
+
+    fn stat(&mut self, _at: VnodeRef, _stat: &mut Stat) -> Result<(), Errno> {
         Ok(())
     }
 }

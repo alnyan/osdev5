@@ -1,6 +1,7 @@
 pub use libsys::signal::{Signal, SignalDestination};
 pub use libsys::proc::ExitCode;
 pub use libsys::termios;
+pub use libsys::abi;
 pub use libsys::calls::*;
 pub use libsys::stat::{self, AccessMode, FileDescriptor};
 pub use libsys::error::Errno;

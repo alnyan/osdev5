@@ -1,8 +1,9 @@
 //! System call implementation
 
-use crate::arch::platform::exception::ExceptionFrame;
+use crate::arch::{machine, platform::exception::ExceptionFrame};
 use crate::debug::Level;
 use crate::proc::{self, elf, wait, Process, ProcessIo, Thread};
+use crate::dev::timer::TimestampSource;
 use core::mem::size_of;
 use core::ops::DerefMut;
 use core::time::Duration;
@@ -248,6 +249,10 @@ pub fn syscall(num: usize, args: &[usize]) -> Result<usize, Errno> {
             find_at_node(&mut io, at_fd, path, flags & AT_EMPTY_PATH != 0)?.check_access(io.ioctx(), mode)?;
             Ok(0)
         },
+        abi::SYS_EX_GETCPUTIME => {
+            let time = machine::local_timer().timestamp()?;
+            Ok(time.as_nanos() as usize)
+        }
 
         _ => {
             let thread = Thread::current();

@@ -6,9 +6,11 @@ use crate::{
     signal::{Signal, SignalDestination},
     stat::{AccessMode, FdSet, FileDescriptor, FileMode, OpenFlags, Stat},
 };
+use core::time::Duration;
 
 // TODO document the syscall ABI
 
+// TODO move this to libusr
 macro_rules! syscall {
     ($num:expr) => {{
         let mut res: usize;
@@ -245,6 +247,13 @@ pub fn sys_ioctl(
             argn!(len)
         )
     })
+}
+
+#[inline(always)]
+pub fn sys_ex_getcputime() -> Result<Duration, Errno> {
+    Errno::from_syscall(unsafe {
+        syscall!(abi::SYS_EX_GETCPUTIME)
+    }).map(|e| Duration::from_nanos(e as u64))
 }
 
 #[inline(always)]

@@ -68,8 +68,12 @@ unsafe fn init_common(signal_stack_pointer: *mut u8) {
 }
 
 pub(crate) unsafe fn init_main() {
-    static mut SIGNAL_STACK: [u8; 4096] = [0; 4096];
-    init_common(SIGNAL_STACK.as_mut_ptr().add(SIGNAL_STACK.len()))
+    #[repr(align(16))]
+    struct StackWrapper {
+        data: [u8; 8192]
+    }
+    static mut STACK: StackWrapper = StackWrapper { data: [0; 8192] };
+    init_common(STACK.data.as_mut_ptr().add(8192))
 }
 
 pub fn current() -> Thread {
