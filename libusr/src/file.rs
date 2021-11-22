@@ -1,6 +1,4 @@
 use crate::io::{AsRawFd, Error};
-use crate::os;
-use crate::trace;
 use libsys::stat::FileDescriptor;
 
 pub struct File {
@@ -8,7 +6,7 @@ pub struct File {
 }
 
 impl File {
-    pub fn open(path: &str) -> Result<File, Error> {
+    pub fn open(_path: &str) -> Result<File, Error> {
         todo!()
     }
 }

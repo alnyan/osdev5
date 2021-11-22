@@ -1,40 +1,40 @@
-use libsys::{
-    stat::FileDescriptor,
-    calls::{sys_read, sys_write}
-};
-use crate::io::{Read, Write, Error};
-use crate::sync::{Mutex, MutexGuard};
+use crate::io::{Error, Read, Write};
+use crate::sync::Mutex;
 use core::fmt;
+use libsys::{
+    calls::{sys_read, sys_write},
+    stat::FileDescriptor,
+};
 
 struct InputInner {
-    fd: FileDescriptor
+    fd: FileDescriptor,
 }
 struct OutputInner {
-    fd: FileDescriptor
+    fd: FileDescriptor,
 }
 
-pub struct StdinLock<'a> {
-    lock: MutexGuard<'a, InputInner>
-}
-
-pub struct StdoutLock<'a> {
-    lock: MutexGuard<'a, OutputInner>
-}
-
-pub struct StderrLock<'a> {
-    lock: MutexGuard<'a, OutputInner>
-}
+//pub struct StdinLock<'a> {
+//    lock: MutexGuard<'a, InputInner>
+//}
+//
+//pub struct StdoutLock<'a> {
+//    lock: MutexGuard<'a, OutputInner>
+//}
+//
+//pub struct StderrLock<'a> {
+//    lock: MutexGuard<'a, OutputInner>
+//}
 
 pub struct Stdin {
     inner: &'static Mutex<InputInner>,
 }
 
 pub struct Stdout {
-    inner: &'static Mutex<OutputInner>
+    inner: &'static Mutex<OutputInner>,
 }
 
 pub struct Stderr {
-    inner: &'static Mutex<OutputInner>
+    inner: &'static Mutex<OutputInner>,
 }
 
 // STDIN
@@ -50,6 +50,14 @@ impl Read for Stdin {
         self.inner.lock().read(bytes)
     }
 }
+
+// impl Stdin {
+//     pub fn lock(&self) -> StdinLock {
+//         StdinLock {
+//             lock: self.inner.lock()
+//         }
+//     }
+// }
 
 // STDOUT/STDERR
 
@@ -89,21 +97,21 @@ impl Write for Stderr {
     }
 }
 
-impl Stdout {
-    pub fn lock(&self) -> StdoutLock {
-        StdoutLock {
-            lock: self.inner.lock()
-        }
-    }
-}
-
-impl Stderr {
-    pub fn lock(&self) -> StderrLock {
-        StderrLock {
-            lock: self.inner.lock()
-        }
-    }
-}
+// impl Stdout {
+//     pub fn lock(&self) -> StdoutLock {
+//         StdoutLock {
+//             lock: self.inner.lock()
+//         }
+//     }
+// }
+//
+// impl Stderr {
+//     pub fn lock(&self) -> StderrLock {
+//         StderrLock {
+//             lock: self.inner.lock()
+//         }
+//     }
+// }
 
 lazy_static! {
     static ref STDIN: Mutex<InputInner> = Mutex::new(InputInner {

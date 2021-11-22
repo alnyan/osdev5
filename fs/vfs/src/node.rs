@@ -414,7 +414,7 @@ impl Vnode {
         }
     }
 
-    pub fn check_access(&self, ioctx: &Ioctx, access: AccessMode) -> Result<(), Errno> {
+    pub fn check_access(&self, _ioctx: &Ioctx, access: AccessMode) -> Result<(), Errno> {
         let props = self.props.borrow();
         let mode = props.mode;
 

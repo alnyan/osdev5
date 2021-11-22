@@ -1,15 +1,13 @@
+use crate::signal;
 use alloc::{boxed::Box, sync::Arc, vec};
+use core::any::Any;
 use core::cell::UnsafeCell;
+use core::fmt;
 use core::mem::MaybeUninit;
 use libsys::{
-    calls::{sys_ex_clone, sys_ex_signal, sys_ex_thread_exit, sys_ex_thread_wait, sys_ex_gettid},
-    error::Errno,
+    calls::{sys_ex_clone, sys_ex_gettid, sys_ex_signal, sys_ex_thread_exit, sys_ex_thread_wait},
     proc::ExitCode,
 };
-use core::sync::atomic::{AtomicU32, Ordering};
-use core::any::Any;
-use crate::{trace, signal};
-use core::fmt;
 
 struct NativeData<F, T>
 where
@@ -24,7 +22,7 @@ where
 
 #[derive(Clone)]
 pub struct Thread {
-    id: u32
+    id: u32,
 }
 
 pub type ThreadResult<T> = Result<T, Box<dyn Any + Send + Sync>>;
@@ -32,7 +30,7 @@ pub type ThreadPacket<T> = Arc<UnsafeCell<MaybeUninit<ThreadResult<T>>>>;
 
 pub struct JoinHandle<T> {
     native: u32,
-    result: ThreadPacket<T>
+    result: ThreadPacket<T>,
 }
 
 impl Thread {
@@ -43,26 +41,33 @@ impl Thread {
 
 impl fmt::Debug for Thread {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Thread").field("id", &self.id).finish_non_exhaustive()
+        f.debug_struct("Thread")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
     }
 }
 
 impl<T> JoinHandle<T> {
     pub fn join(self) -> ThreadResult<T> {
         sys_ex_thread_wait(self.native).unwrap();
-        unsafe { Arc::try_unwrap(self.result).unwrap().into_inner().assume_init() }
+        unsafe {
+            Arc::try_unwrap(self.result)
+                .unwrap()
+                .into_inner()
+                .assume_init()
+        }
     }
 }
 
 unsafe fn init_common(signal_stack_pointer: *mut u8) {
-    let tid = sys_ex_gettid();
-    asm!("msr tpidr_el0, {}", in(reg) tid);
+    let tid = sys_ex_gettid() as u64;
+    asm!("msr tpidr_el0, {:x}", in(reg) tid);
 
     // thread::current() should be valid at this point
 
     sys_ex_signal(
         signal::signal_handler as usize,
-        signal_stack_pointer as usize
+        signal_stack_pointer as usize,
     )
     .unwrap();
 }
@@ -70,19 +75,19 @@ unsafe fn init_common(signal_stack_pointer: *mut u8) {
 pub(crate) unsafe fn init_main() {
     #[repr(align(16))]
     struct StackWrapper {
-        data: [u8; 8192]
+        data: [u8; 8192],
     }
     static mut STACK: StackWrapper = StackWrapper { data: [0; 8192] };
     init_common(STACK.data.as_mut_ptr().add(8192))
 }
 
 pub fn current() -> Thread {
-    let mut id: u32;
+    let mut id: u64;
     unsafe {
-        asm!("mrs {}, tpidr_el0", out(reg) id);
+        asm!("mrs {:x}, tpidr_el0", out(reg) id);
     }
 
-    Thread { id }
+    Thread { id: id as u32 }
 }
 
 pub fn spawn<F, T>(f: F) -> JoinHandle<T>
@@ -101,7 +106,7 @@ where
         F: Send + 'static,
         T: Send + 'static,
     {
-        let (stack, len) = {
+        let (_stack, _len) = {
             // Setup signal handling
             let mut signal_stack = vec![0u8; 8192];
 
@@ -123,7 +128,7 @@ where
         sys_ex_thread_exit(ExitCode::from(0));
     }
 
-    let native = unsafe {
+    let native = {
         let stack = stack.as_mut_ptr() as usize + stack.len();
         let data: *mut NativeData<F, T> = Box::into_raw(Box::new(NativeData {
             closure: f,

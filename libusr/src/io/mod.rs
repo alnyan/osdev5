@@ -27,6 +27,6 @@ pub trait AsRawFd {
 pub fn stat(pathname: &str) -> Result<Stat, Error> {
     let mut buf = Stat::default();
     // TODO error handling
-    let res = sys_fstatat(None, pathname, &mut buf, 0).unwrap();
+    sys_fstatat(None, pathname, &mut buf, 0).unwrap();
     Ok(buf)
 }

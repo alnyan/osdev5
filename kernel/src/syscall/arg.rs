@@ -2,7 +2,6 @@
 
 use crate::mem;
 use core::alloc::Layout;
-use core::mem::size_of;
 use libsys::error::Errno;
 use crate::proc::Process;
 
@@ -100,7 +99,7 @@ fn validate_ptr(base: usize, len: usize, write: bool) -> Result<(), Errno> {
                 })
             } else {
                 todo!();
-                Err(Errno::DoesNotExist)
+                // Err(Errno::DoesNotExist)
             };
 
             if res.is_ok() {

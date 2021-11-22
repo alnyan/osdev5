@@ -24,11 +24,6 @@ impl RawMutex {
     }
 
     #[inline]
-    unsafe fn is_locked(&self) -> bool {
-        self.inner.load(Ordering::Acquire)
-    }
-
-    #[inline]
     pub unsafe fn lock(&self) {
         while !self.try_lock() {
             sys_ex_yield();

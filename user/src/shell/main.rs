@@ -6,7 +6,7 @@ extern crate libusr;
 extern crate alloc;
 
 use alloc::borrow::ToOwned;
-use libusr::sys::{sys_faccessat, sys_exit, sys_execve, sys_waitpid, sys_fork, ExitCode, Errno, AccessMode};
+use libusr::sys::{sys_exit, sys_execve, sys_waitpid, sys_fork, ExitCode, Errno};
 use libusr::io::{self, Read};
 
 fn readline<'a, F: Read>(f: &mut F, bytes: &'a mut [u8]) -> Result<Option<&'a str>, io::Error> {
@@ -19,7 +19,7 @@ fn readline<'a, F: Read>(f: &mut F, bytes: &'a mut [u8]) -> Result<Option<&'a st
 }
 
 fn execvp(cmd: &str) -> ! {
-    sys_execve(&("/bin/".to_owned() + cmd));
+    sys_execve(&("/bin/".to_owned() + cmd)).unwrap();
     sys_exit(ExitCode::from(-1));
 }
 
@@ -52,7 +52,7 @@ fn main() -> i32 {
             continue;
         }
 
-        execute(line);
+        execute(line).ok();
     }
     0
 }

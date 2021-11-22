@@ -1,5 +1,5 @@
 //!
-use crate::proc::{Pid, Process, ProcessRef, Thread, ThreadRef, PROCESSES, THREADS};
+use crate::proc::{Thread, ThreadRef, THREADS};
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use alloc::{collections::VecDeque, rc::Rc};

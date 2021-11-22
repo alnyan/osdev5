@@ -6,11 +6,10 @@ use crate::mem::{
     virt::{MapAttributes, Space},
 };
 use crate::proc::{
-    wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, PROCESSES, SCHED, THREADS,
+    wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, PROCESSES, SCHED,
 };
 use crate::sync::{IrqSafeSpinLock, IrqSafeSpinLockGuard};
 use alloc::{rc::Rc, vec::Vec};
-use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU32, Ordering};
 use libsys::{
     error::Errno,
@@ -108,7 +107,7 @@ impl Process {
 
     /// Sets a pending signal for a process
     pub fn set_signal(&self, signal: Signal) {
-        let mut lock = self.inner.lock();
+        let lock = self.inner.lock();
         let main_thread = Thread::get(lock.threads[0]).unwrap();
 
         // TODO check that `signal` is not a fault signal
@@ -133,7 +132,11 @@ impl Process {
         }
     }
 
-    fn enter_signal_on(mut inner: IrqSafeSpinLockGuard<ProcessInner>, thread: ThreadRef, signal: Signal) {
+    fn enter_signal_on(
+        mut inner: IrqSafeSpinLockGuard<ProcessInner>,
+        thread: ThreadRef,
+        signal: Signal,
+    ) {
         let ttbr0 =
             inner.space.as_mut().unwrap().address_phys() | ((inner.id.asid() as usize) << 48);
         drop(inner);

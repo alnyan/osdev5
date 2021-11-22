@@ -1,11 +1,15 @@
-use libsys::{calls::{sys_exit, sys_ex_sigreturn}, signal::Signal, proc::ExitCode};
-use crate::{trace, thread};
+use crate::trace;
+use libsys::{
+    calls::{sys_ex_sigreturn, sys_exit},
+    proc::ExitCode,
+    signal::Signal,
+};
 
 #[derive(Clone, Copy)]
 pub enum SignalHandler {
     Func(fn(Signal) -> ()),
     Ignore,
-    Terminate
+    Terminate,
 }
 
 // TODO per-thread signal handler table

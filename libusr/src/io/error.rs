@@ -2,6 +2,7 @@ use libsys::error::Errno;
 
 #[derive(Debug)]
 pub struct Error {
+    #[allow(dead_code)]
     repr: Repr,
 }
 

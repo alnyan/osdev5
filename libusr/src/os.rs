@@ -1,7 +1,5 @@
 use crate::sys;
 use core::fmt;
-use core::mem::{size_of, MaybeUninit};
-use libsys::{ioctl::IoctlCmd, stat::FileDescriptor, termios::Termios};
 
 #[macro_export]
 macro_rules! trace {

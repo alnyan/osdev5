@@ -191,7 +191,7 @@ pub fn sys_fstatat(
 /// System call
 #[inline(always)]
 pub unsafe fn sys_fork() -> Result<Option<Pid>, Errno> {
-    Errno::from_syscall(unsafe { syscall!(SystemCall::Fork) }).map(|res| {
+    Errno::from_syscall(syscall!(SystemCall::Fork)).map(|res| {
         if res != 0 {
             Some(unsafe { Pid::from_raw(res as u32) })
         } else {

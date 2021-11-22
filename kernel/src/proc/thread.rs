@@ -2,10 +2,14 @@ use crate::arch::aarch64::exception::ExceptionFrame;
 use crate::proc::{wait::Wait, Process, ProcessRef, SCHED, THREADS};
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
-use alloc::{rc::Rc, vec::Vec};
+use alloc::rc::Rc;
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU32, Ordering};
-use libsys::{error::Errno, proc::{Pid, ExitCode}, signal::Signal};
+use libsys::{
+    error::Errno,
+    proc::{ExitCode, Pid},
+    signal::Signal,
+};
 
 pub use crate::arch::platform::context::{self, Context};
 
@@ -297,7 +301,7 @@ impl Thread {
             panic!("Already handling a signal (maybe handle this case)");
         }
 
-        let mut lock = self.inner.lock();
+        let lock = self.inner.lock();
         if lock.signal_entry == 0 || lock.signal_stack == 0 {
             drop(lock);
             Process::exit_thread(self, ExitCode::from(-1));
@@ -317,7 +321,12 @@ impl Thread {
         assert_eq!(lock.state, State::Running);
 
         unsafe {
-            signal_ctx.setup_signal_entry(lock.signal_entry, signal as usize, ttbr0, lock.signal_stack);
+            signal_ctx.setup_signal_entry(
+                lock.signal_entry,
+                signal as usize,
+                ttbr0,
+                lock.signal_stack,
+            );
         }
 
         drop(lock);

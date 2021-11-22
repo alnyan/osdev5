@@ -93,18 +93,18 @@ impl SimpleManager {
         self.stats.available -= count;
     }
 
-    fn update_stats_free(&mut self, pu: PageUsage, count: usize) {
-        let field = match pu {
-            PageUsage::Kernel => &mut self.stats.kernel,
-            PageUsage::KernelHeap => &mut self.stats.kernel_heap,
-            PageUsage::Paging => &mut self.stats.paging,
-            PageUsage::UserPrivate => &mut self.stats.user_private,
-            PageUsage::Filesystem => &mut self.stats.filesystem,
-            _ => panic!("TODO {:?}", pu),
-        };
-        *field -= count;
-        self.stats.available += count;
-    }
+    // fn update_stats_free(&mut self, pu: PageUsage, count: usize) {
+    //     let field = match pu {
+    //         PageUsage::Kernel => &mut self.stats.kernel,
+    //         PageUsage::KernelHeap => &mut self.stats.kernel_heap,
+    //         PageUsage::Paging => &mut self.stats.paging,
+    //         PageUsage::UserPrivate => &mut self.stats.user_private,
+    //         PageUsage::Filesystem => &mut self.stats.filesystem,
+    //         _ => panic!("TODO {:?}", pu),
+    //     };
+    //     *field -= count;
+    //     self.stats.available += count;
+    // }
 }
 unsafe impl Manager for SimpleManager {
     fn alloc_page(&mut self, pu: PageUsage) -> Result<usize, Errno> {
@@ -134,25 +134,21 @@ unsafe impl Manager for SimpleManager {
         Err(Errno::OutOfMemory)
     }
     fn free_page(&mut self, addr: usize) -> Result<(), Errno> {
-        let usage = {
-            let index = self.page_index(addr);
-            let page = &mut self.pages[index];
+        let index = self.page_index(addr);
+        let page = &mut self.pages[index];
 
-            let usage = page.usage;
-            assert!(page.usage != PageUsage::Reserved && page.usage != PageUsage::Available);
+        assert!(page.usage != PageUsage::Reserved && page.usage != PageUsage::Available);
 
-            if page.refcount > 1 {
-                page.refcount -= 1;
-            } else {
-                assert_eq!(page.refcount, 1);
-                page.usage = PageUsage::Available;
-                page.refcount = 0;
+        if page.refcount > 1 {
+            page.refcount -= 1;
+        } else {
+            assert_eq!(page.refcount, 1);
+            page.usage = PageUsage::Available;
+            page.refcount = 0;
 
-                self.last_index = index;
-            }
+            self.last_index = index;
+        }
 
-            usage
-        };
         // FIXME
         // self.update_stats_free(usage, 1);
 

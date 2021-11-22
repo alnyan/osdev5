@@ -2,11 +2,13 @@
 #![no_std]
 #![no_main]
 
+#![allow(unused_macros)]
+#![allow(dead_code)]
+
 #[macro_use]
 extern crate libusr;
 
-use libusr::sys::{abi::SystemCall, stat::Stat, Signal};
-use libusr::signal::{self, SignalHandler};
+use libusr::sys::{abi::SystemCall, stat::Stat};
 
 static mut STATE: u64 = 0;
 
@@ -115,9 +117,10 @@ fn main() -> i32 {
 
     // Test sys_ex_getcputime()
     let mut prev_time = libusr::sys::sys_ex_getcputime().unwrap().as_nanos();
-    for _ in 0..100000 {
+    for _ in 0..1000 {
         let t = libusr::sys::sys_ex_getcputime().unwrap().as_nanos();
         assert!(t >= prev_time);
+        prev_time = t;
     }
 
     // Test non-utf8 input fed into syscalls expecting strings

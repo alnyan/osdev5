@@ -4,7 +4,7 @@ use crate::arch::machine;
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
 use crate::mem;
-use crate::proc::{sched, Thread, Process};
+use crate::proc::{sched, Thread};
 use crate::syscall;
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
 use libsys::{abi::SystemCall, signal::Signal};
@@ -120,7 +120,6 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
             let num = SystemCall::from_repr(exc.x[8]);
             if num.is_none() {
                 todo!();
-                return;
             }
             let num = num.unwrap();
 
