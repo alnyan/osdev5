@@ -17,6 +17,7 @@ pub struct SimpleManager {
     pages: &'static mut [PageInfo],
     stats: PageStatistics,
     base_index: usize,
+    last_index: usize,
 }
 impl SimpleManager {
     pub(super) unsafe fn initialize(base: usize, at: usize, count: usize) -> Self {
@@ -34,6 +35,7 @@ impl SimpleManager {
         }
         Self {
             base_index: base / PAGE_SIZE,
+            last_index: 0,
             stats: PageStatistics {
                 available: 0,
                 kernel: 0,
@@ -57,11 +59,21 @@ impl SimpleManager {
     }
 
     fn alloc_single_index(&mut self, pu: PageUsage) -> Result<usize, Errno> {
-        for index in 0..self.pages.len() {
+        for index in self.last_index..self.pages.len() {
             let page = &mut self.pages[index];
             if page.usage == PageUsage::Available {
                 page.usage = pu;
                 page.refcount = 1;
+                self.last_index = index;
+                return Ok(index);
+            }
+        }
+        for index in 0..self.last_index {
+            let page = &mut self.pages[index];
+            if page.usage == PageUsage::Available {
+                page.usage = pu;
+                page.refcount = 1;
+                self.last_index = index;
                 return Ok(index);
             }
         }
@@ -135,6 +147,8 @@ unsafe impl Manager for SimpleManager {
                 assert_eq!(page.refcount, 1);
                 page.usage = PageUsage::Available;
                 page.refcount = 0;
+
+                self.last_index = index;
             }
 
             usage
