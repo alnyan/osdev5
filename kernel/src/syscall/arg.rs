@@ -4,6 +4,7 @@ use crate::mem;
 use core::alloc::Layout;
 use core::mem::size_of;
 use libsys::error::Errno;
+use crate::proc::Process;
 
 // TODO _mut() versions checking whether pages are actually writable
 
@@ -78,7 +79,7 @@ pub fn option_struct_mut<'a, T>(base: usize) -> Result<Option<&'a mut T>, Errno>
     }
 }
 
-fn validate_ptr(base: usize, len: usize, writable: bool) -> Result<(), Errno> {
+fn validate_ptr(base: usize, len: usize, write: bool) -> Result<(), Errno> {
     if base > mem::KERNEL_OFFSET || base + len > mem::KERNEL_OFFSET {
         invalid_memory!(
             "User region refers to kernel memory: base={:#x}, len={:#x}",
@@ -87,13 +88,31 @@ fn validate_ptr(base: usize, len: usize, writable: bool) -> Result<(), Errno> {
         );
     }
 
+    let process = Process::current();
+
     for i in (base / mem::PAGE_SIZE)..((base + len + mem::PAGE_SIZE - 1) / mem::PAGE_SIZE) {
-        if !is_el0_accessible(i * mem::PAGE_SIZE, writable) {
+        if !is_el0_accessible(i * mem::PAGE_SIZE, write) {
+            // It's possible a CoW page hasn't yet been cloned when trying
+            // a write access
+            let res = if write {
+                process.manipulate_space(|space| {
+                    space.try_cow_copy(i * mem::PAGE_SIZE)
+                })
+            } else {
+                todo!();
+                Err(Errno::DoesNotExist)
+            };
+
+            if res.is_ok() {
+                continue;
+            }
+
             invalid_memory!(
-                "User region refers to inaccessible/unmapped memory: base={:#x}, len={:#x} (page {:#x})",
+                "User region refers to inaccessible/unmapped memory: base={:#x}, len={:#x} (page {:#x}, write={})",
                 base,
                 len,
-                i * mem::PAGE_SIZE
+                i * mem::PAGE_SIZE,
+                write
             );
         }
     }
