@@ -1,10 +1,12 @@
 //! Teletype (TTY) device facilities
 use crate::dev::serial::SerialDevice;
-use crate::proc::wait::{Wait, WAIT_SELECT};
+use crate::proc::{Process, wait::{Wait, WAIT_SELECT}};
 use crate::sync::IrqSafeSpinLock;
 use libsys::error::Errno;
 use libsys::{
     termios::{Termios, TermiosIflag, TermiosLflag, TermiosOflag},
+    proc::Pid,
+    signal::Signal,
     ioctl::IoctlCmd
 };
 use core::mem::size_of;
@@ -16,6 +18,7 @@ struct CharRingInner<const N: usize> {
     wr: usize,
     data: [u8; N],
     flags: u8,
+    fg_pgid: Option<Pid>,
 }
 
 /// Ring buffer for TTYs
@@ -53,6 +56,11 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
                 let src = arg::struct_ref::<Termios>(ptr)?;
                 *self.ring().config.lock() = src.clone();
                 Ok(size_of::<Termios>())
+            },
+            IoctlCmd::TtySetPgrp => {
+                let src = arg::struct_ref::<u32>(ptr)?;
+                self.ring().inner.lock().fg_pgid = Some(unsafe { Pid::from_raw(*src) });
+                Ok(0)
             },
             _ => Err(Errno::InvalidArgument)
         }
@@ -108,6 +116,19 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
             } else {
                 self.send(byte).ok();
             }
+        }
+
+        if byte == 0x3 && config.lflag.contains(TermiosLflag::ISIG) {
+            drop(config);
+            let pgid = ring.inner.lock().fg_pgid;
+            if let Some(pgid) = pgid {
+                // TODO send to pgid
+                let proc = Process::get(pgid);
+                if let Some(proc) = proc {
+                    proc.set_signal(Signal::Interrupt);
+                }
+            }
+            return;
         }
 
         self.ring().putc(byte, false).ok();
@@ -232,14 +253,15 @@ impl<const N: usize> CharRing<N> {
     pub const fn new() -> Self {
         Self {
             inner: IrqSafeSpinLock::new(CharRingInner {
+                fg_pgid: None,
                 rd: 0,
                 wr: 0,
                 data: [0; N],
                 flags: 0,
             }),
             config: IrqSafeSpinLock::new(Termios::new()),
-            wait_read: Wait::new(),
-            wait_write: Wait::new(),
+            wait_read: Wait::new("tty_read"),
+            wait_write: Wait::new("tty_write"),
         }
     }
 

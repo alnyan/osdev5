@@ -86,9 +86,7 @@ impl IntController for Gic {
             return;
         }
 
-        if self.scheduler_irq.0 == irq_number {
-            gicc.clear_irq(irq_number as u32, ic);
-        }
+        gicc.clear_irq(irq_number as u32, ic);
 
         {
             let table = self.table.lock();
@@ -100,8 +98,6 @@ impl IntController for Gic {
                 }
             }
         }
-
-        gicc.clear_irq(irq_number as u32, ic);
     }
 
     fn register_handler(

@@ -16,6 +16,7 @@ use libsys::{
     proc::{ExitCode, Pid},
     signal::Signal,
 };
+use vfs::{VnodeRef, VnodeKind};
 
 /// Wrapper type for a process struct reference
 pub type ProcessRef = Rc<Process>;
@@ -33,6 +34,9 @@ struct ProcessInner {
     space: Option<&'static mut Space>,
     state: ProcessState,
     id: Pid,
+    pgid: Pid,
+    ppid: Option<Pid>,
+    sid: Pid,
     exit: Option<ExitCode>,
     threads: Vec<u32>,
 }
@@ -57,6 +61,25 @@ impl Process {
     }
 
     #[inline]
+    pub fn sid(&self) -> Pid {
+        self.inner.lock().sid
+    }
+
+    #[inline]
+    pub fn pgid(&self) -> Pid {
+        self.inner.lock().pgid
+    }
+
+    #[inline]
+    pub fn ppid(&self) -> Option<Pid> {
+        self.inner.lock().ppid
+    }
+
+    pub fn set_pgid(&self, pgid: Pid) {
+        self.inner.lock().pgid = pgid;
+    }
+
+    #[inline]
     pub fn current() -> ProcessRef {
         Thread::current().owner().unwrap()
     }
@@ -75,6 +98,9 @@ impl Process {
         let mut inner = ProcessInner {
             threads: Vec::new(),
             id,
+            pgid: id,
+            ppid: None,
+            sid: id,
             exit: None,
             space: None,
             state: ProcessState::Active,
@@ -82,7 +108,7 @@ impl Process {
         inner.threads.push(thread.id());
 
         let res = Rc::new(Self {
-            exit_wait: Wait::new(),
+            exit_wait: Wait::new("process_exit"),
             io: IrqSafeSpinLock::new(ProcessIo::new()),
             signal_state: AtomicU32::new(0),
             inner: IrqSafeSpinLock::new(inner),
@@ -107,8 +133,11 @@ impl Process {
 
     /// Sets a pending signal for a process
     pub fn set_signal(&self, signal: Signal) {
-        let lock = self.inner.lock();
+        let mut lock = self.inner.lock();
+        let ttbr0 =
+            lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48);
         let main_thread = Thread::get(lock.threads[0]).unwrap();
+        drop(lock);
 
         // TODO check that `signal` is not a fault signal
         //      it is illegal to call this function with
@@ -116,14 +145,15 @@ impl Process {
 
         match main_thread.state() {
             ThreadState::Running => {
-                Process::enter_signal_on(lock, main_thread, signal);
+                main_thread.enter_signal(signal, ttbr0);
             }
             ThreadState::Waiting => {
-                // TODO abort whatever the process is waiting for
-                todo!()
+                main_thread.clone().setup_signal(signal, ttbr0);
+                main_thread.interrupt_wait(true);
             }
             ThreadState::Ready => {
-                todo!()
+                main_thread.clone().setup_signal(signal, ttbr0);
+                main_thread.interrupt_wait(false);
             }
             ThreadState::Finished => {
                 // TODO report error back
@@ -132,20 +162,11 @@ impl Process {
         }
     }
 
-    fn enter_signal_on(
-        mut inner: IrqSafeSpinLockGuard<ProcessInner>,
-        thread: ThreadRef,
-        signal: Signal,
-    ) {
-        let ttbr0 =
-            inner.space.as_mut().unwrap().address_phys() | ((inner.id.asid() as usize) << 48);
-        drop(inner);
-        thread.enter_signal(signal, ttbr0);
-    }
-
     pub fn enter_fault_signal(&self, thread: ThreadRef, signal: Signal) {
-        let lock = self.inner.lock();
-        Process::enter_signal_on(lock, thread, signal);
+        let mut lock = self.inner.lock();
+        let ttbr0 =
+            lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48);
+        thread.enter_signal(signal, ttbr0);
     }
 
     pub fn new_user_thread(&self, entry: usize, stack: usize, arg: usize) -> Result<u32, Errno> {
@@ -178,7 +199,7 @@ impl Process {
         threads.push(tid);
 
         let dst = Rc::new(Self {
-            exit_wait: Wait::new(),
+            exit_wait: Wait::new("process_exit"),
             io: IrqSafeSpinLock::new(src_io.fork()?),
             signal_state: AtomicU32::new(0),
             inner: IrqSafeSpinLock::new(ProcessInner {
@@ -187,6 +208,9 @@ impl Process {
                 space: Some(dst_space),
                 state: ProcessState::Active,
                 id: dst_id,
+                pgid: src_inner.pgid,
+                ppid: Some(src_inner.id),
+                sid: src_inner.sid
             }),
         });
 
@@ -198,15 +222,11 @@ impl Process {
         Ok(dst_id)
     }
 
-    // TODO a way to terminate a single thread?
     /// Terminates a process.
-    pub fn exit(status: ExitCode) {
-        unsafe {
-            asm!("msr daifclr, #0xF");
-        }
+    pub fn exit(self: ProcessRef, status: ExitCode) {
         let thread = Thread::current();
-        let process = thread.owner().unwrap();
-        let mut lock = process.inner.lock();
+        let mut lock = self.inner.lock();
+        let is_running = thread.owner_id().map(|e| e == lock.id).unwrap_or(false);
 
         infoln!("Process {:?} is exiting: {:?}", lock.id, status);
         assert!(lock.exit.is_none());
@@ -214,11 +234,9 @@ impl Process {
         lock.state = ProcessState::Finished;
 
         for &tid in lock.threads.iter() {
-            debugln!("Dequeue {:?}", tid);
             Thread::get(tid).unwrap().terminate(status);
             SCHED.dequeue(tid);
         }
-        SCHED.debug();
 
         if let Some(space) = lock.space.take() {
             unsafe {
@@ -227,13 +245,16 @@ impl Process {
             }
         }
 
-        process.io.lock().handle_exit();
+        self.io.lock().handle_exit();
 
         drop(lock);
 
-        process.exit_wait.wakeup_all();
-        SCHED.switch(true);
-        panic!("This code should never run");
+        self.exit_wait.wakeup_all();
+
+        if is_running {
+            SCHED.switch(true);
+            panic!("This code should never run");
+        }
     }
 
     pub fn exit_thread(thread: ThreadRef, status: ExitCode) {
@@ -246,8 +267,8 @@ impl Process {
             if lock.threads.len() == 1 {
                 // TODO call Process::exit instead?
                 drop(lock);
-                Process::exit(status);
-                panic!();
+                process.exit(status);
+                return;
             }
 
             lock.threads.retain(|&e| e != tid);
@@ -291,7 +312,6 @@ impl Process {
             if let Some(r) = proc.collect() {
                 // TODO drop the process struct itself
                 PROCESSES.lock().remove(&proc.id());
-                debugln!("pid {:?} has {} refs", proc.id(), Rc::strong_count(&proc));
                 return Ok(r);
             }
 
@@ -327,6 +347,8 @@ impl Process {
             let r = processes.remove(&old_pid);
             assert!(r.is_some());
             process_lock.id = new_pid;
+            process_lock.pgid = new_pid;
+            process_lock.sid = new_pid;
             let r = processes.insert(new_pid, proc.clone());
             assert!(r.is_none());
         } else {

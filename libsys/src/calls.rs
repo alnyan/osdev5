@@ -251,14 +251,15 @@ pub fn sys_ioctl(
 
 #[inline(always)]
 pub fn sys_ex_getcputime() -> Result<Duration, Errno> {
-    Errno::from_syscall(unsafe {
-        syscall!(SystemCall::GetCpuTime)
-    }).map(|e| Duration::from_nanos(e as u64))
+    Errno::from_syscall(unsafe { syscall!(SystemCall::GetCpuTime) })
+        .map(|e| Duration::from_nanos(e as u64))
 }
 
 #[inline(always)]
 pub fn sys_ex_signal(entry: usize, stack: usize) -> Result<(), Errno> {
-    Errno::from_syscall_unit(unsafe { syscall!(SystemCall::SetSignalEntry, argn!(entry), argn!(stack)) })
+    Errno::from_syscall_unit(unsafe {
+        syscall!(SystemCall::SetSignalEntry, argn!(entry), argn!(stack))
+    })
 }
 
 #[inline(always)]
@@ -349,7 +350,22 @@ pub fn sys_faccessat(
 
 #[inline(always)]
 pub fn sys_ex_gettid() -> u32 {
-    unsafe {
-        syscall!(SystemCall::GetTid) as u32
-    }
+    unsafe { syscall!(SystemCall::GetTid) as u32 }
 }
+
+#[inline(always)]
+pub fn sys_getpid() -> Pid {
+    unsafe { Pid::from_raw(syscall!(SystemCall::GetPid) as u32) }
+}
+
+#[inline(always)]
+pub fn sys_getpgid(pid: Pid) -> Result<Pid, Errno> {
+    Errno::from_syscall(unsafe { syscall!(SystemCall::GetPgid, argn!(pid.value())) })
+        .map(|e| unsafe { Pid::from_raw(e as u32) })
+}
+
+#[inline(always)]
+pub fn sys_setpgid(pid: Pid, pgid: Pid) -> Result<Pid, Errno> {
+    Errno::from_syscall(unsafe { syscall!(SystemCall::SetPgid, argn!(pid.value()), argn!(pgid.value())) }).map(|e| unsafe { Pid::from_raw(e as u32) })
+}
+

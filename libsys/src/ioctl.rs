@@ -7,6 +7,7 @@ use crate::error::Errno;
 pub enum IoctlCmd {
     TtySetAttributes = 1,
     TtyGetAttributes = 2,
+    TtySetPgrp = 3,
 }
 
 impl TryFrom<u32> for IoctlCmd {
@@ -17,6 +18,7 @@ impl TryFrom<u32> for IoctlCmd {
         match u {
             1 => Ok(Self::TtySetAttributes),
             2 => Ok(Self::TtyGetAttributes),
+            3 => Ok(Self::TtySetPgrp),
             _ => Err(Errno::InvalidArgument)
         }
     }

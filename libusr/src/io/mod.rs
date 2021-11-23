@@ -1,7 +1,11 @@
 use libsys::{
-    calls::sys_fstatat,
+    calls::{sys_fstatat, sys_ioctl},
     stat::{FileDescriptor, Stat},
+    ioctl::IoctlCmd,
+    error::Errno,
+    proc::Pid
 };
+use core::mem::size_of;
 use core::fmt;
 
 mod error;
@@ -22,6 +26,14 @@ pub trait Write {
 
 pub trait AsRawFd {
     fn as_raw_fd(&self) -> FileDescriptor;
+}
+
+pub fn tcgetpgrp(fd: FileDescriptor) -> Result<Pid, Errno> {
+    todo!()
+}
+
+pub fn tcsetpgrp(fd: FileDescriptor, pgid: Pid) -> Result<(), Errno> {
+    sys_ioctl(fd, IoctlCmd::TtySetPgrp, &pgid as *const _ as usize, size_of::<Pid>()).map(|_| ())
 }
 
 pub fn stat(pathname: &str) -> Result<Stat, Error> {

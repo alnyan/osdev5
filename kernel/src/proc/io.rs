@@ -1,12 +1,13 @@
 //! Process file descriptors and I/O context
 use alloc::collections::BTreeMap;
 use libsys::{error::Errno, stat::FileDescriptor};
-use vfs::{FileRef, Ioctx};
+use vfs::{FileRef, Ioctx, VnodeRef, VnodeKind};
 
 /// Process I/O context. Contains file tables, root/cwd info etc.
 pub struct ProcessIo {
     ioctx: Option<Ioctx>,
     files: BTreeMap<u32, FileRef>,
+    ctty: Option<VnodeRef>,
 }
 
 impl ProcessIo {
@@ -19,6 +20,15 @@ impl ProcessIo {
         }
         dst.ioctx = self.ioctx.clone();
         Ok(dst)
+    }
+
+    pub fn set_ctty(&mut self, node: VnodeRef) {
+        assert_eq!(node.kind(), VnodeKind::Char);
+        self.ctty = Some(node);
+    }
+
+    pub fn ctty(&mut self) -> Option<VnodeRef> {
+        self.ctty.clone()
     }
 
     /// Returns [File] struct referred to by file descriptor `idx`
@@ -54,6 +64,7 @@ impl ProcessIo {
         Self {
             files: BTreeMap::new(),
             ioctx: None,
+            ctty: None,
         }
     }
 

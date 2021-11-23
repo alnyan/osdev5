@@ -125,7 +125,7 @@ fn main() -> i32 {
 
     // Test non-utf8 input fed into syscalls expecting strings
     // let old_signal = signal::set_handler(Signal::InvalidSystemCall, SignalHandler::Ignore);
-    for _ in 0..100 {
+    for _ in 0..10000 {
         random_bytes(&mut buf);
         let mut stat = Stat::default();
 

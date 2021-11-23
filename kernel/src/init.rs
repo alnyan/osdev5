@@ -54,6 +54,7 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
         io.set_file(FileDescriptor::STDIN, stdin).unwrap();
         io.set_file(FileDescriptor::STDOUT, stdout).unwrap();
         io.set_file(FileDescriptor::STDERR, stderr).unwrap();
+        io.set_ctty(tty_node);
     }
 
     drop(cfg);

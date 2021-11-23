@@ -26,6 +26,11 @@ pub enum SystemCall {
     SignalReturn = 42,
     SendSignal = 43,
     Yield = 44,
+    GetSid = 45,
+    GetPgid = 46,
+    GetPpid = 47,
+    SetSid = 48,
+    SetPgid = 49,
     // System
     GetCpuTime = 64,
     // Debugging

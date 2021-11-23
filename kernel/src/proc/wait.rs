@@ -12,6 +12,14 @@ use libsys::{error::Errno, stat::FdSet};
 /// waiting for some event to happen.
 pub struct Wait {
     queue: IrqSafeSpinLock<LinkedList<u32>>,
+    name: &'static str
+}
+
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+pub enum WaitStatus {
+    Pending,
+    Interrupted,
+    Done,
 }
 
 struct Timeout {
@@ -20,7 +28,7 @@ struct Timeout {
 }
 
 static TICK_LIST: IrqSafeSpinLock<LinkedList<Timeout>> = IrqSafeSpinLock::new(LinkedList::new());
-pub static WAIT_SELECT: Wait = Wait::new();
+pub static WAIT_SELECT: Wait = Wait::new("select");
 
 /// Checks for any timed out wait channels and interrupts them
 pub fn tick() {
@@ -42,7 +50,7 @@ pub fn tick() {
 /// Suspends current process for given duration
 pub fn sleep(timeout: Duration, remaining: &mut Duration) -> Result<(), Errno> {
     // Dummy wait descriptor which will never receive notifications
-    static SLEEP_NOTIFY: Wait = Wait::new();
+    static SLEEP_NOTIFY: Wait = Wait::new("sleep");
     let deadline = machine::local_timer().timestamp()? + timeout;
     match SLEEP_NOTIFY.wait(Some(deadline)) {
         Err(Errno::Interrupt) => {
@@ -104,9 +112,39 @@ pub fn select(
 
 impl Wait {
     /// Constructs a new wait channel
-    pub const fn new() -> Self {
+    pub const fn new(name: &'static str) -> Self {
         Self {
             queue: IrqSafeSpinLock::new(LinkedList::new()),
+            name
+        }
+    }
+
+    pub fn abort(&self, tid: u32, enqueue: bool) {
+        let mut queue = self.queue.lock();
+        let mut tick_lock = TICK_LIST.lock();
+        let mut cursor = tick_lock.cursor_front_mut();
+        while let Some(item) = cursor.current() {
+            if tid == item.tid {
+                cursor.remove_current();
+                break;
+            } else {
+                cursor.move_next();
+            }
+        }
+
+        let mut cursor = queue.cursor_front_mut();
+        while let Some(item) = cursor.current() {
+            if tid == *item {
+                cursor.remove_current();
+                let thread = Thread::get(tid).unwrap();
+                thread.set_wait_status(WaitStatus::Interrupted);
+                if enqueue {
+                    SCHED.enqueue(tid);
+                }
+                break;
+            } else {
+                cursor.move_next();
+            }
         }
     }
 
@@ -129,7 +167,7 @@ impl Wait {
                 }
                 drop(tick_lock);
 
-                Thread::get(tid).unwrap().set_wait_reached();
+                Thread::get(tid).unwrap().set_wait_status(WaitStatus::Done);
                 SCHED.enqueue(tid);
             }
 
@@ -147,30 +185,6 @@ impl Wait {
     /// Notifies a single process waiting for this event
     pub fn wakeup_one(&self) {
         self.wakeup_some(1);
-    }
-
-    pub fn abort(&self, tid: u32) {
-        let mut queue = self.queue.lock();
-        let mut tick_lock = TICK_LIST.lock();
-        let mut cursor = tick_lock.cursor_front_mut();
-        while let Some(item) = cursor.current() {
-            if tid == item.tid {
-                cursor.remove_current();
-                break;
-            } else {
-                cursor.move_next();
-            }
-        }
-
-        let mut cursor = queue.cursor_front_mut();
-        while let Some(item) = cursor.current() {
-            if tid == *item {
-                cursor.remove_current();
-                break;
-            } else {
-                cursor.move_next();
-            }
-        }
     }
 
     /// Suspends current process until event is signalled or
@@ -191,9 +205,15 @@ impl Wait {
         }
 
         loop {
-            if !thread.wait_flag() {
-                return Ok(());
-            }
+            match thread.wait_status() {
+                WaitStatus::Pending => {}
+                WaitStatus::Done => {
+                    return Ok(());
+                }
+                WaitStatus::Interrupted => {
+                    return Err(Errno::Interrupt);
+                }
+            };
 
             drop(queue_lock);
             thread.enter_wait();

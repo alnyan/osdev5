@@ -149,7 +149,11 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
 
     if sched::is_ready() {
         let thread = Thread::current();
-        errorln!("Unhandled exception in thread {}, {:?}", thread.id(), thread.owner().map(|e| e.id()));
+        errorln!(
+            "Unhandled exception in thread {}, {:?}",
+            thread.id(),
+            thread.owner().map(|e| e.id())
+        );
     }
 
     errorln!(

@@ -1,5 +1,5 @@
 use crate::arch::aarch64::exception::ExceptionFrame;
-use crate::proc::{wait::Wait, Process, ProcessRef, SCHED, THREADS};
+use crate::proc::{wait::{Wait, WaitStatus}, Process, ProcessRef, SCHED, THREADS};
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use alloc::rc::Rc;
@@ -33,7 +33,7 @@ struct ThreadInner {
     state: State,
     owner: Option<Pid>,
     pending_wait: Option<&'static Wait>,
-    wait_flag: bool,
+    wait_status: WaitStatus,
     signal_entry: usize,
     signal_stack: usize,
 }
@@ -63,6 +63,10 @@ impl Thread {
         self.inner.lock().owner.and_then(Process::get)
     }
 
+    pub fn owner_id(&self) -> Option<Pid> {
+        self.inner.lock().owner
+    }
+
     /// Creates a new kernel process
     pub fn new_kernel(
         owner: Option<Pid>,
@@ -75,7 +79,7 @@ impl Thread {
             ctx: UnsafeCell::new(Context::kernel(entry as usize, arg)),
             signal_ctx: UnsafeCell::new(Context::empty()),
             signal_pending: AtomicU32::new(0),
-            exit_wait: Wait::new(),
+            exit_wait: Wait::new("thread_exit"),
             exit_status: InitOnce::new(),
             inner: IrqSafeSpinLock::new(ThreadInner {
                 signal_entry: 0,
@@ -83,7 +87,7 @@ impl Thread {
                 id,
                 owner,
                 pending_wait: None,
-                wait_flag: false,
+                wait_status: WaitStatus::Done,
                 state: State::Ready,
             }),
         });
@@ -106,7 +110,7 @@ impl Thread {
             ctx: UnsafeCell::new(Context::user(entry, arg, ttbr0, stack)),
             signal_ctx: UnsafeCell::new(Context::empty()),
             signal_pending: AtomicU32::new(0),
-            exit_wait: Wait::new(),
+            exit_wait: Wait::new("thread_exit"),
             exit_status: InitOnce::new(),
             inner: IrqSafeSpinLock::new(ThreadInner {
                 signal_entry: 0,
@@ -114,7 +118,7 @@ impl Thread {
                 id,
                 owner: Some(owner),
                 pending_wait: None,
-                wait_flag: false,
+                wait_status: WaitStatus::Done,
                 state: State::Ready,
             }),
         });
@@ -134,7 +138,7 @@ impl Thread {
             ctx: UnsafeCell::new(Context::fork(frame, ttbr0)),
             signal_ctx: UnsafeCell::new(Context::empty()),
             signal_pending: AtomicU32::new(0),
-            exit_wait: Wait::new(),
+            exit_wait: Wait::new("thread_exit"),
             exit_status: InitOnce::new(),
             inner: IrqSafeSpinLock::new(ThreadInner {
                 signal_entry: 0,
@@ -142,7 +146,7 @@ impl Thread {
                 id,
                 owner,
                 pending_wait: None,
-                wait_flag: false,
+                wait_status: WaitStatus::Done,
                 state: State::Ready,
             }),
         });
@@ -185,7 +189,7 @@ impl Thread {
                 assert_eq!(src_lock.state, State::Running);
                 src_lock.state = State::Ready;
             }
-            assert!(dst_lock.state == State::Ready || dst_lock.state == State::Waiting);
+            // assert!(dst_lock.state == State::Ready || dst_lock.state == State::Waiting);
             dst_lock.state = State::Running;
         }
 
@@ -223,7 +227,7 @@ impl Thread {
         let mut lock = self.inner.lock();
         // FIXME this is not cool
         lock.pending_wait = Some(unsafe { &*wait });
-        lock.wait_flag = true;
+        lock.wait_status = WaitStatus::Pending;
     }
 
     pub fn waittid(tid: u32) -> Result<(), Errno> {
@@ -243,19 +247,19 @@ impl Thread {
         }
     }
 
-    pub fn set_wait_reached(&self) {
+    pub fn set_wait_status(&self, status: WaitStatus) {
         let mut lock = self.inner.lock();
-        lock.wait_flag = false;
+        lock.wait_status = status;
     }
 
     pub fn reset_wait(&self) {
         let mut lock = self.inner.lock();
         lock.pending_wait = None;
+        lock.wait_status = WaitStatus::Done;
     }
 
-    /// Returns `true` if process wait condition has not been reached
-    pub fn wait_flag(&self) -> bool {
-        self.inner.lock().wait_flag
+    pub fn wait_status(&self) -> WaitStatus {
+        self.inner.lock().wait_status
     }
 
     /// Switches current thread back from signal handler
@@ -291,8 +295,7 @@ impl Thread {
         lock.signal_stack = stack;
     }
 
-    /// Switches process main thread to a signal handler
-    pub fn enter_signal(self: ThreadRef, signal: Signal, ttbr0: usize) {
+    pub fn setup_signal(self: ThreadRef, signal: Signal, ttbr0: usize) {
         if self
             .signal_pending
             .compare_exchange_weak(0, signal as u32, Ordering::SeqCst, Ordering::Relaxed)
@@ -305,7 +308,7 @@ impl Thread {
         if lock.signal_entry == 0 || lock.signal_stack == 0 {
             drop(lock);
             Process::exit_thread(self, ExitCode::from(-1));
-            panic!();
+            return;
         }
 
         let signal_ctx = unsafe { &mut *self.signal_ctx.get() };
@@ -318,7 +321,6 @@ impl Thread {
             lock.signal_stack,
             ttbr0
         );
-        assert_eq!(lock.state, State::Running);
 
         unsafe {
             signal_ctx.setup_signal_entry(
@@ -329,10 +331,28 @@ impl Thread {
             );
         }
 
-        drop(lock);
+    }
+
+    /// Switches process main thread to a signal handler
+    pub fn enter_signal(self: ThreadRef, signal: Signal, ttbr0: usize) {
+        let src_ctx = self.ctx.get();
+        let signal_ctx = unsafe { &mut *self.signal_ctx.get() };
+
+        assert_eq!(self.state(), State::Running);
+        self.setup_signal(signal, ttbr0);
 
         unsafe {
             (&mut *src_ctx).switch(signal_ctx);
+        }
+    }
+
+    pub fn interrupt_wait(&self, enqueue: bool) {
+        let mut lock = self.inner.lock();
+        let tid = lock.id;
+        let wait = lock.pending_wait.take();
+        drop(lock);
+        if let Some(wait) = wait {
+            wait.abort(tid, enqueue);
         }
     }
 
@@ -343,7 +363,7 @@ impl Thread {
         let wait = lock.pending_wait.take();
         drop(lock);
         if let Some(wait) = wait {
-            wait.abort(tid);
+            wait.abort(tid, false);
         }
         self.exit_status.init(status);
         self.exit_wait.wakeup_all();
