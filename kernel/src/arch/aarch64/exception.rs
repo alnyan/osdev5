@@ -99,6 +99,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
                     .is_err()
                 {
                     // Kill program
+                    errorln!("Data abort from {:#x}", exc.elr_el1);
                     dump_data_abort(Level::Error, esr, far as u64);
                     proc.enter_fault_signal(thread, Signal::SegmentationFault);
                 }
@@ -114,6 +115,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
             }
 
             errorln!("Unresolved data abort");
+            errorln!("Data abort from {:#x}", exc.elr_el1);
             dump_data_abort(Level::Error, esr, far as u64);
         }
         EC_SVC_AA64 => {
