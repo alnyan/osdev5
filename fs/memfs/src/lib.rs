@@ -69,7 +69,7 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
 
     fn create_node_initial(self: Rc<Self>, name: &str, tar: &Tar) -> VnodeRef {
         let kind = tar.node_kind();
-        let node = Vnode::new(name, kind, Vnode::SEEKABLE);
+        let node = Vnode::new(name, kind, Vnode::SEEKABLE | Vnode::CACHE_READDIR);
         node.props_mut().mode = tar.mode();
         node.set_fs(self.clone());
         match kind {
@@ -113,7 +113,7 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
     }
 
     unsafe fn load_tar(self: Rc<Self>, base: *const u8, size: usize) -> Result<VnodeRef, Errno> {
-        let root = Vnode::new("", VnodeKind::Directory, Vnode::SEEKABLE);
+        let root = Vnode::new("", VnodeKind::Directory, Vnode::SEEKABLE | Vnode::CACHE_READDIR);
         root.set_fs(self.clone());
         root.set_data(Box::new(DirInode::new(self.alloc)));
         root.props_mut().mode = FileMode::default_dir();

@@ -1,6 +1,9 @@
 use crate::{BlockAllocator, Bvec, FileInode};
 use alloc::boxed::Box;
-use libsys::{error::Errno, stat::Stat};
+use libsys::{
+    error::Errno,
+    stat::{DirectoryEntry, OpenFlags, Stat},
+};
 use vfs::{Vnode, VnodeImpl, VnodeKind, VnodeRef};
 
 pub struct DirInode<A: BlockAllocator + Copy + 'static> {
@@ -15,7 +18,7 @@ impl<A: BlockAllocator + Copy + 'static> VnodeImpl for DirInode<A> {
         name: &str,
         kind: VnodeKind,
     ) -> Result<VnodeRef, Errno> {
-        let vnode = Vnode::new(name, kind, Vnode::SEEKABLE);
+        let vnode = Vnode::new(name, kind, Vnode::SEEKABLE | Vnode::CACHE_READDIR);
         match kind {
             VnodeKind::Directory => vnode.set_data(Box::new(DirInode { alloc: self.alloc })),
             VnodeKind::Regular => vnode.set_data(Box::new(FileInode::new(Bvec::new(self.alloc)))),
@@ -32,7 +35,11 @@ impl<A: BlockAllocator + Copy + 'static> VnodeImpl for DirInode<A> {
         Ok(())
     }
 
-    fn stat(&mut self, _at: VnodeRef, _stat: &mut Stat) -> Result<(), Errno> {
+    fn stat(&mut self, node: VnodeRef, stat: &mut Stat) -> Result<(), Errno> {
+        let props = node.props();
+        stat.size = 0;
+        stat.blksize = 4096;
+        stat.mode = props.mode;
         Ok(())
     }
 }

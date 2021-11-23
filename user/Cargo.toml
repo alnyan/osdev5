@@ -17,6 +17,10 @@ path = "src/shell/main.rs"
 name = "fuzzy"
 path = "src/fuzzy/main.rs"
 
+[[bin]]
+name = "ls"
+path = "src/ls/main.rs"
+
 [dependencies]
 libusr = { path = "../libusr" }
 lazy_static = { version = "*", features = ["spin_no_std"] }

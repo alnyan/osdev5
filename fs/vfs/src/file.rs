@@ -1,9 +1,10 @@
-use crate::{VnodeKind, VnodeRef};
+use crate::{VnodeKind, VnodeRef, Vnode};
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use core::cmp::min;
 use libsys::{
     error::Errno,
+    stat::DirectoryEntry,
     traits::{Read, Seek, SeekDir, Write},
 };
 
@@ -97,6 +98,9 @@ impl File {
     /// File has to be closed on execve() calls
     pub const CLOEXEC: u32 = 1 << 2;
 
+    pub const POS_CACHE_DOT: usize = usize::MAX - 1;
+    pub const POS_CACHE_DOT_DOT: usize = usize::MAX;
+
     /// Constructs a new file handle for a regular file
     pub fn normal(vnode: VnodeRef, pos: usize, flags: u32) -> FileRef {
         Rc::new(RefCell::new(Self {
@@ -122,6 +126,60 @@ impl File {
     pub fn is_ready(&self, write: bool) -> Result<bool, Errno> {
         match &self.inner {
             FileInner::Normal(inner) => inner.vnode.is_ready(write),
+            _ => todo!(),
+        }
+    }
+
+    fn cache_readdir(inner: &mut NormalFile, entries: &mut [DirectoryEntry]) -> Result<usize, Errno> {
+        let mut count = entries.len();
+        let mut offset = 0usize;
+
+        if inner.pos == Self::POS_CACHE_DOT {
+            if count == 0 {
+                return Ok(offset);
+            }
+
+            entries[offset] = DirectoryEntry::from_str(".");
+            inner.pos = Self::POS_CACHE_DOT_DOT;
+
+            offset += 1;
+            count -= 1;
+        }
+
+        if inner.pos == Self::POS_CACHE_DOT_DOT {
+            if count == 0 {
+                return Ok(offset);
+            }
+
+            entries[offset] = DirectoryEntry::from_str("..");
+            inner.pos = 0;
+
+            offset += 1;
+            count -= 1;
+        }
+
+        if count == 0 {
+            return Ok(offset);
+        }
+
+        let count = inner.vnode.for_each_entry(inner.pos, count, |i, e| {
+            entries[offset + i] = DirectoryEntry::from_str(e.name());
+        });
+        inner.pos += count;
+        Ok(offset + count)
+    }
+
+    pub fn readdir(&mut self, entries: &mut [DirectoryEntry]) -> Result<usize, Errno> {
+        match &mut self.inner {
+            FileInner::Normal(inner) => {
+                assert_eq!(inner.vnode.kind(), VnodeKind::Directory);
+
+                if inner.vnode.flags() & Vnode::CACHE_READDIR != 0 {
+                    Self::cache_readdir(inner, entries)
+                } else {
+                    todo!();
+                }
+            },
             _ => todo!(),
         }
     }

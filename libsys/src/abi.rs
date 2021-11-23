@@ -12,6 +12,7 @@ pub enum SystemCall {
     Ioctl = 6,
     Select = 7,
     Access = 8,
+    ReadDirectory = 9,
     // Process manipulation
     Fork = 32,
     Clone = 33,

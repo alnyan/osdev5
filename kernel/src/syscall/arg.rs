@@ -62,6 +62,19 @@ pub fn struct_mut<'a, T>(base: usize) -> Result<&'a mut T, Errno> {
     Ok(unsafe { &mut *(bytes.as_mut_ptr() as *mut T) })
 }
 
+pub fn struct_buf_mut<'a, T>(base: usize, count: usize) -> Result<&'a mut [T], Errno> {
+    let layout = Layout::array::<T>(count).unwrap();
+    if base % layout.align() != 0 {
+        invalid_memory!(
+            "Structure pointer is misaligned: base={:#x}, expected {:?}",
+            base,
+            layout
+        );
+    }
+    let bytes = buf_mut(base, layout.size())?;
+    Ok(unsafe { core::slice::from_raw_parts_mut(bytes.as_mut_ptr() as *mut T, count) })
+}
+
 pub fn option_struct_ref<'a, T>(base: usize) -> Result<Option<&'a T>, Errno> {
     if base == 0 {
         Ok(None)

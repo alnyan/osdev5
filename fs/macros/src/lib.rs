@@ -94,6 +94,18 @@ fn impl_inode_fn<T: ToTokens>(name: &str, behavior: T) -> ImplItem {
                 #behavior
             }
         },
+        "readdir" => quote! {
+            fn readdir(
+                &mut self,
+                _node: VnodeRef,
+                _pos: usize,
+                _entries: &mut [libsys::stat::DirectoryEntry]
+            ) ->
+                Result<usize, libsys::error::Errno>
+            {
+                #behavior
+            }
+        },
         _ => panic!("TODO implement {:?}", name),
     })
 }
@@ -126,6 +138,7 @@ pub fn auto_inode(attr: TokenStream, input: TokenStream) -> TokenStream {
     missing.insert("size".to_string());
     missing.insert("ioctl".to_string());
     missing.insert("is_ready".to_string());
+    missing.insert("readdir".to_string());
 
     for item in &impl_item.items {
         match item {

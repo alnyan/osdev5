@@ -4,7 +4,7 @@ use crate::{
     ioctl::IoctlCmd,
     proc::{ExitCode, Pid},
     signal::{Signal, SignalDestination},
-    stat::{AccessMode, FdSet, FileDescriptor, FileMode, OpenFlags, Stat},
+    stat::{AccessMode, DirectoryEntry, FdSet, FileDescriptor, FileMode, OpenFlags, Stat},
 };
 use core::time::Duration;
 
@@ -366,6 +366,20 @@ pub fn sys_getpgid(pid: Pid) -> Result<Pid, Errno> {
 
 #[inline(always)]
 pub fn sys_setpgid(pid: Pid, pgid: Pid) -> Result<Pid, Errno> {
-    Errno::from_syscall(unsafe { syscall!(SystemCall::SetPgid, argn!(pid.value()), argn!(pgid.value())) }).map(|e| unsafe { Pid::from_raw(e as u32) })
+    Errno::from_syscall(unsafe {
+        syscall!(SystemCall::SetPgid, argn!(pid.value()), argn!(pgid.value()))
+    })
+    .map(|e| unsafe { Pid::from_raw(e as u32) })
 }
 
+#[inline(always)]
+pub fn sys_readdir(fd: FileDescriptor, buf: &mut [DirectoryEntry]) -> Result<usize, Errno> {
+    Errno::from_syscall(unsafe {
+        syscall!(
+            SystemCall::ReadDirectory,
+            argn!(u32::from(fd)),
+            argp!(buf.as_mut_ptr()),
+            argn!(buf.len())
+        )
+    })
+}

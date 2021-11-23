@@ -82,7 +82,12 @@ impl Tar {
     }
 
     pub fn mode(&self) -> FileMode {
-        FileMode::from_bits(from_octal(&self.mode) as u32).unwrap()
+        let t = match self.node_kind() {
+            VnodeKind::Regular => FileMode::S_IFREG,
+            VnodeKind::Directory => FileMode::S_IFDIR,
+            _ => todo!()
+        };
+        FileMode::from_bits(from_octal(&self.mode) as u32).unwrap() | t
     }
 
     pub fn data(&self) -> &[u8] {

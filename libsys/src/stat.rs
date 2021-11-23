@@ -1,5 +1,5 @@
-use core::fmt;
 use crate::error::Errno;
+use core::fmt;
 
 const AT_FDCWD: i32 = -2;
 pub const AT_EMPTY_PATH: u32 = 1 << 16;
@@ -14,11 +14,16 @@ bitflags! {
         const O_CREAT =     1 << 4;
         const O_EXEC =      1 << 5;
         const O_CLOEXEC =   1 << 6;
+        const O_DIRECTORY = 1 << 7;
     }
 }
 
 bitflags! {
     pub struct FileMode: u32 {
+        const FILE_TYPE = 0xF << 12;
+        const S_IFREG = 0x8 << 12;
+        const S_IFDIR = 0x4 << 12;
+
         const USER_READ = 1 << 8;
         const USER_WRITE = 1 << 7;
         const USER_EXEC = 1 << 6;
@@ -42,24 +47,55 @@ bitflags! {
 
 #[derive(Clone, Default)]
 pub struct FdSet {
-    bits: [u64; 2]
+    bits: [u64; 2],
 }
 
 #[derive(Clone, Copy, Debug)]
 #[repr(transparent)]
 pub struct FileDescriptor(u32);
 
+#[derive(Clone, Copy)]
+pub struct DirectoryEntry {
+    name: [u8; 64],
+}
+
 struct FdSetIter<'a> {
     idx: u32,
-    set: &'a FdSet
+    set: &'a FdSet,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
 pub struct Stat {
-    pub mode: u32,
+    pub mode: FileMode,
     pub size: u64,
     pub blksize: u32,
+}
+
+impl DirectoryEntry {
+    pub const fn empty() -> Self {
+        Self { name: [0; 64] }
+    }
+
+    pub fn from_str(i: &str) -> DirectoryEntry {
+        let mut res = DirectoryEntry { name: [0; 64] };
+        let bytes = i.as_bytes();
+        res.name[..bytes.len()].copy_from_slice(bytes);
+        res
+    }
+
+    pub fn as_str(&self) -> &str {
+        let zero = self.name.iter().position(|&c| c == 0).unwrap();
+        core::str::from_utf8(&self.name[..zero]).unwrap()
+    }
+}
+
+impl fmt::Debug for DirectoryEntry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("DirectoryEntry")
+            .field("name", &self.as_str())
+            .finish()
+    }
 }
 
 impl FdSet {
@@ -93,10 +129,7 @@ impl FdSet {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = FileDescriptor> + '_ {
-        FdSetIter {
-            idx: 0,
-            set: self
-        }
+        FdSetIter { idx: 0, set: self }
     }
 }
 
@@ -131,13 +164,51 @@ impl fmt::Debug for FdSet {
 
 impl FileMode {
     /// Returns default permission set for directories
-    pub const fn default_dir() -> Self {
-        unsafe { Self::from_bits_unchecked(0o755) }
+    pub fn default_dir() -> Self {
+        unsafe { Self::from_bits_unchecked(0o755) | Self::S_IFDIR }
     }
 
     /// Returns default permission set for regular files
-    pub const fn default_reg() -> Self {
-        unsafe { Self::from_bits_unchecked(0o644) }
+    pub fn default_reg() -> Self {
+        unsafe { Self::from_bits_unchecked(0o644) | Self::S_IFREG }
+    }
+}
+
+fn choose<T>(q: bool, a: T, b: T) -> T {
+    if q { a } else { b }
+}
+
+impl Default for FileMode {
+    fn default() -> Self {
+        unsafe { Self::from_bits_unchecked(0) }
+    }
+}
+
+impl fmt::Display for FileMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}{}{}{}{}{}{}{}{}{}",
+            // File type
+            match *self & Self::FILE_TYPE {
+                Self::S_IFDIR => 'd',
+                Self::S_IFREG => '-',
+                _ => '?'
+            },
+            // User
+            choose(self.contains(Self::USER_READ), 'r', '-'),
+            choose(self.contains(Self::USER_WRITE), 'w', '-'),
+            choose(self.contains(Self::USER_EXEC), 'x', '-'),
+            // Group
+            choose(self.contains(Self::GROUP_READ), 'r', '-'),
+            choose(self.contains(Self::GROUP_WRITE), 'w', '-'),
+            choose(self.contains(Self::GROUP_EXEC), 'x', '-'),
+            // Other
+            choose(self.contains(Self::OTHER_READ), 'r', '-'),
+            choose(self.contains(Self::OTHER_WRITE), 'w', '-'),
+            choose(self.contains(Self::OTHER_EXEC), 'x', '-'),
+        );
+        Ok(())
     }
 }
 

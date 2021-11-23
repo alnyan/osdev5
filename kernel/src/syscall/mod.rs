@@ -2,8 +2,8 @@
 
 use crate::arch::{machine, platform::exception::ExceptionFrame};
 use crate::debug::Level;
-use crate::proc::{self, elf, wait, Process, ProcessIo, Thread};
 use crate::dev::timer::TimestampSource;
+use crate::proc::{self, elf, wait, Process, ProcessIo, Thread};
 use core::mem::size_of;
 use core::ops::DerefMut;
 use core::time::Duration;
@@ -13,7 +13,9 @@ use libsys::{
     ioctl::IoctlCmd,
     proc::{ExitCode, Pid},
     signal::{Signal, SignalDestination},
-    stat::{FdSet, AccessMode, FileDescriptor, FileMode, OpenFlags, Stat, AT_EMPTY_PATH},
+    stat::{
+        AccessMode, DirectoryEntry, FdSet, FileDescriptor, FileMode, OpenFlags, Stat, AT_EMPTY_PATH,
+    },
     traits::{Read, Write},
 };
 use vfs::VnodeRef;
@@ -62,7 +64,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let buf = arg::buf_mut(args[1], args[2])?;
 
             io.file(fd)?.borrow_mut().read(buf)
-        },
+        }
         SystemCall::Write => {
             let proc = Process::current();
             let fd = FileDescriptor::from(args[0] as u32);
@@ -70,7 +72,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let buf = arg::buf_ref(args[1], args[2])?;
 
             io.file(fd)?.borrow_mut().write(buf)
-        },
+        }
         SystemCall::Open => {
             let at_fd = FileDescriptor::from_i32(args[0] as i32)?;
             let path = arg::str_ref(args[1], args[2])?;
@@ -88,7 +90,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
 
             let file = io.ioctx().open(at, path, mode, opts)?;
             Ok(u32::from(io.place_file(file)?) as usize)
-        },
+        }
         SystemCall::Close => {
             let proc = Process::current();
             let mut io = proc.io.lock();
@@ -96,7 +98,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
 
             io.close_file(fd)?;
             Ok(0)
-        },
+        }
         SystemCall::FileStatus => {
             let at_fd = FileDescriptor::from_i32(args[0] as i32)?;
             let filename = arg::str_ref(args[1], args[2])?;
@@ -107,7 +109,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let mut io = proc.io.lock();
             find_at_node(&mut io, at_fd, filename, flags & AT_EMPTY_PATH != 0)?.stat(buf)?;
             Ok(0)
-        },
+        }
         SystemCall::Ioctl => {
             let fd = FileDescriptor::from(args[0] as u32);
             let cmd = IoctlCmd::try_from(args[1] as u32)?;
@@ -117,7 +119,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
 
             let node = io.file(fd)?.borrow().node().ok_or(Errno::InvalidFile)?;
             node.ioctl(cmd, args[2], args[3])
-        },
+        }
         SystemCall::Select => {
             let rfds = arg::option_struct_mut::<FdSet>(args[0])?;
             let wfds = arg::option_struct_mut::<FdSet>(args[1])?;
@@ -128,7 +130,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             };
 
             wait::select(Thread::current(), rfds, wfds, timeout)
-        },
+        }
         SystemCall::Access => {
             let at_fd = FileDescriptor::from_i32(args[0] as i32)?;
             let path = arg::str_ref(args[1], args[2])?;
@@ -138,9 +140,18 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let proc = Process::current();
             let mut io = proc.io.lock();
 
-            find_at_node(&mut io, at_fd, path, flags & AT_EMPTY_PATH != 0)?.check_access(io.ioctx(), mode)?;
+            find_at_node(&mut io, at_fd, path, flags & AT_EMPTY_PATH != 0)?
+                .check_access(io.ioctx(), mode)?;
             Ok(0)
-        },
+        }
+        SystemCall::ReadDirectory => {
+            let proc = Process::current();
+            let fd = FileDescriptor::from(args[0] as u32);
+            let mut io = proc.io.lock();
+            let buf = arg::struct_buf_mut::<DirectoryEntry>(args[1], args[2])?;
+
+            io.file(fd)?.borrow_mut().readdir(buf)
+        }
 
         // Process
         SystemCall::Clone => {
@@ -151,7 +162,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             Process::current()
                 .new_user_thread(entry, stack, arg)
                 .map(|e| e as usize)
-        },
+        }
         SystemCall::Exec => {
             let node = {
                 let proc = Process::current();
@@ -165,7 +176,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let file = node.open(OpenFlags::O_RDONLY)?;
             Process::execve(move |space| elf::load_elf(space, file), 0).unwrap();
             panic!();
-        },
+        }
         SystemCall::Exit => {
             let status = ExitCode::from(args[0] as i32);
             let flags = args[1];
@@ -177,7 +188,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             }
 
             unreachable!();
-        },
+        }
         SystemCall::WaitPid => {
             // TODO special "pid" values
             let pid = unsafe { Pid::from_raw(args[0] as u32) };
@@ -190,17 +201,15 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
                 }
                 e => e.map(|e| i32::from(e) as usize),
             }
-        },
+        }
         SystemCall::WaitTid => {
             let tid = args[0] as u32;
 
             match Thread::waittid(tid) {
-                Ok(_) => {
-                    Ok(0)
-                },
+                Ok(_) => Ok(0),
                 _ => todo!(),
             }
-        },
+        }
         SystemCall::GetPid => Ok(Process::current().id().value() as usize),
         SystemCall::GetTid => Ok(Thread::current().id() as usize),
         SystemCall::Sleep => {
@@ -214,15 +223,15 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
                 }
             }
             res.map(|_| 0)
-        },
+        }
         SystemCall::SetSignalEntry => {
             Thread::current().set_signal_entry(args[0], args[1]);
             Ok(0)
-        },
+        }
         SystemCall::SignalReturn => {
             Thread::current().return_from_signal();
             unreachable!();
-        },
+        }
         SystemCall::SendSignal => {
             let target = SignalDestination::from(args[0] as isize);
             let signal = Signal::try_from(args[1] as u32)?;
@@ -235,11 +244,11 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
                 _ => todo!(),
             };
             Ok(0)
-        },
+        }
         SystemCall::Yield => {
             proc::switch();
             Ok(0)
-        },
+        }
         SystemCall::GetSid => {
             // TODO handle kernel processes here?
             let pid = args[0] as u32;
@@ -250,13 +259,13 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
                 let pid = unsafe { Pid::from_raw(pid) };
                 let proc = Process::get(pid).ok_or(Errno::DoesNotExist)?;
                 if proc.sid() != current.sid() {
-                    return Err(Errno::PermissionDenied)
+                    return Err(Errno::PermissionDenied);
                 }
                 proc
             };
 
             Ok(proc.sid().value() as usize)
-        },
+        }
         SystemCall::GetPgid => {
             // TODO handle kernel processes here?
             let pid = args[0] as u32;
@@ -269,10 +278,8 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             };
 
             Ok(proc.pgid().value() as usize)
-        },
-        SystemCall::GetPpid => {
-            Ok(Process::current().ppid().unwrap().value() as usize)
-        },
+        }
+        SystemCall::GetPpid => Ok(Process::current().ppid().unwrap().value() as usize),
         SystemCall::SetSid => {
             let proc = Process::current();
             let mut io = proc.io.lock();
@@ -282,17 +289,13 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             }
 
             todo!();
-        },
+        }
         SystemCall::SetPgid => {
             let pid = args[0] as u32;
             let pgid = args[1] as u32;
 
             let current = Process::current();
-            let proc = if pid == 0 {
-                current
-            } else {
-                todo!()
-            };
+            let proc = if pid == 0 { current } else { todo!() };
 
             if pgid == 0 {
                 proc.set_pgid(proc.id());
@@ -301,13 +304,13 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             }
 
             Ok(proc.pgid().value() as usize)
-        },
+        }
 
         // System
         SystemCall::GetCpuTime => {
             let time = machine::local_timer().timestamp()?;
             Ok(time.as_nanos() as usize)
-        },
+        }
 
         // Debugging
         SystemCall::DebugTrace => {
@@ -316,9 +319,9 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             print!(Level::Debug, "{}", buf);
             println!(Level::Debug, "");
             Ok(args[1])
-        },
+        }
 
         // Handled elsewhere
-        SystemCall::Fork => unreachable!()
+        SystemCall::Fork => unreachable!(),
     }
 }
