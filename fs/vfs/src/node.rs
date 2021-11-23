@@ -82,7 +82,7 @@ pub trait VnodeImpl {
     ) -> Result<usize, Errno>;
 
     /// Retrieves file status
-    fn stat(&mut self, node: VnodeRef, stat: &mut Stat) -> Result<(), Errno>;
+    fn stat(&mut self, node: VnodeRef) -> Result<Stat, Errno>;
 
     /// Reports the size of this filesystem object in bytes
     fn size(&mut self, node: VnodeRef) -> Result<usize, Errno>;
@@ -451,9 +451,9 @@ impl Vnode {
     }
 
     /// Reports file status
-    pub fn stat(self: &VnodeRef, stat: &mut Stat) -> Result<(), Errno> {
+    pub fn stat(self: &VnodeRef) -> Result<Stat, Errno> {
         if let Some(ref mut data) = *self.data() {
-            data.stat(self.clone(), stat)
+            data.stat(self.clone())
         } else {
             Err(Errno::NotImplemented)
         }

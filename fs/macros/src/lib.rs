@@ -31,8 +31,8 @@ fn impl_inode_fn<T: ToTokens>(name: &str, behavior: T) -> ImplItem {
             }
         },
         "stat" => quote! {
-            fn stat(&mut self, _at: VnodeRef, _stat: &mut libsys::stat::Stat) ->
-                Result<(), libsys::error::Errno>
+            fn stat(&mut self, _at: VnodeRef) ->
+                Result<libsys::stat::Stat, libsys::error::Errno>
             {
                 #behavior
             }

@@ -107,7 +107,8 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
 
             let proc = Process::current();
             let mut io = proc.io.lock();
-            find_at_node(&mut io, at_fd, filename, flags & AT_EMPTY_PATH != 0)?.stat(buf)?;
+            let stat = find_at_node(&mut io, at_fd, filename, flags & AT_EMPTY_PATH != 0)?.stat()?;
+            *buf = stat;
             Ok(0)
         }
         SystemCall::Ioctl => {

@@ -35,12 +35,13 @@ impl<A: BlockAllocator + Copy + 'static> VnodeImpl for DirInode<A> {
         Ok(())
     }
 
-    fn stat(&mut self, node: VnodeRef, stat: &mut Stat) -> Result<(), Errno> {
+    fn stat(&mut self, node: VnodeRef) -> Result<Stat, Errno> {
         let props = node.props();
-        stat.size = 0;
-        stat.blksize = 4096;
-        stat.mode = props.mode;
-        Ok(())
+        Ok(Stat {
+            size: 0,
+            blksize: 4096,
+            mode: props.mode
+        })
     }
 }
 
