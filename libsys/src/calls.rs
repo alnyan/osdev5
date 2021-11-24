@@ -204,12 +204,14 @@ pub unsafe fn sys_fork() -> Result<Option<Pid>, Errno> {
 ///
 /// System call
 #[inline(always)]
-pub fn sys_execve(pathname: &str) -> Result<(), Errno> {
+pub fn sys_execve(pathname: &str, argv: &[&str]) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
         syscall!(
             SystemCall::Exec,
             argp!(pathname.as_ptr()),
-            argn!(pathname.len())
+            argn!(pathname.len()),
+            argp!(argv.as_ptr()),
+            argn!(argv.len())
         )
     })
 }

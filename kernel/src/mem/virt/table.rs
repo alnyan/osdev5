@@ -210,6 +210,23 @@ impl Space {
         }
     }
 
+    // TODO extract attributes
+    pub fn translate(&mut self, virt: usize) -> Result<usize, Errno> {
+        let l0i = virt >> 30;
+        let l1i = (virt >> 21) & 0x1FF;
+        let l2i = (virt >> 12) & 0x1FF;
+
+        let l1_table = self.0.next_level_table(l0i).ok_or(Errno::DoesNotExist)?;
+        let l2_table = l1_table.next_level_table(l1i).ok_or(Errno::DoesNotExist)?;
+
+        let entry = l2_table[l2i];
+        if entry.is_present() {
+            Ok(unsafe { entry.address_unchecked() })
+        } else {
+            Err(Errno::DoesNotExist)
+        }
+    }
+
     /// Attempts to resolve a page fault at `virt` address by copying the
     /// underlying Copy-on-Write mapping (if any is present)
     pub fn try_cow_copy(&mut self, virt: usize) -> Result<(), Errno> {

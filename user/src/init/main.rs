@@ -20,7 +20,7 @@ fn main() -> i32 {
             }
         }
     } else {
-        libusr::sys::sys_execve("/bin/shell").unwrap();
+        libusr::sys::sys_execve("/bin/shell", &["/bin/shell"]).unwrap();
         loop {}
     }
 }

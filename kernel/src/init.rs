@@ -59,6 +59,6 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
 
     drop(cfg);
 
-    Process::execve(|space| elf::load_elf(space, file), 0).unwrap();
+    Process::execve(|space| elf::load_elf(space, file), &["/init"]).unwrap();
     panic!("Unreachable");
 }

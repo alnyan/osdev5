@@ -10,13 +10,16 @@ use crate::proc::{
 };
 use crate::sync::{IrqSafeSpinLock, IrqSafeSpinLockGuard};
 use alloc::{rc::Rc, vec::Vec};
+use core::alloc::Layout;
 use core::sync::atomic::{AtomicU32, Ordering};
 use libsys::{
     error::Errno,
     proc::{ExitCode, Pid},
     signal::Signal,
+    mem::memcpy,
+    ProgramArgs,
 };
-use vfs::{VnodeRef, VnodeKind};
+use vfs::{VnodeKind, VnodeRef};
 
 /// Wrapper type for a process struct reference
 pub type ProcessRef = Rc<Process>;
@@ -134,8 +137,7 @@ impl Process {
     /// Sets a pending signal for a process
     pub fn set_signal(&self, signal: Signal) {
         let mut lock = self.inner.lock();
-        let ttbr0 =
-            lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48);
+        let ttbr0 = lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48);
         let main_thread = Thread::get(lock.threads[0]).unwrap();
         drop(lock);
 
@@ -164,8 +166,7 @@ impl Process {
 
     pub fn enter_fault_signal(&self, thread: ThreadRef, signal: Signal) {
         let mut lock = self.inner.lock();
-        let ttbr0 =
-            lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48);
+        let ttbr0 = lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48);
         thread.enter_signal(signal, ttbr0);
     }
 
@@ -210,7 +211,7 @@ impl Process {
                 id: dst_id,
                 pgid: src_inner.pgid,
                 ppid: Some(src_inner.id),
-                sid: src_inner.sid
+                sid: src_inner.sid,
             }),
         });
 
@@ -319,10 +320,96 @@ impl Process {
         }
     }
 
+    fn write_paged<T>(space: &mut Space, dst: usize, src: T) -> Result<(), Errno> {
+        let size = core::mem::size_of::<T>();
+        if (size + (dst % 4096)) > 4096 {
+            todo!("Object crossed page boundary");
+        }
+
+        let page_virt = dst & !4095;
+        let page_phys = if let Ok(phys) = space.translate(dst) {
+            phys
+        } else {
+            let page = phys::alloc_page(PageUsage::UserPrivate)?;
+            let flags = MapAttributes::SH_OUTER |
+                MapAttributes::NOT_GLOBAL |
+                MapAttributes::UXN |
+                MapAttributes::PXN |
+                MapAttributes::AP_BOTH_READONLY;
+            space.map(page_virt, page, flags)?;
+            page
+        };
+
+        unsafe {
+            core::ptr::write((mem::virtualize(page_phys) + (dst % 4096)) as *mut T, src);
+        }
+        Ok(())
+    }
+
+    fn write_paged_bytes(space: &mut Space, dst: usize, src: &[u8]) -> Result<(), Errno> {
+        if (src.len() + (dst % 4096)) > 4096 {
+            todo!("Object crossed page boundary");
+        }
+        let page_virt = dst & !4095;
+        let page_phys = if let Ok(phys) = space.translate(dst) {
+            phys
+        } else {
+            let page = phys::alloc_page(PageUsage::UserPrivate)?;
+            let flags = MapAttributes::SH_OUTER |
+                MapAttributes::NOT_GLOBAL |
+                MapAttributes::UXN |
+                MapAttributes::PXN |
+                MapAttributes::AP_BOTH_READONLY;
+            space.map(page_virt, page, flags)?;
+            page
+        };
+
+        unsafe {
+            memcpy((mem::virtualize(page_phys) + (dst % 4096)) as *mut u8, src.as_ptr(), src.len());
+        }
+        Ok(())
+    }
+
+    fn store_arguments(space: &mut Space, argv: &[&str]) -> Result<usize, Errno> {
+        let mut offset = 0usize;
+        // TODO vmalloc?
+        let base = 0x60000000;
+
+        // 1. Store program argument string bytes
+        for arg in argv.iter() {
+            Self::write_paged_bytes(space, base + offset, arg.as_bytes())?;
+            offset += arg.len();
+        }
+        // Align
+        offset = (offset + 15) & !15;
+        let argv_offset = offset;
+
+        // 2. Store arg pointers
+        let mut data_offset = 0usize;
+        for arg in argv.iter() {
+            // XXX this is really unsafe and I am not really sure ABI will stay like this XXX
+            Self::write_paged(space, base + offset + 0, base + data_offset)?;
+            Self::write_paged(space, base + offset + 8, arg.len())?;
+            offset += 16;
+            data_offset += arg.len();
+        }
+
+        // 3. Store ProgramArgs
+        let data = ProgramArgs {
+            argc: argv.len(),
+            argv: base + argv_offset,
+            storage: base,
+            size: offset + core::mem::size_of::<ProgramArgs>()
+        };
+        Self::write_paged(space, base + offset, data)?;
+
+        Ok(base + offset)
+    }
+
     /// Loads a new program into current process address space
     pub fn execve<F: FnOnce(&mut Space) -> Result<usize, Errno>>(
         loader: F,
-        arg: usize,
+        argv: &[&str],
     ) -> Result<(), Errno> {
         unsafe {
             // Run with interrupts disabled
@@ -351,12 +438,6 @@ impl Process {
             process_lock.sid = new_pid;
             let r = processes.insert(new_pid, proc.clone());
             assert!(r.is_none());
-        } else {
-            // Invalidate user ASID
-            let input = (process_lock.id.asid() as usize) << 48;
-            unsafe {
-                asm!("tlbi aside1, {}", in(reg) input);
-            }
         }
 
         thread.set_owner(process_lock.id);
@@ -380,6 +461,7 @@ impl Process {
         }
 
         let entry = loader(new_space)?;
+        let arg = Self::store_arguments(new_space, argv)?;
 
         debugln!("Will now enter at {:#x}", entry);
         // TODO drop old address space
@@ -388,11 +470,13 @@ impl Process {
         unsafe {
             // TODO drop old context
             let ctx = thread.ctx.get();
+            let asid = (process_lock.id.asid() as usize) << 48;
+            asm!("tlbi aside1, {}", in(reg) asid);
 
             ctx.write(Context::user(
                 entry,
                 arg,
-                new_space_phys | ((process_lock.id.asid() as usize) << 48),
+                new_space_phys | asid,
                 Self::USTACK_VIRT_TOP,
             ));
 

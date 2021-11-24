@@ -6,24 +6,33 @@ extern crate libusr;
 #[macro_use]
 extern crate alloc;
 
-use libusr::sys::{sys_readdir, sys_openat, sys_close, sys_fstatat, stat::{FileMode, OpenFlags, DirectoryEntry, Stat}};
-use alloc::{string::String, borrow::ToOwned};
+use alloc::{borrow::ToOwned, string::String};
+use libusr::sys::{
+    stat::{DirectoryEntry, FileMode, OpenFlags, Stat},
+    sys_close, sys_fstatat, sys_openat, sys_readdir, Errno,
+};
 
-#[no_mangle]
-fn main() -> i32 {
-    let mut buffer = [DirectoryEntry::empty(); 16];
+fn list_directory(path: &str) -> Result<(), Errno> {
+    let mut buffer = [DirectoryEntry::empty(); 8];
     let mut stat = Stat::default();
     let mut data = vec![];
 
-    let fd = sys_openat(None, "/", FileMode::default_dir(), OpenFlags::O_DIRECTORY | OpenFlags::O_RDONLY).unwrap();
+    let fd = sys_openat(
+        None,
+        path,
+        FileMode::default_dir(),
+        OpenFlags::O_DIRECTORY | OpenFlags::O_RDONLY,
+    )?;
 
     loop {
-        let count = sys_readdir(fd, &mut buffer).unwrap();
+        let count = sys_readdir(fd, &mut buffer)?;
         if count == 0 {
             break;
         }
 
-        buffer.iter().take(count).for_each(|e| data.push(e.as_str().to_owned()));
+        buffer.iter().take(count).for_each(|e| {
+            data.push(e.as_str().to_owned());
+        });
     }
 
     data.sort();
@@ -38,8 +47,27 @@ fn main() -> i32 {
         println!("{}", item);
     });
 
-    sys_close(fd).unwrap();
+    sys_close(fd)
+}
 
+#[no_mangle]
+fn main() -> i32 {
+    let args = libusr::env::args();
+    let mut res = 0;
 
-    0
+    if args.len() == 1 {
+        if let Err(e) = list_directory(".") {
+            eprintln!("{}: {:?}", ".", e);
+            res = -1;
+        }
+    } else {
+        for arg in &args[1..] {
+            if let Err(e) = list_directory(arg) {
+                eprintln!("{}: {:?}", arg, e);
+                res = -1;
+            }
+        }
+    }
+
+    res
 }

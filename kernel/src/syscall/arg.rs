@@ -62,6 +62,19 @@ pub fn struct_mut<'a, T>(base: usize) -> Result<&'a mut T, Errno> {
     Ok(unsafe { &mut *(bytes.as_mut_ptr() as *mut T) })
 }
 
+pub fn struct_buf_ref<'a, T>(base: usize, count: usize) -> Result<&'a [T], Errno> {
+    let layout = Layout::array::<T>(count).unwrap();
+    if base % layout.align() != 0 {
+        invalid_memory!(
+            "Structure pointer is misaligned: base={:#x}, expected {:?}",
+            base,
+            layout
+        );
+    }
+    let bytes = buf_ref(base, layout.size())?;
+    Ok(unsafe { core::slice::from_raw_parts(bytes.as_ptr() as *const T, count) })
+}
+
 pub fn struct_buf_mut<'a, T>(base: usize, count: usize) -> Result<&'a mut [T], Errno> {
     let layout = Layout::array::<T>(count).unwrap();
     if base % layout.align() != 0 {
@@ -91,7 +104,7 @@ pub fn option_struct_mut<'a, T>(base: usize) -> Result<Option<&'a mut T>, Errno>
     }
 }
 
-fn validate_ptr(base: usize, len: usize, write: bool) -> Result<(), Errno> {
+pub fn validate_ptr(base: usize, len: usize, write: bool) -> Result<(), Errno> {
     if base > mem::KERNEL_OFFSET || base + len > mem::KERNEL_OFFSET {
         invalid_memory!(
             "User region refers to kernel memory: base={:#x}, len={:#x}",
@@ -111,8 +124,7 @@ fn validate_ptr(base: usize, len: usize, write: bool) -> Result<(), Errno> {
                     space.try_cow_copy(i * mem::PAGE_SIZE)
                 })
             } else {
-                todo!();
-                // Err(Errno::DoesNotExist)
+                Err(Errno::DoesNotExist)
             };
 
             if res.is_ok() {

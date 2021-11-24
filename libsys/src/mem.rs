@@ -13,7 +13,7 @@ pub fn read_le16(src: &[u8]) -> u16 {
 /// Unsafe: writes to arbitrary memory locations, performs no pointer
 /// validation.
 #[no_mangle]
-pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *mut u8, mut len: usize) -> *mut u8 {
+pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *const u8, mut len: usize) -> *mut u8 {
     while len != 0 {
         len -= 1;
         *dst.add(len) = *src.add(len);

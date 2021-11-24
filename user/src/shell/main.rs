@@ -5,7 +5,7 @@
 extern crate libusr;
 extern crate alloc;
 
-use alloc::borrow::ToOwned;
+use alloc::{borrow::ToOwned, vec::Vec};
 use libusr::io::{self, Read};
 use libusr::signal::{self, SignalHandler};
 use libusr::sys::{
@@ -26,16 +26,10 @@ fn readline<'a, F: Read>(f: &mut F, bytes: &'a mut [u8]) -> Result<Option<&'a st
     })
 }
 
-fn execvp(cmd: &str) -> ! {
-    let pgid = sys_setpgid(unsafe { Pid::from_raw(0) }, unsafe { Pid::from_raw(0) }).unwrap();
-    io::tcsetpgrp(FileDescriptor::STDIN, pgid).unwrap();
-    sys_execve(&("/bin/".to_owned() + cmd)).unwrap();
-    sys_exit(ExitCode::from(-1));
-}
-
 fn execute(line: &str) -> Result<ExitCode, Errno> {
-    let mut words = line.split(' ');
-    let cmd = words.next().unwrap();
+    // TODO proper arg handling
+    let args: Vec<&str> = line.split(' ').collect();
+    let cmd = args[0];
 
     if let Some(pid) = unsafe { sys_fork()? } {
         let mut status = 0;
@@ -44,7 +38,11 @@ fn execute(line: &str) -> Result<ExitCode, Errno> {
         io::tcsetpgrp(FileDescriptor::STDIN, pgid).unwrap();
         Ok(ExitCode::from(status))
     } else {
-        execvp(cmd);
+        let pgid = sys_setpgid(unsafe { Pid::from_raw(0) }, unsafe { Pid::from_raw(0) }).unwrap();
+        io::tcsetpgrp(FileDescriptor::STDIN, pgid).unwrap();
+        let filename = "/bin/".to_owned() + cmd;
+        sys_execve(&filename, &args).unwrap();
+        sys_exit(ExitCode::from(-1));
     }
 }
 

@@ -15,6 +15,14 @@ pub mod stat;
 pub mod termios;
 pub mod traits;
 
+#[derive(Debug)]
+pub struct ProgramArgs {
+    pub argv: usize,
+    pub argc: usize,
+    pub storage: usize,
+    pub size: usize
+}
+
 #[cfg(feature = "user")]
 pub mod calls;
 #[cfg(feature = "user")]

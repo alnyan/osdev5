@@ -54,7 +54,6 @@ fn find_at_node<T: DerefMut<Target = ProcessIo>>(
 
 /// Main system call dispatcher function
 pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
-    // debugln!("syscall {:?}", num);
     match num {
         // I/O
         SystemCall::Read => {
@@ -165,17 +164,22 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
                 .map(|e| e as usize)
         }
         SystemCall::Exec => {
+            let filename = arg::str_ref(args[0], args[1])?;
+            let argv = arg::struct_buf_ref::<&str>(args[2], args[3])?;
+            // Validate each argument as well
+            for item in argv.iter() {
+                arg::validate_ptr(item.as_ptr() as usize, item.len(), false)?;
+            }
             let node = {
                 let proc = Process::current();
                 let mut io = proc.io.lock();
-                let filename = arg::str_ref(args[0], args[1])?;
                 // TODO argv, envp array passing ABI?
                 let node = io.ioctx().find(None, filename, true)?;
                 drop(io);
                 node
             };
             let file = node.open(OpenFlags::O_RDONLY)?;
-            Process::execve(move |space| elf::load_elf(space, file), 0).unwrap();
+            Process::execve(move |space| elf::load_elf(space, file), argv).unwrap();
             panic!();
         }
         SystemCall::Exit => {

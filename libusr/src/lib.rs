@@ -1,15 +1,16 @@
 #![feature(asm, alloc_error_handler)]
 #![no_std]
 
-use core::panic::PanicInfo;
-use libsys::proc::ExitCode;
-
 #[macro_use]
 extern crate lazy_static;
 
 extern crate alloc;
 
+use core::panic::PanicInfo;
+use libsys::{ProgramArgs, proc::ExitCode};
+
 mod allocator;
+pub mod env;
 pub mod file;
 pub mod io;
 pub mod os;
@@ -18,16 +19,16 @@ pub mod sync;
 pub mod thread;
 pub mod signal;
 
-
 #[link_section = ".text._start"]
 #[no_mangle]
-extern "C" fn _start(_arg: usize) -> ! {
+extern "C" fn _start(arg: &'static ProgramArgs) -> ! {
     extern "Rust" {
         fn main() -> i32;
     }
 
     unsafe {
         thread::init_main();
+        env::setup_env(arg);
     }
 
     let res = unsafe { main() };
