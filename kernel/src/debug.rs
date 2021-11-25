@@ -12,6 +12,7 @@
 //! * [errorln!]
 
 use crate::dev::serial::SerialDevice;
+use libsys::debug::TraceLevel;
 use core::fmt;
 
 /// Kernel logging levels
@@ -25,6 +26,18 @@ pub enum Level {
     Warn,
     /// Critical errors
     Error,
+}
+
+impl From<TraceLevel> for Level {
+    #[inline(always)]
+    fn from(l: TraceLevel) -> Self {
+        match l {
+            TraceLevel::Debug => Self::Debug,
+            TraceLevel::Info => Self::Info,
+            TraceLevel::Warn => Self::Warn,
+            TraceLevel::Error => Self::Error,
+        }
+    }
 }
 
 struct SerialOutput<T: 'static + SerialDevice> {
@@ -101,7 +114,7 @@ macro_rules! errorln {
 }
 
 #[doc(hidden)]
-pub fn _debug(_level: Level, args: fmt::Arguments) {
+pub fn _debug(level: Level, args: fmt::Arguments) {
     use crate::arch::machine;
     use fmt::Write;
 

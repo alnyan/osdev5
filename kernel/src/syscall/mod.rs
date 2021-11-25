@@ -9,6 +9,7 @@ use core::ops::DerefMut;
 use core::time::Duration;
 use libsys::{
     abi::SystemCall,
+    debug::TraceLevel,
     error::Errno,
     ioctl::IoctlCmd,
     proc::{ExitCode, Pid},
@@ -319,10 +320,11 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
 
         // Debugging
         SystemCall::DebugTrace => {
-            let buf = arg::str_ref(args[0], args[1])?;
-            print!(Level::Debug, "[trace] ");
-            print!(Level::Debug, "{}", buf);
-            println!(Level::Debug, "");
+            let level = TraceLevel::from_repr(args[0]).map(Level::from).ok_or(Errno::InvalidArgument)?;
+            let buf = arg::str_ref(args[1], args[2])?;
+            let thread = Thread::current();
+            let proc = thread.owner().unwrap();
+            println!(level, "[trace {:?}:{}] {}", proc.id(), thread.id(), buf);
             Ok(args[1])
         }
 

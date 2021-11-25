@@ -110,7 +110,7 @@ fn random_bytes(buf: &mut [u8]) {
 #[no_mangle]
 fn main() -> i32 {
     let seed = libusr::sys::sys_ex_getcputime().unwrap().as_nanos() as u64 / 13;
-    trace!("Using seed: {:#x}", seed);
+    println!("Using seed: {:#x}", seed);
     random_set_seed(seed);
 
     let mut buf = [0; 256];

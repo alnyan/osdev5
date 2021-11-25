@@ -1,4 +1,4 @@
-use libsys::ProgramArgs;
+use libsys::{debug::TraceLevel, ProgramArgs};
 use alloc::vec::Vec;
 use crate::trace;
 
@@ -17,5 +17,5 @@ pub(crate) unsafe fn setup_env(arg: &ProgramArgs) {
         PROGRAM_ARGS.push(string);
     }
 
-    trace!("args = {:?}", PROGRAM_ARGS);
+    trace!(TraceLevel::Debug, "args = {:?}", PROGRAM_ARGS);
 }

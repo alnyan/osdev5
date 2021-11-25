@@ -5,6 +5,7 @@ pub use libsys::abi;
 pub use libsys::calls::*;
 pub use libsys::stat::{self, AccessMode, FileDescriptor};
 pub use libsys::error::Errno;
+pub use libsys::debug;
 
 use core::sync::atomic::{Ordering, AtomicBool};
 

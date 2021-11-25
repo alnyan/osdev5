@@ -1,6 +1,6 @@
 use core::alloc::{Layout, GlobalAlloc};
 use core::sync::atomic::{AtomicUsize, Ordering};
-use libsys::mem::memset;
+use libsys::{debug::TraceLevel, mem::memset};
 
 use crate::trace;
 
@@ -16,14 +16,14 @@ unsafe impl GlobalAlloc for Allocator {
         if res > 65536 {
             panic!("Out of memory");
         }
-        trace!("alloc({:?}) = {:p}", layout, &ALLOC_DATA[res]);
+        trace!(TraceLevel::Debug, "alloc({:?}) = {:p}", layout, &ALLOC_DATA[res]);
         let res = &mut ALLOC_DATA[res] as *mut _;
         memset(res, 0, layout.size());
         res
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        trace!("free({:p}, {:?})", ptr, layout);
+        trace!(TraceLevel::Debug, "free({:p}, {:?})", ptr, layout);
     }
 }
 

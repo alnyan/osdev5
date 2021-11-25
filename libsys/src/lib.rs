@@ -5,6 +5,7 @@
 extern crate bitflags;
 
 pub mod abi;
+pub mod debug;
 pub mod error;
 pub mod ioctl;
 pub mod mem;

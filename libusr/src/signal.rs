@@ -1,5 +1,6 @@
 use crate::trace;
 use libsys::{
+    debug::TraceLevel,
     calls::{sys_ex_sigreturn, sys_exit},
     proc::ExitCode,
     signal::Signal,
@@ -26,7 +27,7 @@ pub fn set_handler(sig: Signal, handler: SignalHandler) -> SignalHandler {
 #[inline(never)]
 pub(crate) extern "C" fn signal_handler(arg: Signal) -> ! {
     // TODO tpidr_el0 is invalidated when entering signal context
-    trace!("Entered signal handler: arg={:?}", arg);
+    trace!(TraceLevel::Debug, "Entered signal handler: arg={:?}", arg);
     let no = arg as usize;
     if no >= 32 {
         panic!("Undefined signal number: {}", no);

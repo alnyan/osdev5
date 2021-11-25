@@ -1,6 +1,7 @@
 use crate::abi::SystemCall;
 use crate::{
     error::Errno,
+    debug::TraceLevel,
     ioctl::IoctlCmd,
     proc::{ExitCode, Pid},
     signal::{Signal, SignalDestination},
@@ -104,10 +105,11 @@ pub fn sys_ex_nanosleep(ns: u64, rem: &mut [u64; 2]) -> Result<(), Errno> {
 ///
 /// System call
 #[inline(always)]
-pub fn sys_ex_debug_trace(msg: &[u8]) -> Result<(), Errno> {
+pub fn sys_ex_debug_trace(level: TraceLevel, msg: &[u8]) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
         syscall!(
             SystemCall::DebugTrace,
+            argn!(level.repr()),
             argp!(msg.as_ptr()),
             argn!(msg.len())
         )

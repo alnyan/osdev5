@@ -7,7 +7,7 @@ extern crate lazy_static;
 extern crate alloc;
 
 use core::panic::PanicInfo;
-use libsys::{ProgramArgs, proc::ExitCode};
+use libsys::{debug::TraceLevel, ProgramArgs, proc::ExitCode};
 
 mod allocator;
 pub mod env;
@@ -40,6 +40,6 @@ fn panic_handler(pi: &PanicInfo) -> ! {
     // TODO unwind to send panic argument back to parent thread
     // TODO print to stdout/stderr (if available)
     let thread = thread::current();
-    trace!("{:?} panicked: {:?}", thread, pi);
+    trace!(TraceLevel::Error, "{:?} panicked: {:?}", thread, pi);
     sys::sys_exit(ExitCode::from(-1));
 }
