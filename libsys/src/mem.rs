@@ -28,15 +28,16 @@ pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *const u8, mut len: usize) ->
 /// Unsafe: performs reads from arbitrary memory locations, performs no
 /// pointer validation.
 #[no_mangle]
-pub unsafe extern "C" fn memcmp(a: *mut u8, b: *mut u8, mut len: usize) -> isize {
-    while len != 0 {
-        len -= 1;
-        if *a.add(len) < *b.add(len) {
+pub unsafe extern "C" fn memcmp(a: *mut u8, b: *mut u8, len: usize) -> isize {
+    let mut off = 0;
+    while off != len {
+        if *a.add(off) < *b.add(off) {
             return -1;
         }
-        if *a.add(len) > *b.add(len) {
+        if *a.add(off) > *b.add(off) {
             return 1;
         }
+        off += 1;
     }
     0
 }
