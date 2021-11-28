@@ -82,6 +82,10 @@ impl Process {
         self.inner.lock().pgid = pgid;
     }
 
+    pub fn set_sid(&self, sid: Pid) {
+        self.inner.lock().sid = sid;
+    }
+
     #[inline]
     pub fn current() -> ProcessRef {
         Thread::current().owner().unwrap()

@@ -105,6 +105,7 @@ impl Vnode {
     pub const SEEKABLE: u32 = 1 << 0;
 
     pub const CACHE_READDIR: u32 = 1 << 1;
+    pub const CACHE_STAT: u32 = 1 << 2;
 
     /// Constructs a new [Vnode], wrapping it in [Rc]. The resulting node
     /// then needs to have [Vnode::set_data()] called on it to be usable.
@@ -452,7 +453,14 @@ impl Vnode {
 
     /// Reports file status
     pub fn stat(self: &VnodeRef) -> Result<Stat, Errno> {
-        if let Some(ref mut data) = *self.data() {
+        if self.flags & Self::CACHE_STAT != 0 {
+            let props = self.props();
+            Ok(Stat {
+                blksize: 0,
+                size: 0,
+                mode: props.mode
+            })
+        } else if let Some(ref mut data) = *self.data() {
             data.stat(self.clone())
         } else {
             Err(Errno::NotImplemented)

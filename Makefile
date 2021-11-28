@@ -92,11 +92,13 @@ initrd:
 		--target=../etc/$(ARCH)-osdev5.json \
 		-Z build-std=core,alloc,compiler_builtins \
 		$(CARGO_COMMON_OPTS)
-	mkdir -p $(O)/rootfs/bin
+	mkdir -p $(O)/rootfs/bin $(O)/rootfs/sbin $(O)/rootfs/dev
+	touch $(O)/rootfs/dev/.do_no_remove
 	cp target/$(ARCH)-osdev5/$(PROFILE)/init $(O)/rootfs/init
 	cp target/$(ARCH)-osdev5/$(PROFILE)/shell $(O)/rootfs/bin
 	cp target/$(ARCH)-osdev5/$(PROFILE)/fuzzy $(O)/rootfs/bin
 	cp target/$(ARCH)-osdev5/$(PROFILE)/ls $(O)/rootfs/bin
+	cp target/$(ARCH)-osdev5/$(PROFILE)/login $(O)/rootfs/sbin
 	cd $(O)/rootfs && tar cf ../initrd.img `find -type f -printf "%P\n"`
 ifeq ($(MACH),orangepi3)
 	$(MKIMAGE) \

@@ -1,11 +1,14 @@
 use crate::abi::SystemCall;
 use crate::{
-    error::Errno,
     debug::TraceLevel,
+    error::Errno,
     ioctl::IoctlCmd,
     proc::{ExitCode, Pid},
     signal::{Signal, SignalDestination},
-    stat::{AccessMode, DirectoryEntry, FdSet, FileDescriptor, FileMode, OpenFlags, Stat},
+    stat::{
+        AccessMode, DirectoryEntry, FdSet, FileDescriptor, FileMode, GroupId, MountOptions,
+        OpenFlags, Stat, UserId,
+    },
 };
 use core::time::Duration;
 
@@ -384,6 +387,67 @@ pub fn sys_readdir(fd: FileDescriptor, buf: &mut [DirectoryEntry]) -> Result<usi
             argn!(u32::from(fd)),
             argp!(buf.as_mut_ptr()),
             argn!(buf.len())
+        )
+    })
+}
+
+#[inline(always)]
+pub fn sys_getuid() -> UserId {
+    UserId::from(unsafe { syscall!(SystemCall::GetUserId) as u32 })
+}
+
+#[inline(always)]
+pub fn sys_getgid() -> GroupId {
+    GroupId::from(unsafe { syscall!(SystemCall::GetGroupId) as u32 })
+}
+
+#[inline(always)]
+pub fn sys_setsid() -> Result<Pid, Errno> {
+    Errno::from_syscall(unsafe { syscall!(SystemCall::SetSid) })
+        .map(|e| unsafe { Pid::from_raw(e as u32) })
+}
+
+#[inline(always)]
+pub fn sys_mount(target: &str, options: &MountOptions) -> Result<(), Errno> {
+    Errno::from_syscall_unit(unsafe {
+        syscall!(
+            SystemCall::Mount,
+            argp!(target.as_ptr()),
+            argn!(target.len()),
+            argp!(options as *const _)
+        )
+    })
+}
+
+#[inline(always)]
+pub fn sys_dup(src: FileDescriptor, dst: Option<FileDescriptor>) -> Result<FileDescriptor, Errno> {
+    Errno::from_syscall(unsafe {
+        syscall!(
+            SystemCall::DuplicateFd,
+            argn!(u32::from(src)),
+            argn!(FileDescriptor::into_i32(dst))
+        )
+    })
+    .map(|e| FileDescriptor::from(e as u32))
+}
+
+#[inline(always)]
+pub fn sys_setuid(uid: UserId) -> Result<(), Errno> {
+    Errno::from_syscall_unit(unsafe { syscall!(SystemCall::SetUserId, u32::from(uid) as usize) })
+}
+
+#[inline(always)]
+pub fn sys_setgid(gid: GroupId) -> Result<(), Errno> {
+    Errno::from_syscall_unit(unsafe { syscall!(SystemCall::SetGroupId, u32::from(gid) as usize) })
+}
+
+#[inline(always)]
+pub fn sys_chdir(path: &str) -> Result<(), Errno> {
+    Errno::from_syscall_unit(unsafe {
+        syscall!(
+            SystemCall::SetCurrentDirectory,
+            argp!(path.as_ptr()),
+            argn!(path.len())
         )
     })
 }

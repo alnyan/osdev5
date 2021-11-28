@@ -1,6 +1,6 @@
 //! Process file descriptors and I/O context
 use alloc::collections::BTreeMap;
-use libsys::{error::Errno, stat::FileDescriptor};
+use libsys::{error::Errno, stat::{FileDescriptor, UserId, GroupId}};
 use vfs::{FileRef, Ioctx, VnodeRef, VnodeKind};
 
 /// Process I/O context. Contains file tables, root/cwd info etc.
@@ -29,6 +29,57 @@ impl ProcessIo {
 
     pub fn ctty(&mut self) -> Option<VnodeRef> {
         self.ctty.clone()
+    }
+
+    #[inline(always)]
+    pub fn uid(&self) -> UserId {
+        self.ioctx.as_ref().unwrap().uid
+    }
+
+    #[inline(always)]
+    pub fn gid(&self) -> GroupId {
+        self.ioctx.as_ref().unwrap().gid
+    }
+
+    #[inline(always)]
+    pub fn set_uid(&mut self, uid: UserId) -> Result<(), Errno> {
+        let old_uid = self.uid();
+        if old_uid == uid {
+            Ok(())
+        } else if !old_uid.is_root() {
+            Err(Errno::PermissionDenied)
+        } else {
+            self.ioctx.as_mut().unwrap().uid = uid;
+            Ok(())
+        }
+    }
+
+    #[inline(always)]
+    pub fn set_gid(&mut self, gid: GroupId) -> Result<(), Errno> {
+        let old_gid = self.gid();
+        if old_gid == gid {
+            Ok(())
+        } else if !old_gid.is_root() {
+            Err(Errno::PermissionDenied)
+        } else {
+            self.ioctx.as_mut().unwrap().gid = gid;
+            Ok(())
+        }
+    }
+
+    pub fn duplicate_file(&mut self, src: FileDescriptor, dst: Option<FileDescriptor>) -> Result<FileDescriptor, Errno> {
+        let file_ref = self.file(src)?;
+        if let Some(dst) = dst {
+            let idx = u32::from(dst);
+            if self.files.get(&idx).is_some() {
+                return Err(Errno::AlreadyExists);
+            }
+
+            self.files.insert(idx, file_ref);
+            Ok(dst)
+        } else {
+            self.place_file(file_ref)
+        }
     }
 
     /// Returns [File] struct referred to by file descriptor `idx`

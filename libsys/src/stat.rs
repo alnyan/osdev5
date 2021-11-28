@@ -1,3 +1,4 @@
+// TODO split up this file
 use crate::error::Errno;
 use core::fmt;
 
@@ -15,6 +16,7 @@ bitflags! {
         const O_EXEC =      1 << 5;
         const O_CLOEXEC =   1 << 6;
         const O_DIRECTORY = 1 << 7;
+        const O_CTTY =      1 << 8;
     }
 }
 
@@ -23,6 +25,7 @@ bitflags! {
         const FILE_TYPE = 0xF << 12;
         const S_IFREG = 0x8 << 12;
         const S_IFDIR = 0x4 << 12;
+        const S_IFCHR = 0x2 << 12;
 
         const USER_READ = 1 << 8;
         const USER_WRITE = 1 << 7;
@@ -42,6 +45,69 @@ bitflags! {
         const W_OK = 1 << 1;
         const X_OK = 1 << 2;
         const F_OK = 1 << 3;
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct MountOptions<'a> {
+    pub device: Option<&'a str>,
+    pub fs: Option<&'a str>,
+    // TODO flags etc.
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct UserId(u32);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct GroupId(u32);
+
+impl UserId {
+    pub const fn root() -> Self {
+        Self(0)
+    }
+
+    pub const fn is_root(self) -> bool {
+        self.0 == 0
+    }
+}
+
+impl From<u32> for UserId {
+    #[inline(always)]
+    fn from(v: u32) -> Self {
+        Self(v)
+    }
+}
+
+impl From<UserId> for u32 {
+    #[inline(always)]
+    fn from(v: UserId) -> u32 {
+        v.0
+    }
+}
+
+impl GroupId {
+    pub const fn root() -> Self {
+        Self(0)
+    }
+
+    pub const fn is_root(self) -> bool {
+        self.0 == 0
+    }
+}
+
+impl From<u32> for GroupId {
+    #[inline(always)]
+    fn from(v: u32) -> Self {
+        Self(v)
+    }
+}
+
+impl From<GroupId> for u32 {
+    #[inline(always)]
+    fn from(v: GroupId) -> u32 {
+        v.0
     }
 }
 
@@ -191,6 +257,7 @@ impl fmt::Display for FileMode {
             "{}{}{}{}{}{}{}{}{}{}",
             // File type
             match *self & Self::FILE_TYPE {
+                Self::S_IFCHR => 'c',
                 Self::S_IFDIR => 'd',
                 Self::S_IFREG => '-',
                 _ => '?'

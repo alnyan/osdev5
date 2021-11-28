@@ -3,6 +3,8 @@ use crate::mem::{
     self,
     phys::{self, PageUsage},
 };
+use libsys::{error::Errno, stat::MountOptions};
+use vfs::VnodeRef;
 use memfs::BlockAllocator;
 
 pub mod devfs;
@@ -23,5 +25,15 @@ unsafe impl BlockAllocator for MemfsBlockAlloc {
     unsafe fn dealloc(&self, data: *mut u8) {
         let phys = (data as usize) - mem::KERNEL_OFFSET;
         phys::free_page(phys).unwrap();
+    }
+}
+
+pub fn create_filesystem(options: &MountOptions) -> Result<VnodeRef, Errno> {
+    let fs_name = options.fs.unwrap();
+
+    if fs_name == "devfs" {
+        Ok(devfs::root().clone())
+    } else {
+        todo!();
     }
 }

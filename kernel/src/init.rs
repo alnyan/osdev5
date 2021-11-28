@@ -4,7 +4,7 @@ use crate::config::{ConfigKey, CONFIG};
 use crate::fs::{devfs, MemfsBlockAlloc};
 use crate::mem;
 use crate::proc::{elf, Process};
-use libsys::stat::{FileDescriptor, OpenFlags};
+use libsys::stat::{FileDescriptor, OpenFlags, UserId, GroupId};
 use memfs::Ramfs;
 use vfs::{Filesystem, Ioctx};
 
@@ -29,7 +29,7 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
         unsafe { Ramfs::open(initrd_start as *mut u8, initrd_size, MemfsBlockAlloc {}).unwrap() };
     let root = fs.root().unwrap();
 
-    let ioctx = Ioctx::new(root);
+    let ioctx = Ioctx::new(root, UserId::root(), GroupId::root());
 
     let node = ioctx.find(None, "/init", true).unwrap();
     let file = node.open(OpenFlags::O_RDONLY | OpenFlags::O_EXEC).unwrap();

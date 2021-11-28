@@ -3,6 +3,7 @@
 use crate::arch::{machine, platform::exception::ExceptionFrame};
 use crate::debug::Level;
 use crate::dev::timer::TimestampSource;
+use crate::fs::create_filesystem;
 use crate::proc::{self, elf, wait, Process, ProcessIo, Thread};
 use core::mem::size_of;
 use core::ops::DerefMut;
@@ -15,7 +16,8 @@ use libsys::{
     proc::{ExitCode, Pid},
     signal::{Signal, SignalDestination},
     stat::{
-        AccessMode, DirectoryEntry, FdSet, FileDescriptor, FileMode, OpenFlags, Stat, AT_EMPTY_PATH,
+        AccessMode, DirectoryEntry, FdSet, FileDescriptor, FileMode, GroupId, MountOptions,
+        OpenFlags, Stat, UserId, AT_EMPTY_PATH,
     },
     traits::{Read, Write},
 };
@@ -107,7 +109,8 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
 
             let proc = Process::current();
             let mut io = proc.io.lock();
-            let stat = find_at_node(&mut io, at_fd, filename, flags & AT_EMPTY_PATH != 0)?.stat()?;
+            let stat =
+                find_at_node(&mut io, at_fd, filename, flags & AT_EMPTY_PATH != 0)?.stat()?;
             *buf = stat;
             Ok(0)
         }
@@ -152,6 +155,48 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let buf = arg::struct_buf_mut::<DirectoryEntry>(args[1], args[2])?;
 
             io.file(fd)?.borrow_mut().readdir(buf)
+        }
+        SystemCall::GetUserId => {
+            let proc = Process::current();
+            let uid = proc.io.lock().uid();
+            Ok(u32::from(uid) as usize)
+        }
+        SystemCall::GetGroupId => {
+            let proc = Process::current();
+            let gid = proc.io.lock().gid();
+            Ok(u32::from(gid) as usize)
+        }
+        SystemCall::DuplicateFd => {
+            let src = FileDescriptor::from(args[0] as u32);
+            let dst = FileDescriptor::from_i32(args[1] as i32)?;
+
+            let proc = Process::current();
+            let mut io = proc.io.lock();
+
+            let res = io.duplicate_file(src, dst)?;
+
+            Ok(u32::from(res) as usize)
+        }
+        SystemCall::SetUserId => {
+            let uid = UserId::from(args[0] as u32);
+            let proc = Process::current();
+            proc.io.lock().set_uid(uid)?;
+            Ok(0)
+        }
+        SystemCall::SetGroupId => {
+            let gid = GroupId::from(args[0] as u32);
+            let proc = Process::current();
+            proc.io.lock().set_gid(gid)?;
+            Ok(0)
+        }
+        SystemCall::SetCurrentDirectory => {
+            let path = arg::str_ref(args[0], args[1])?;
+            let proc = Process::current();
+            proc.io.lock().ioctx().chdir(path)?;
+            Ok(0)
+        }
+        SystemCall::GetCurrentDirectory => {
+            todo!()
         }
 
         // Process
@@ -294,7 +339,9 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
                 todo!();
             }
 
-            todo!();
+            let id = proc.id();
+            proc.set_sid(id);
+            Ok(id.value() as usize)
         }
         SystemCall::SetPgid => {
             let pid = args[0] as u32;
@@ -317,10 +364,28 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let time = machine::local_timer().timestamp()?;
             Ok(time.as_nanos() as usize)
         }
+        SystemCall::Mount => {
+            let target = arg::str_ref(args[0], args[1])?;
+            let options = arg::struct_ref::<MountOptions>(args[2])?;
+
+            let proc = Process::current();
+            let mut io = proc.io.lock();
+
+            debugln!("mount(target={:?}, options={:#x?})", target, options);
+
+            let target_node = io.ioctx().find(None, target, true)?;
+            let root = create_filesystem(options)?;
+
+            target_node.mount(root)?;
+
+            Ok(0)
+        }
 
         // Debugging
         SystemCall::DebugTrace => {
-            let level = TraceLevel::from_repr(args[0]).map(Level::from).ok_or(Errno::InvalidArgument)?;
+            let level = TraceLevel::from_repr(args[0])
+                .map(Level::from)
+                .ok_or(Errno::InvalidArgument)?;
             let buf = arg::str_ref(args[1], args[2])?;
             let thread = Thread::current();
             let proc = thread.owner().unwrap();

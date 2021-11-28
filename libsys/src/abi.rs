@@ -13,6 +13,13 @@ pub enum SystemCall {
     Select = 7,
     Access = 8,
     ReadDirectory = 9,
+    GetUserId = 10,
+    GetGroupId = 11,
+    DuplicateFd = 12,
+    SetUserId = 13,
+    SetGroupId = 14,
+    SetCurrentDirectory = 15,
+    GetCurrentDirectory = 16,
     // Process manipulation
     Fork = 32,
     Clone = 33,
@@ -34,6 +41,7 @@ pub enum SystemCall {
     SetPgid = 49,
     // System
     GetCpuTime = 64,
+    Mount = 65,
     // Debugging
     DebugTrace = 128
 }
