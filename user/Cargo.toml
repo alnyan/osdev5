@@ -22,6 +22,14 @@ name = "ls"
 path = "src/bin/ls.rs"
 
 [[bin]]
+name = "cat"
+path = "src/bin/cat.rs"
+
+[[bin]]
+name = "hexd"
+path = "src/bin/hexd.rs"
+
+[[bin]]
 name = "login"
 path = "src/sbin/login.rs"
 
