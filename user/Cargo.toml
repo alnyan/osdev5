@@ -11,19 +11,19 @@ path = "src/init/main.rs"
 
 [[bin]]
 name = "shell"
-path = "src/shell/main.rs"
+path = "src/bin/shell.rs"
 
 [[bin]]
 name = "fuzzy"
-path = "src/fuzzy/main.rs"
+path = "src/bin/fuzzy.rs"
 
 [[bin]]
 name = "ls"
-path = "src/ls/main.rs"
+path = "src/bin/ls.rs"
 
 [[bin]]
 name = "login"
-path = "src/login/main.rs"
+path = "src/sbin/login.rs"
 
 [dependencies]
 libusr = { path = "../libusr" }
