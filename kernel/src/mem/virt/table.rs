@@ -264,6 +264,66 @@ impl Space {
         Ok(())
     }
 
+    pub fn allocate(
+        &mut self,
+        start: usize,
+        end: usize,
+        len: usize,
+        flags: MapAttributes,
+        usage: PageUsage,
+    ) -> Result<usize, Errno> {
+        'l0: for page in (start..end).step_by(0x1000) {
+            for i in 0..len {
+                if self.translate(page + i * 0x1000).is_ok() {
+                    continue 'l0;
+                }
+            }
+
+            for i in 0..len {
+                let phys = phys::alloc_page(usage).unwrap();
+                self.map(page + i * 0x1000, phys, flags).unwrap();
+            }
+            return Ok(page);
+        }
+        Err(Errno::OutOfMemory)
+    }
+
+    pub fn unmap_single(&mut self, page: usize) -> Result<(), Errno> {
+        let l0i = page >> 30;
+        let l1i = (page >> 21) & 0x1FF;
+        let l2i = (page >> 12) & 0x1FF;
+
+        let l1_table = self.0.next_level_table(l0i).ok_or(Errno::DoesNotExist)?;
+        let l2_table = l1_table.next_level_table(l1i).ok_or(Errno::DoesNotExist)?;
+
+        let entry = l2_table[l2i];
+
+        if !entry.is_present() {
+            return Err(Errno::DoesNotExist);
+        }
+
+        let phys = unsafe { entry.address_unchecked() };
+        unsafe {
+            phys::free_page(phys);
+        }
+        l2_table[l2i] = Entry::invalid();
+
+        unsafe {
+            asm!("tlbi vaae1, {}", in(reg) page);
+        }
+
+        // TODO release paging structure memory
+
+        Ok(())
+    }
+
+    pub fn free(&mut self, start: usize, len: usize) -> Result<(), Errno> {
+        for i in 0..len {
+            self.unmap_single(start + i * 0x1000)?;
+        }
+        Ok(())
+    }
+
     /// Performs a copy of the address space, cloning data owned by it
     pub fn fork(&mut self) -> Result<&'static mut Self, Errno> {
         let res = Self::alloc_empty()?;
@@ -288,10 +348,12 @@ impl Space {
                                 todo!();
                                 // res.map(virt_addr, dst_phys, flags)?;
                             } else {
-                                let writable = flags & MapAttributes::AP_BOTH_READONLY == MapAttributes::AP_BOTH_READWRITE;
+                                let writable = flags & MapAttributes::AP_BOTH_READONLY
+                                    == MapAttributes::AP_BOTH_READWRITE;
 
                                 if writable {
-                                    flags |= MapAttributes::AP_BOTH_READONLY | MapAttributes::EX_COW;
+                                    flags |=
+                                        MapAttributes::AP_BOTH_READONLY | MapAttributes::EX_COW;
                                     l2_table[l2i].set_cow();
 
                                     unsafe {

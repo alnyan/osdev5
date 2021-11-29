@@ -1,6 +1,7 @@
 //! System call implementation
 
 use crate::arch::{machine, platform::exception::ExceptionFrame};
+use crate::mem::{virt::MapAttributes, phys::PageUsage};
 use crate::debug::Level;
 use crate::dev::timer::TimestampSource;
 use crate::fs::create_filesystem;
@@ -13,7 +14,7 @@ use libsys::{
     debug::TraceLevel,
     error::Errno,
     ioctl::IoctlCmd,
-    proc::{ExitCode, Pid},
+    proc::{ExitCode, Pid, MemoryAccess, MemoryMap},
     signal::{Signal, SignalDestination},
     stat::{
         AccessMode, DirectoryEntry, FdSet, FileDescriptor, FileMode, GroupId, MountOptions,
@@ -197,6 +198,56 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
         }
         SystemCall::GetCurrentDirectory => {
             todo!()
+        }
+        SystemCall::Seek => {
+            todo!()
+        }
+        SystemCall::MapMemory => {
+            let len = args[1];
+            if len == 0 || (len & 0xFFF) != 0 {
+                return Err(Errno::InvalidArgument);
+            }
+            let acc = MemoryAccess::from_bits(args[2] as u32).ok_or(Errno::InvalidArgument)?;
+            let flags = MemoryAccess::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
+
+            let mut attrs = MapAttributes::NOT_GLOBAL | MapAttributes::SH_OUTER | MapAttributes::PXN;
+            if !acc.contains(MemoryAccess::READ) {
+                return Err(Errno::NotImplemented);
+            }
+            if acc.contains(MemoryAccess::WRITE) {
+                if acc.contains(MemoryAccess::EXEC) {
+                    return Err(Errno::PermissionDenied);
+                }
+                attrs |= MapAttributes::AP_BOTH_READWRITE;
+            } else {
+                attrs |= MapAttributes::AP_BOTH_READONLY;
+            }
+            if !acc.contains(MemoryAccess::EXEC) {
+                attrs |= MapAttributes::UXN;
+            }
+
+            // TODO don't ignore flags
+            let usage = PageUsage::UserPrivate;
+
+            let proc = Process::current();
+
+            proc.manipulate_space(move |space| {
+                space.allocate(0x100000000, 0xF00000000, len / 4096, attrs, usage)
+            })
+        }
+        SystemCall::UnmapMemory => {
+            let addr = args[0];
+            let len = args[1];
+
+            if addr == 0 || len == 0 || addr & 0xFFF != 0 || len & 0xFFF != 0 {
+                return Err(Errno::InvalidArgument);
+            }
+
+            let proc = Process::current();
+            proc.manipulate_space(move |space| {
+                space.free(addr, len / 4096)
+            })?;
+            Ok(0)
         }
 
         // Process

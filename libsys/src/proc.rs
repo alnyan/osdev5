@@ -16,6 +16,24 @@ pub struct Pid(u32);
 #[repr(transparent)]
 pub struct Pgid(u32);
 
+bitflags! {
+    pub struct MemoryAccess: u32 {
+        const READ = 1 << 0;
+        const WRITE = 1 << 1;
+        const EXEC = 1 << 2;
+    }
+}
+
+bitflags! {
+    pub struct MemoryMap: u32 {
+        const BACKEND = 0x3 << 0;
+        const ANONYMOUS = 1 << 0;
+
+        const SHARING = 0x3 << 2;
+        const PRIVATE = 1 << 2;
+    }
+}
+
 impl From<i32> for ExitCode {
     fn from(f: i32) -> Self {
         Self(f)

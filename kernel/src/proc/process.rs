@@ -92,9 +92,9 @@ impl Process {
     }
 
     #[inline]
-    pub fn manipulate_space<F>(&self, f: F) -> Result<(), Errno>
+    pub fn manipulate_space<R, F>(&self, f: F) -> R
     where
-        F: FnOnce(&mut Space) -> Result<(), Errno>,
+        F: FnOnce(&mut Space) -> R,
     {
         f(self.inner.lock().space.as_mut().unwrap())
     }
@@ -250,6 +250,8 @@ impl Process {
             }
         }
 
+        // TODO when exiting from signal handler interrupting an IO operation
+        //      deadlock is achieved
         self.io.lock().handle_exit();
 
         drop(lock);

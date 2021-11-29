@@ -27,6 +27,7 @@ extern "C" fn _start(arg: &'static ProgramArgs) -> ! {
     }
 
     unsafe {
+        allocator::init();
         thread::init_main();
         env::setup_env(arg);
     }

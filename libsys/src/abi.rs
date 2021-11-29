@@ -20,6 +20,10 @@ pub enum SystemCall {
     SetGroupId = 14,
     SetCurrentDirectory = 15,
     GetCurrentDirectory = 16,
+    Seek = 17,
+    MapMemory = 18,
+    UnmapMemory = 19,
+
     // Process manipulation
     Fork = 32,
     Clone = 33,

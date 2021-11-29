@@ -3,7 +3,7 @@ use crate::{
     debug::TraceLevel,
     error::Errno,
     ioctl::IoctlCmd,
-    proc::{ExitCode, Pid},
+    proc::{ExitCode, MemoryAccess, MemoryMap, Pid},
     signal::{Signal, SignalDestination},
     stat::{
         AccessMode, DirectoryEntry, FdSet, FileDescriptor, FileMode, GroupId, MountOptions,
@@ -450,4 +450,27 @@ pub fn sys_chdir(path: &str) -> Result<(), Errno> {
             argn!(path.len())
         )
     })
+}
+
+#[inline(always)]
+pub fn sys_mmap(
+    hint: usize,
+    len: usize,
+    acc: MemoryAccess,
+    flags: MemoryMap,
+) -> Result<usize, Errno> {
+    Errno::from_syscall(unsafe {
+        syscall!(
+            SystemCall::MapMemory,
+            argn!(hint),
+            argn!(len),
+            argn!(acc.bits()),
+            argn!(flags.bits())
+        )
+    })
+}
+
+#[inline(always)]
+pub unsafe fn sys_munmap(addr: usize, len: usize) -> Result<(), Errno> {
+    Errno::from_syscall_unit(unsafe { syscall!(SystemCall::UnmapMemory, argn!(addr), argn!(len)) })
 }
