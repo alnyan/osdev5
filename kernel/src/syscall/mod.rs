@@ -1,10 +1,10 @@
 //! System call implementation
 
 use crate::arch::{machine, platform::exception::ExceptionFrame};
-use crate::mem::{virt::MapAttributes, phys::PageUsage};
 use crate::debug::Level;
 use crate::dev::timer::TimestampSource;
 use crate::fs::create_filesystem;
+use crate::mem::{phys::PageUsage, virt::MapAttributes};
 use crate::proc::{self, elf, wait, Process, ProcessIo, Thread};
 use core::mem::size_of;
 use core::ops::DerefMut;
@@ -14,7 +14,7 @@ use libsys::{
     debug::TraceLevel,
     error::Errno,
     ioctl::IoctlCmd,
-    proc::{ExitCode, Pid, MemoryAccess},
+    proc::{ExitCode, MemoryAccess, Pid, Tid},
     signal::{Signal, SignalDestination},
     stat::{
         AccessMode, DirectoryEntry, FdSet, FileDescriptor, FileMode, GroupId, MountOptions,
@@ -210,7 +210,8 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let acc = MemoryAccess::from_bits(args[2] as u32).ok_or(Errno::InvalidArgument)?;
             let _flags = MemoryAccess::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
 
-            let mut attrs = MapAttributes::NOT_GLOBAL | MapAttributes::SH_OUTER | MapAttributes::PXN;
+            let mut attrs =
+                MapAttributes::NOT_GLOBAL | MapAttributes::SH_OUTER | MapAttributes::PXN;
             if !acc.contains(MemoryAccess::READ) {
                 return Err(Errno::NotImplemented);
             }
@@ -244,9 +245,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             }
 
             let proc = Process::current();
-            proc.manipulate_space(move |space| {
-                space.free(addr, len / 4096)
-            })?;
+            proc.manipulate_space(move |space| space.free(addr, len / 4096))?;
             Ok(0)
         }
 
@@ -258,7 +257,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
 
             Process::current()
                 .new_user_thread(entry, stack, arg)
-                .map(|e| e as usize)
+                .map(|e| u32::from(e) as usize)
         }
         SystemCall::Exec => {
             let filename = arg::str_ref(args[0], args[1])?;
@@ -305,7 +304,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             }
         }
         SystemCall::WaitTid => {
-            let tid = args[0] as u32;
+            let tid = Tid::from(args[0] as u32);
 
             match Thread::waittid(tid) {
                 Ok(_) => Ok(0),
@@ -313,7 +312,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             }
         }
         SystemCall::GetPid => Ok(u32::from(Process::current().id()) as usize),
-        SystemCall::GetTid => Ok(Thread::current().id() as usize),
+        SystemCall::GetTid => Ok(u32::from(Thread::current().id()) as usize),
         SystemCall::Sleep => {
             let rem_buf = arg::option_buf_ref(args[1], size_of::<u64>() * 2)?;
             let mut rem = Duration::new(0, 0);
@@ -353,30 +352,28 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
         }
         SystemCall::GetSid => {
             // TODO handle kernel processes here?
-            let pid = args[0] as u32;
+            let pid = Pid::to_option(args[0] as u32);
             let current = Process::current();
-            let proc = if pid == 0 {
-                current
-            } else {
-                let pid = Pid::try_from(pid)?;
+            let proc = if let Some(pid) = pid {
                 let proc = Process::get(pid).ok_or(Errno::DoesNotExist)?;
                 if proc.sid() != current.sid() {
                     return Err(Errno::PermissionDenied);
                 }
                 proc
+            } else {
+                current
             };
 
             Ok(u32::from(proc.sid()) as usize)
         }
         SystemCall::GetPgid => {
             // TODO handle kernel processes here?
-            let pid = args[0] as u32;
+            let pid = Pid::to_option(args[0] as u32);
             let current = Process::current();
-            let proc = if pid == 0 {
-                current
-            } else {
-                let pid = Pid::try_from(pid)?;
+            let proc = if let Some(pid) = pid {
                 Process::get(pid).ok_or(Errno::DoesNotExist)?
+            } else {
+                current
             };
 
             Ok(u32::from(proc.pgid()) as usize)
@@ -395,16 +392,20 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             Ok(u32::from(id) as usize)
         }
         SystemCall::SetPgid => {
-            let pid = args[0] as u32;
-            let pgid = args[1] as u32;
+            let pid = Pid::to_option(args[0] as u32);
+            let pgid = Pid::to_option(args[1] as u32);
 
             let current = Process::current();
-            let proc = if pid == 0 { current } else { todo!() };
-
-            if pgid == 0 {
-                proc.set_pgid(proc.id());
+            let proc = if let Some(_pid) = pid {
+                todo!()
             } else {
+                current
+            };
+
+            if let Some(_pgid) = pgid {
                 todo!();
+            } else {
+                proc.set_pgid(proc.id());
             }
 
             Ok(u32::from(proc.pgid()) as usize)
@@ -440,7 +441,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let buf = arg::str_ref(args[1], args[2])?;
             let thread = Thread::current();
             let proc = thread.owner().unwrap();
-            println!(level, "[trace {:?}:{}] {}", proc.id(), thread.id(), buf);
+            println!(level, "[trace {:?}:{:?}] {}", proc.id(), thread.id(), buf);
             Ok(args[1])
         }
 

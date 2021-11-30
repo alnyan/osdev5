@@ -6,12 +6,12 @@ use crate::proc::{sched::SCHED, Thread, ThreadRef};
 use crate::sync::IrqSafeSpinLock;
 use alloc::collections::LinkedList;
 use core::time::Duration;
-use libsys::{error::Errno, stat::FdSet};
+use libsys::{error::Errno, proc::Tid, stat::FdSet};
 
 /// Wait channel structure. Contains a queue of processes
 /// waiting for some event to happen.
 pub struct Wait {
-    queue: IrqSafeSpinLock<LinkedList<u32>>,
+    queue: IrqSafeSpinLock<LinkedList<Tid>>,
     #[allow(dead_code)]
     name: &'static str
 }
@@ -28,7 +28,7 @@ pub enum WaitStatus {
 }
 
 struct Timeout {
-    tid: u32,
+    tid: Tid,
     deadline: Duration,
 }
 
@@ -129,7 +129,7 @@ impl Wait {
     }
 
     /// Interrupt wait pending on the channel
-    pub fn abort(&self, tid: u32, enqueue: bool) {
+    pub fn abort(&self, tid: Tid, enqueue: bool) {
         let mut queue = self.queue.lock();
         let mut tick_lock = TICK_LIST.lock();
         let mut cursor = tick_lock.cursor_front_mut();

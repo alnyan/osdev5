@@ -58,8 +58,8 @@ impl From<ExitCode> for i32 {
 }
 
 impl Pid {
-    /// Kernel idle process always has PID of zero
-    pub const IDLE: Self = Self(Self::KERNEL_BIT);
+    // /// Kernel idle process always has PID of zero
+    // pub const IDLE: Self = Self(Self::KERNEL_BIT);
 
     const KERNEL_BIT: u32 = 1 << 31;
     const USER_MAX: u32 = 256;
@@ -101,7 +101,11 @@ impl Pid {
     }
 
     pub fn to_option(m: u32) -> Option<Self> {
-        todo!()
+        if m != 0 {
+            Some(Self::try_from(m).unwrap())
+        } else {
+            None
+        }
     }
 }
 
@@ -156,6 +160,28 @@ impl From<u32> for Pgid {
 
 impl From<Pgid> for u32 {
     fn from(p: Pgid) -> u32 {
+        p.0
+    }
+}
+
+impl Tid {
+    pub const IDLE: Tid = Tid(0);
+}
+
+impl fmt::Debug for Tid {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Tid(#{})", self.0)
+    }
+}
+
+impl From<u32> for Tid {
+    fn from(p: u32) -> Tid {
+        Self(p)
+    }
+}
+
+impl From<Tid> for u32 {
+    fn from(p: Tid) -> u32 {
         p.0
     }
 }

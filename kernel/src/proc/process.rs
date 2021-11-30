@@ -6,7 +6,7 @@ use crate::mem::{
     virt::{MapAttributes, Space},
 };
 use crate::proc::{
-    wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, PROCESSES, SCHED,
+    wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, PROCESSES, SCHED, Tid,
 };
 use crate::sync::IrqSafeSpinLock;
 use alloc::{rc::Rc, vec::Vec};
@@ -39,7 +39,7 @@ struct ProcessInner {
     ppid: Option<Pid>,
     sid: Pid,
     exit: Option<ExitCode>,
-    threads: Vec<u32>,
+    threads: Vec<Tid>,
 }
 
 /// Structure describing an operating system process
@@ -184,7 +184,7 @@ impl Process {
     }
 
     /// Crates a new thread in the process
-    pub fn new_user_thread(&self, entry: usize, stack: usize, arg: usize) -> Result<u32, Errno> {
+    pub fn new_user_thread(&self, entry: usize, stack: usize, arg: usize) -> Result<Tid, Errno> {
         let mut lock = self.inner.lock();
 
         let space_phys = lock.space.as_mut().unwrap().address_phys();
@@ -294,7 +294,7 @@ impl Process {
 
             thread.terminate(status);
             SCHED.dequeue(tid);
-            debugln!("Thread {} terminated", tid);
+            debugln!("Thread {:?} terminated", tid);
 
             switch
         };

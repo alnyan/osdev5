@@ -12,7 +12,7 @@ use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU32, Ordering};
 use libsys::{
     error::Errno,
-    proc::{ExitCode, Pid},
+    proc::{ExitCode, Pid, Tid},
     signal::Signal,
 };
 
@@ -35,7 +35,7 @@ pub enum State {
 }
 
 struct ThreadInner {
-    id: u32,
+    id: Tid,
     state: State,
     owner: Option<Pid>,
     pending_wait: Option<&'static Wait>,
@@ -63,7 +63,7 @@ impl Thread {
 
     /// Returns a reference to thread `tid`, if it exists
     #[inline]
-    pub fn get(tid: u32) -> Option<ThreadRef> {
+    pub fn get(tid: Tid) -> Option<ThreadRef> {
         THREADS.lock().get(&tid).cloned()
     }
 
@@ -169,7 +169,7 @@ impl Thread {
 
     /// Returns the thread ID
     #[inline]
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> Tid {
         self.inner.lock().id
     }
 
@@ -244,7 +244,7 @@ impl Thread {
     }
 
     /// Suspends current thread until thread `tid` terminates
-    pub fn waittid(tid: u32) -> Result<(), Errno> {
+    pub fn waittid(tid: Tid) -> Result<(), Errno> {
         loop {
             let thread = THREADS
                 .lock()
@@ -334,7 +334,7 @@ impl Thread {
         let signal_ctx = unsafe { &mut *self.signal_ctx.get() };
 
         debugln!(
-            "Signal entry: tid={}, pc={:#x}, sp={:#x}, ttbr0={:#x}",
+            "Signal entry: tid={:?}, pc={:#x}, sp={:#x}, ttbr0={:#x}",
             lock.id,
             lock.signal_entry,
             lock.signal_stack,
@@ -398,9 +398,8 @@ impl Drop for Thread {
 }
 
 /// Allocates a new thread ID
-pub fn new_tid() -> u32 {
-    static LAST: AtomicU32 = AtomicU32::new(1);
+pub fn new_tid() -> Tid {
+    static LAST: AtomicU32 = AtomicU32::new(0);
     let id = LAST.fetch_add(1, Ordering::Relaxed);
-    assert!(id < 256, "Out of user TIDs");
-    id
+    Tid::from(id)
 }

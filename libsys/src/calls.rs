@@ -3,7 +3,7 @@ use crate::{
     debug::TraceLevel,
     error::Errno,
     ioctl::IoctlCmd,
-    proc::{ExitCode, MemoryAccess, MemoryMap, Pid},
+    proc::{ExitCode, MemoryAccess, MemoryMap, Pid, Tid},
     signal::{Signal, SignalDestination},
     stat::{
         AccessMode, DirectoryEntry, FdSet, FileDescriptor, FileMode, GroupId, MountOptions,
@@ -289,10 +289,10 @@ pub fn sys_ex_kill(pid: SignalDestination, signum: Signal) -> Result<(), Errno> 
 }
 
 #[inline(always)]
-pub fn sys_ex_clone(entry: usize, stack: usize, arg: usize) -> Result<usize, Errno> {
+pub fn sys_ex_clone(entry: usize, stack: usize, arg: usize) -> Result<Tid, Errno> {
     Errno::from_syscall(unsafe {
         syscall!(SystemCall::Clone, argn!(entry), argn!(stack), argn!(arg))
-    })
+    }).map(|e| Tid::from(e as u32))
 }
 
 #[inline(always)]
@@ -304,8 +304,8 @@ pub fn sys_ex_thread_exit(status: ExitCode) -> ! {
 }
 
 #[inline(always)]
-pub fn sys_ex_thread_wait(tid: u32) -> Result<ExitCode, Errno> {
-    Errno::from_syscall(unsafe { syscall!(SystemCall::WaitTid, argn!(tid)) })
+pub fn sys_ex_thread_wait(tid: Tid) -> Result<ExitCode, Errno> {
+    Errno::from_syscall(unsafe { syscall!(SystemCall::WaitTid, argn!(u32::from(tid))) })
         .map(|_| ExitCode::from(0))
 }
 
@@ -356,8 +356,8 @@ pub fn sys_faccessat(
 }
 
 #[inline(always)]
-pub fn sys_ex_gettid() -> u32 {
-    unsafe { syscall!(SystemCall::GetTid) as u32 }
+pub fn sys_ex_gettid() -> Tid {
+    Tid::from(unsafe { syscall!(SystemCall::GetTid) as u32 })
 }
 
 #[inline(always)]
@@ -374,7 +374,11 @@ pub fn sys_getpgid(pid: Option<Pid>) -> Result<Pid, Errno> {
 #[inline(always)]
 pub fn sys_setpgid(pid: Option<Pid>, pgid: Option<Pid>) -> Result<Pid, Errno> {
     Errno::from_syscall(unsafe {
-        syscall!(SystemCall::SetPgid, argn!(Pid::from_option(pid)), argn!(Pid::from_option(pgid)))
+        syscall!(
+            SystemCall::SetPgid,
+            argn!(Pid::from_option(pid)),
+            argn!(Pid::from_option(pgid))
+        )
     })
     .and_then(|e| Pid::try_from(e as u32))
 }
@@ -404,7 +408,7 @@ pub fn sys_getgid() -> GroupId {
 #[inline(always)]
 pub fn sys_setsid() -> Result<Pid, Errno> {
     Errno::from_syscall(unsafe { syscall!(SystemCall::SetSid) })
-        .and_then(|e| Pid::try_from(e as u32) )
+        .and_then(|e| Pid::try_from(e as u32))
 }
 
 #[inline(always)]

@@ -11,7 +11,6 @@ use libsys::{
     },
     error::Errno,
     ioctl::IoctlCmd,
-    proc::Pid,
     stat::{FileDescriptor, FileMode, GroupId, OpenFlags, UserId},
     termios::{Termios, TermiosLflag},
 };

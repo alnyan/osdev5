@@ -9,7 +9,7 @@ use alloc::{borrow::ToOwned, vec::Vec};
 use libusr::io::{self, Read};
 use libusr::signal::{self, SignalHandler};
 use libusr::sys::{
-    proc::Pid, sys_chdir, sys_execve, sys_exit, sys_faccessat, sys_fork, sys_getpgid, sys_setpgid,
+    sys_chdir, sys_execve, sys_exit, sys_faccessat, sys_fork, sys_getpgid, sys_setpgid,
     sys_waitpid, AccessMode, Errno, ExitCode, FileDescriptor, Signal,
 };
 

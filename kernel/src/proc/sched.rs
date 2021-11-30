@@ -2,12 +2,13 @@
 use crate::proc::{Thread, ThreadRef, THREADS};
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
+use libsys::proc::Tid;
 use alloc::{collections::VecDeque, rc::Rc};
 
 struct SchedulerInner {
-    queue: VecDeque<u32>,
-    idle: Option<u32>,
-    current: Option<u32>,
+    queue: VecDeque<Tid>,
+    idle: Option<Tid>,
+    current: Option<Tid>,
 }
 
 /// Process scheduler state and queues
@@ -23,7 +24,9 @@ impl SchedulerInner {
             current: None,
         };
 
-        this.idle = Some(Thread::new_kernel(None, idle_fn, 0).unwrap().id());
+        let idle = Thread::new_kernel(None, idle_fn, 0).unwrap().id();
+        assert_eq!(idle, Tid::IDLE);
+        this.idle = Some(idle);
 
         this
     }
@@ -39,12 +42,12 @@ impl Scheduler {
     }
 
     /// Schedules a thread for execution
-    pub fn enqueue(&self, tid: u32) {
+    pub fn enqueue(&self, tid: Tid) {
         self.inner.get().lock().queue.push_back(tid);
     }
 
     /// Removes given `tid` from execution queue
-    pub fn dequeue(&self, tid: u32) {
+    pub fn dequeue(&self, tid: Tid) {
         self.inner.get().lock().queue.retain(|&p| p != tid)
     }
 
@@ -76,7 +79,7 @@ impl Scheduler {
     /// # Safety
     ///
     /// Unsafe: only allowed to be called from Process::execve()
-    pub unsafe fn hack_current_tid(&self, old: u32, new: u32) {
+    pub unsafe fn hack_current_tid(&self, old: Tid, new: Tid) {
         let mut lock = self.inner.get().lock();
         match lock.current {
             Some(t) if t == old => {
@@ -93,7 +96,7 @@ impl Scheduler {
             let mut inner = self.inner.get().lock();
             let current = inner.current.unwrap();
 
-            if !discard && current != 0 {
+            if !discard && current != Tid::IDLE {
                 // Put the process into the back of the queue
                 inner.queue.push_back(current);
             }

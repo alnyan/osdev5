@@ -6,7 +6,7 @@ use core::fmt;
 use core::mem::MaybeUninit;
 use libsys::{
     calls::{sys_ex_clone, sys_ex_gettid, sys_ex_signal, sys_ex_thread_exit, sys_ex_thread_wait},
-    proc::ExitCode,
+    proc::{ExitCode, Tid},
 };
 
 struct NativeData<F, T>
@@ -22,19 +22,19 @@ where
 
 #[derive(Clone)]
 pub struct Thread {
-    id: u32,
+    id: Tid,
 }
 
 pub type ThreadResult<T> = Result<T, Box<dyn Any + Send + Sync>>;
 pub type ThreadPacket<T> = Arc<UnsafeCell<MaybeUninit<ThreadResult<T>>>>;
 
 pub struct JoinHandle<T> {
-    native: u32,
+    native: Tid,
     result: ThreadPacket<T>,
 }
 
 impl Thread {
-    pub const fn id(&self) -> u32 {
+    pub const fn id(&self) -> Tid {
         self.id
     }
 }
@@ -60,7 +60,7 @@ impl<T> JoinHandle<T> {
 }
 
 unsafe fn init_common(signal_stack_pointer: *mut u8) {
-    let tid = sys_ex_gettid() as u64;
+    let tid = u32::from(sys_ex_gettid()) as u64;
     asm!("msr tpidr_el0, {:x}", in(reg) tid);
 
     // thread::current() should be valid at this point
@@ -86,8 +86,7 @@ pub fn current() -> Thread {
     unsafe {
         asm!("mrs {:x}, tpidr_el0", out(reg) id);
     }
-
-    Thread { id: id as u32 }
+    Thread { id: Tid::from(id as u32) }
 }
 
 pub fn spawn<F, T>(f: F) -> JoinHandle<T>
@@ -136,7 +135,7 @@ where
             result: result.clone(),
         }));
 
-        sys_ex_clone(thread_entry::<F, T> as usize, stack, data as usize).unwrap() as u32
+        sys_ex_clone(thread_entry::<F, T> as usize, stack, data as usize).unwrap()
     };
 
     JoinHandle { native, result }

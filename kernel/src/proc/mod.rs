@@ -3,7 +3,7 @@
 use crate::init;
 use crate::sync::IrqSafeSpinLock;
 use alloc::collections::BTreeMap;
-use libsys::proc::Pid;
+use libsys::proc::{Tid, Pid};
 
 pub mod elf;
 pub mod thread;
@@ -30,7 +30,7 @@ pub fn switch() {
 pub(self) static PROCESSES: IrqSafeSpinLock<BTreeMap<Pid, ProcessRef>> =
     IrqSafeSpinLock::new(BTreeMap::new());
 
-pub(self) static THREADS: IrqSafeSpinLock<BTreeMap<u32, ThreadRef>> =
+pub(self) static THREADS: IrqSafeSpinLock<BTreeMap<Tid, ThreadRef>> =
     IrqSafeSpinLock::new(BTreeMap::new());
 
 /// Sets up initial process and enters it.
