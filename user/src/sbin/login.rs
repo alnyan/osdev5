@@ -3,8 +3,6 @@
 
 #[macro_use]
 extern crate libusr;
-#[macro_use]
-extern crate alloc;
 
 use libsys::{
     calls::{
@@ -96,7 +94,7 @@ fn login_as(uid: UserId, gid: GroupId, shell: &str) -> Result<(), Errno> {
 // TODO baud rate and misc port settings
 #[no_mangle]
 fn main() -> i32 {
-    if !sys_getuid().is_root() {
+    if !sys_getuid().is_root() || !sys_getgid().is_root() {
         panic!("This program must be run as root");
     }
 
@@ -143,9 +141,7 @@ fn main() -> i32 {
         .expect("Password read failed");
 
         if username == "root" && password == "toor" {
-            login_as(UserId::from(0), GroupId::from(0), "/bin/shell");
+            login_as(UserId::from(0), GroupId::from(0), "/bin/shell").unwrap();
         }
     }
-
-    0
 }

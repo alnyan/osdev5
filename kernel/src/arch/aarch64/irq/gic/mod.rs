@@ -28,7 +28,6 @@ pub struct Gic {
     gicd: InitOnce<Gicd>,
     gicd_base: usize,
     gicc_base: usize,
-    scheduler_irq: IrqNumber,
     table: IrqSafeSpinLock<[Option<&'static (dyn IntSource + Sync)>; MAX_IRQ]>,
 }
 
@@ -124,13 +123,12 @@ impl Gic {
     /// # Safety
     ///
     /// Does not perform `gicd_base` and `gicc_base` validation.
-    pub const unsafe fn new(gicd_base: usize, gicc_base: usize, scheduler_irq: IrqNumber) -> Self {
+    pub const unsafe fn new(gicd_base: usize, gicc_base: usize) -> Self {
         Self {
             gicc: InitOnce::new(),
             gicd: InitOnce::new(),
             gicd_base,
             gicc_base,
-            scheduler_irq,
             table: IrqSafeSpinLock::new([None; MAX_IRQ]),
         }
     }

@@ -1,12 +1,9 @@
 use core::alloc::{GlobalAlloc, Layout};
 use core::mem::{size_of, MaybeUninit};
 use core::ptr::null_mut;
-use core::sync::atomic::{AtomicUsize, Ordering};
 use libsys::{
     calls::{sys_mmap, sys_munmap},
-    debug::TraceLevel,
     error::Errno,
-    mem::memset,
     proc::{MemoryAccess, MemoryMap},
 };
 use memoffset::offset_of;
@@ -117,7 +114,7 @@ impl Zone {
 unsafe fn zone_alloc(zone: &mut Zone, size: usize) -> *mut u8 {
     assert_eq!(size & 15, 0);
 
-    let mut begin = ((zone as *mut _ as usize) + size_of::<Zone>()) as *mut Block;
+    let begin = ((zone as *mut _ as usize) + size_of::<Zone>()) as *mut Block;
 
     let mut block = begin;
     while !block.is_null() {
@@ -168,6 +165,7 @@ unsafe fn alloc_from(list: &mut ZoneList, zone_size: usize, size: usize) -> *mut
             if !ptr.is_null() {
                 return ptr;
             }
+            zone = (&mut *zone).next;
         }
 
         let zone = match Zone::alloc(zone_size) {

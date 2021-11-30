@@ -274,8 +274,7 @@ impl fmt::Display for FileMode {
             choose(self.contains(Self::OTHER_READ), 'r', '-'),
             choose(self.contains(Self::OTHER_WRITE), 'w', '-'),
             choose(self.contains(Self::OTHER_EXEC), 'x', '-'),
-        );
-        Ok(())
+        )
     }
 }
 

@@ -6,7 +6,7 @@ extern crate libusr;
 #[macro_use]
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, string::String};
+use alloc::borrow::ToOwned;
 use libusr::sys::{
     stat::{DirectoryEntry, FileMode, OpenFlags, Stat},
     sys_close, sys_fstatat, sys_openat, sys_readdir, Errno,

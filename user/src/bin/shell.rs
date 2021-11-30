@@ -107,7 +107,6 @@ fn main() -> i32 {
                 println!("Interrupt!");
                 continue;
             }
-            _ => panic!(),
         }
     }
     0

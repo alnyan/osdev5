@@ -28,7 +28,7 @@ pub trait AsRawFd {
     fn as_raw_fd(&self) -> FileDescriptor;
 }
 
-pub fn tcgetpgrp(fd: FileDescriptor) -> Result<Pid, Errno> {
+pub fn tcgetpgrp(_fd: FileDescriptor) -> Result<Pid, Errno> {
     todo!()
 }
 

@@ -12,13 +12,18 @@ use libsys::{error::Errno, stat::FdSet};
 /// waiting for some event to happen.
 pub struct Wait {
     queue: IrqSafeSpinLock<LinkedList<u32>>,
+    #[allow(dead_code)]
     name: &'static str
 }
 
+/// Status of a (possibly) pending wait
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum WaitStatus {
+    /// In progress
     Pending,
+    /// Wait was interrupted by a signal
     Interrupted,
+    /// Channel reported data available
     Done,
 }
 
@@ -28,6 +33,8 @@ struct Timeout {
 }
 
 static TICK_LIST: IrqSafeSpinLock<LinkedList<Timeout>> = IrqSafeSpinLock::new(LinkedList::new());
+/// Global wait channel for blocking on select. Gets notified
+/// of ANY I/O operations available, so not very efficient.
 pub static WAIT_SELECT: Wait = Wait::new("select");
 
 /// Checks for any timed out wait channels and interrupts them
@@ -63,6 +70,8 @@ pub fn sleep(timeout: Duration, remaining: &mut Duration) -> Result<(), Errno> {
     }
 }
 
+/// Suspends current process until some file descriptor
+/// signals data available
 pub fn select(
     thread: ThreadRef,
     mut rfds: Option<&mut FdSet>,
@@ -119,6 +128,7 @@ impl Wait {
         }
     }
 
+    /// Interrupt wait pending on the channel
     pub fn abort(&self, tid: u32, enqueue: bool) {
         let mut queue = self.queue.lock();
         let mut tick_lock = TICK_LIST.lock();

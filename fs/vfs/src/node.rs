@@ -31,6 +31,7 @@ pub(crate) struct TreeNode {
 
 /// File property cache struct
 pub struct VnodeProps {
+    /// Node permissions and type
     pub mode: FileMode,
 }
 
@@ -74,6 +75,7 @@ pub trait VnodeImpl {
     /// Resizes the file storage if necessary.
     fn write(&mut self, node: VnodeRef, pos: usize, data: &[u8]) -> Result<usize, Errno>;
 
+    /// Read directory entries into target buffer
     fn readdir(
         &mut self,
         node: VnodeRef,
@@ -87,6 +89,7 @@ pub trait VnodeImpl {
     /// Reports the size of this filesystem object in bytes
     fn size(&mut self, node: VnodeRef) -> Result<usize, Errno>;
 
+    /// Returns `true` if node is ready for an operation
     fn is_ready(&mut self, node: VnodeRef, write: bool) -> Result<bool, Errno>;
 
     /// Performs filetype-specific request
@@ -104,7 +107,9 @@ impl Vnode {
     /// be seeked to arbitrary offsets
     pub const SEEKABLE: u32 = 1 << 0;
 
+    /// If set, readdir() uses only in-memory node tree
     pub const CACHE_READDIR: u32 = 1 << 1;
+    /// If set, stat() uses only in-memory stat data
     pub const CACHE_STAT: u32 = 1 << 2;
 
     /// Constructs a new [Vnode], wrapping it in [Rc]. The resulting node
@@ -178,6 +183,7 @@ impl Vnode {
         self.kind
     }
 
+    /// Returns flags of the vnode
     #[inline(always)]
     pub const fn flags(&self) -> u32 {
         self.flags
@@ -476,6 +482,7 @@ impl Vnode {
         }
     }
 
+    /// Returns `true` if the node is ready for operation
     pub fn is_ready(self: &VnodeRef, write: bool) -> Result<bool, Errno> {
         if let Some(ref mut data) = *self.data() {
             data.is_ready(self.clone(), write)
@@ -484,6 +491,7 @@ impl Vnode {
         }
     }
 
+    /// Checks if given [Ioctx] has `access` permissions to the vnode
     pub fn check_access(&self, _ioctx: &Ioctx, access: AccessMode) -> Result<(), Errno> {
         let props = self.props.borrow();
         let mode = props.mode;

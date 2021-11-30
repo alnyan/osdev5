@@ -28,6 +28,7 @@ unsafe impl BlockAllocator for MemfsBlockAlloc {
     }
 }
 
+/// Creates a filesystem instance based on `options`
 pub fn create_filesystem(options: &MountOptions) -> Result<VnodeRef, Errno> {
     let fs_name = options.fs.unwrap();
 

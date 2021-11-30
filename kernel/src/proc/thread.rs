@@ -1,5 +1,10 @@
+//! Facilities for controlling threads - smallest units of
+//! execution in the operating system
 use crate::arch::aarch64::exception::ExceptionFrame;
-use crate::proc::{wait::{Wait, WaitStatus}, Process, ProcessRef, SCHED, THREADS};
+use crate::proc::{
+    wait::{Wait, WaitStatus},
+    Process, ProcessRef, SCHED, THREADS,
+};
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use alloc::rc::Rc;
@@ -13,6 +18,7 @@ use libsys::{
 
 pub use crate::arch::platform::context::{self, Context};
 
+/// Convenience wrapper for [Thread] references
 pub type ThreadRef = Rc<Thread>;
 
 /// List of possible process states
@@ -38,6 +44,7 @@ struct ThreadInner {
     signal_stack: usize,
 }
 
+/// Thread control data
 pub struct Thread {
     inner: IrqSafeSpinLock<ThreadInner>,
     exit_wait: Wait,
@@ -48,21 +55,25 @@ pub struct Thread {
 }
 
 impl Thread {
+    /// Returns currently active thread [Rc]-reference
     #[inline]
     pub fn current() -> ThreadRef {
         SCHED.current_thread()
     }
 
+    /// Returns a reference to thread `tid`, if it exists
     #[inline]
     pub fn get(tid: u32) -> Option<ThreadRef> {
         THREADS.lock().get(&tid).cloned()
     }
 
+    /// Returns the owner process
     #[inline]
     pub fn owner(&self) -> Option<ProcessRef> {
         self.inner.lock().owner.and_then(Process::get)
     }
 
+    /// Returns [Pid] of the owner process
     pub fn owner_id(&self) -> Option<Pid> {
         self.inner.lock().owner
     }
@@ -127,6 +138,7 @@ impl Thread {
         Ok(res)
     }
 
+    /// Creates a fork thread cloning `frame` context
     pub fn fork(
         owner: Option<Pid>,
         frame: &ExceptionFrame,
@@ -155,6 +167,7 @@ impl Thread {
         Ok(res)
     }
 
+    /// Returns the thread ID
     #[inline]
     pub fn id(&self) -> u32 {
         self.inner.lock().id
@@ -230,6 +243,7 @@ impl Thread {
         lock.wait_status = WaitStatus::Pending;
     }
 
+    /// Suspends current thread until thread `tid` terminates
     pub fn waittid(tid: u32) -> Result<(), Errno> {
         loop {
             let thread = THREADS
@@ -247,17 +261,20 @@ impl Thread {
         }
     }
 
+    /// Updates pending wait status
     pub fn set_wait_status(&self, status: WaitStatus) {
         let mut lock = self.inner.lock();
         lock.wait_status = status;
     }
 
+    /// Resets wait channel back to initial state
     pub fn reset_wait(&self) {
         let mut lock = self.inner.lock();
         lock.pending_wait = None;
         lock.wait_status = WaitStatus::Done;
     }
 
+    /// Returns status of the thread's pending wait
     pub fn wait_status(&self) -> WaitStatus {
         self.inner.lock().wait_status
     }
@@ -279,11 +296,13 @@ impl Thread {
         }
     }
 
+    /// Returns the thread state
     #[inline]
     pub fn state(&self) -> State {
         self.inner.lock().state
     }
 
+    /// Sets the thread's owner process ID
     pub fn set_owner(&self, pid: Pid) {
         self.inner.lock().owner = Some(pid);
     }
@@ -295,6 +314,7 @@ impl Thread {
         lock.signal_stack = stack;
     }
 
+    /// Sets up a context for signal handler
     pub fn setup_signal(self: ThreadRef, signal: Signal, ttbr0: usize) {
         if self
             .signal_pending
@@ -312,7 +332,6 @@ impl Thread {
         }
 
         let signal_ctx = unsafe { &mut *self.signal_ctx.get() };
-        let src_ctx = self.ctx.get();
 
         debugln!(
             "Signal entry: tid={}, pc={:#x}, sp={:#x}, ttbr0={:#x}",
@@ -330,7 +349,6 @@ impl Thread {
                 lock.signal_stack,
             );
         }
-
     }
 
     /// Switches process main thread to a signal handler
@@ -346,6 +364,7 @@ impl Thread {
         }
     }
 
+    /// Interrupts pending wait (from signal routines)
     pub fn interrupt_wait(&self, enqueue: bool) {
         let mut lock = self.inner.lock();
         let tid = lock.id;
@@ -356,6 +375,8 @@ impl Thread {
         }
     }
 
+    /// Cleans up any resources of the thread and aborts
+    /// pending wait, if any
     pub fn terminate(&self, status: ExitCode) {
         let mut lock = self.inner.lock();
         lock.state = State::Finished;
@@ -376,6 +397,7 @@ impl Drop for Thread {
     }
 }
 
+/// Allocates a new thread ID
 pub fn new_tid() -> u32 {
     static LAST: AtomicU32 = AtomicU32::new(1);
     let id = LAST.fetch_add(1, Ordering::Relaxed);

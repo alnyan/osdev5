@@ -10,7 +10,9 @@ use libsys::{
 pub struct Ioctx {
     root: VnodeRef,
     cwd: VnodeRef,
+    /// Process user ID
     pub uid: UserId,
+    /// Process group ID
     pub gid: GroupId,
 }
 
@@ -123,6 +125,7 @@ impl Ioctx {
         node.open(opts)
     }
 
+    /// Changes current working directory of the process
     pub fn chdir(&mut self, path: &str) -> Result<(), Errno> {
         let node = self.find(None, path, true)?;
         if !node.is_directory() {

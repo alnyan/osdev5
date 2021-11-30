@@ -3,8 +3,6 @@
 
 #[macro_use]
 extern crate libusr;
-#[macro_use]
-extern crate alloc;
 
 use libusr::io::{self, Read, Write};
 use libusr::file::File;
@@ -19,7 +17,7 @@ fn do_cat<F: Read>(mut fd: F) -> Result<(), io::Error> {
             break;
         }
 
-        out.write(&buf[..count]);
+        out.write(&buf[..count])?;
     }
 
     Ok(())

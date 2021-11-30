@@ -19,6 +19,7 @@ pub trait CharDevice {
     /// Performs a TTY control request
     fn ioctl(&self, cmd: IoctlCmd, ptr: usize, lim: usize) -> Result<usize, Errno>;
 
+    /// Returns `true` if the device is ready for an operation
     fn is_ready(&self, write: bool) -> Result<bool, Errno>;
 }
 

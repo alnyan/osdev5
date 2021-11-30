@@ -48,14 +48,6 @@ impl Scheduler {
         self.inner.get().lock().queue.retain(|&p| p != tid)
     }
 
-    pub fn debug(&self) {
-        let lock = self.inner.get().lock();
-        debugln!("Scheduler queue:");
-        for &tid in lock.queue.iter() {
-            debugln!("TID: {:?}", tid);
-        }
-    }
-
     /// Performs initial process entry.
     ///
     /// # Safety
@@ -132,6 +124,7 @@ impl Scheduler {
         }
     }
 
+    /// Returns a [Rc]-reference to currently running Thread
     pub fn current_thread(&self) -> ThreadRef {
         let inner = self.inner.get().lock();
         let id = inner.current.unwrap();

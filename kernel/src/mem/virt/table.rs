@@ -210,6 +210,9 @@ impl Space {
         }
     }
 
+    /// Translates a virtual address into a corresponding physical one.
+    ///
+    /// Only works for 4K pages atm.
     // TODO extract attributes
     pub fn translate(&mut self, virt: usize) -> Result<usize, Errno> {
         let l0i = virt >> 30;
@@ -264,6 +267,8 @@ impl Space {
         Ok(())
     }
 
+    /// Allocates a contiguous region from the address space and maps
+    /// physical pages to it
     pub fn allocate(
         &mut self,
         start: usize,
@@ -288,6 +293,8 @@ impl Space {
         Err(Errno::OutOfMemory)
     }
 
+    /// Removes a single 4K page mapping from the table and
+    /// releases the underlying physical memory
     pub fn unmap_single(&mut self, page: usize) -> Result<(), Errno> {
         let l0i = page >> 30;
         let l1i = (page >> 21) & 0x1FF;
@@ -304,7 +311,7 @@ impl Space {
 
         let phys = unsafe { entry.address_unchecked() };
         unsafe {
-            phys::free_page(phys);
+            phys::free_page(phys)?;
         }
         l2_table[l2i] = Entry::invalid();
 
@@ -317,6 +324,7 @@ impl Space {
         Ok(())
     }
 
+    /// Releases a range of virtual pages and their corresponding physical pages
     pub fn free(&mut self, start: usize, len: usize) -> Result<(), Errno> {
         for i in 0..len {
             self.unmap_single(start + i * 0x1000)?;

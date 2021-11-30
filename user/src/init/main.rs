@@ -18,11 +18,9 @@ fn main() -> i32 {
     )
     .expect("Failed to mount devfs");
 
-    let pid = unsafe { libusr::sys::sys_fork().unwrap() };
-
-    if let Some(pid) = pid {
+    if let Some(pid) = unsafe { sys_fork().unwrap() } {
         let mut status = 0;
-        libusr::sys::sys_waitpid(pid, &mut status).unwrap();
+        sys_waitpid(pid, &mut status).unwrap();
         println!("Process {:?} exited with status {}", pid, status);
 
         loop {
@@ -31,7 +29,7 @@ fn main() -> i32 {
             }
         }
     } else {
-        libusr::sys::sys_execve("/sbin/login", &["/sbin/login", "/dev/ttyS0"]).unwrap();
+        sys_execve("/sbin/login", &["/sbin/login", "/dev/ttyS0"]).unwrap();
         loop {}
     }
 }

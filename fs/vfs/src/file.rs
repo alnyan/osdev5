@@ -98,7 +98,9 @@ impl File {
     /// File has to be closed on execve() calls
     pub const CLOEXEC: u32 = 1 << 2;
 
+    /// Special position for cache-readdir: "." entry
     pub const POS_CACHE_DOT: usize = usize::MAX - 1;
+    /// Special position for cache-readdir: ".." entry
     pub const POS_CACHE_DOT_DOT: usize = usize::MAX;
 
     /// Constructs a new file handle for a regular file
@@ -123,6 +125,7 @@ impl File {
         self.flags & Self::CLOEXEC != 0
     }
 
+    /// Returns `true` if the file is ready for an operation
     pub fn is_ready(&self, write: bool) -> Result<bool, Errno> {
         match &self.inner {
             FileInner::Normal(inner) => inner.vnode.is_ready(write),
@@ -169,6 +172,7 @@ impl File {
         Ok(offset + count)
     }
 
+    /// Reads directory entries into the target buffer
     pub fn readdir(&mut self, entries: &mut [DirectoryEntry]) -> Result<usize, Errno> {
         match &mut self.inner {
             FileInner::Normal(inner) => {

@@ -14,7 +14,7 @@ use libsys::{
     debug::TraceLevel,
     error::Errno,
     ioctl::IoctlCmd,
-    proc::{ExitCode, Pid, MemoryAccess, MemoryMap},
+    proc::{ExitCode, Pid, MemoryAccess},
     signal::{Signal, SignalDestination},
     stat::{
         AccessMode, DirectoryEntry, FdSet, FileDescriptor, FileMode, GroupId, MountOptions,
@@ -208,7 +208,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
                 return Err(Errno::InvalidArgument);
             }
             let acc = MemoryAccess::from_bits(args[2] as u32).ok_or(Errno::InvalidArgument)?;
-            let flags = MemoryAccess::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
+            let _flags = MemoryAccess::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
 
             let mut attrs = MapAttributes::NOT_GLOBAL | MapAttributes::SH_OUTER | MapAttributes::PXN;
             if !acc.contains(MemoryAccess::READ) {
@@ -386,7 +386,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let proc = Process::current();
             let mut io = proc.io.lock();
 
-            if let Some(ctty) = io.ctty() {
+            if let Some(_ctty) = io.ctty() {
                 todo!();
             }
 

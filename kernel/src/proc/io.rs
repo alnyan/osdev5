@@ -22,25 +22,30 @@ impl ProcessIo {
         Ok(dst)
     }
 
+    /// Sets controlling terminal for the process
     pub fn set_ctty(&mut self, node: VnodeRef) {
         assert_eq!(node.kind(), VnodeKind::Char);
         self.ctty = Some(node);
     }
 
+    /// Returns current controlling terminal of the process
     pub fn ctty(&mut self) -> Option<VnodeRef> {
         self.ctty.clone()
     }
 
+    /// Returns user ID of the process
     #[inline(always)]
     pub fn uid(&self) -> UserId {
         self.ioctx.as_ref().unwrap().uid
     }
 
+    /// Returns group ID of the process
     #[inline(always)]
     pub fn gid(&self) -> GroupId {
         self.ioctx.as_ref().unwrap().gid
     }
 
+    /// Changes (if permitted) user ID of the process
     #[inline(always)]
     pub fn set_uid(&mut self, uid: UserId) -> Result<(), Errno> {
         let old_uid = self.uid();
@@ -54,6 +59,7 @@ impl ProcessIo {
         }
     }
 
+    /// Changes (if permitted) group ID of the process
     #[inline(always)]
     pub fn set_gid(&mut self, gid: GroupId) -> Result<(), Errno> {
         let old_gid = self.gid();
@@ -67,6 +73,7 @@ impl ProcessIo {
         }
     }
 
+    /// Clones a file descriptor into an available slot or, if specified, requested one
     pub fn duplicate_file(&mut self, src: FileDescriptor, dst: Option<FileDescriptor>) -> Result<FileDescriptor, Errno> {
         let file_ref = self.file(src)?;
         if let Some(dst) = dst {

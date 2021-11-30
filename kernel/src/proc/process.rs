@@ -8,18 +8,16 @@ use crate::mem::{
 use crate::proc::{
     wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, PROCESSES, SCHED,
 };
-use crate::sync::{IrqSafeSpinLock, IrqSafeSpinLockGuard};
+use crate::sync::IrqSafeSpinLock;
 use alloc::{rc::Rc, vec::Vec};
-use core::alloc::Layout;
 use core::sync::atomic::{AtomicU32, Ordering};
 use libsys::{
     error::Errno,
+    mem::memcpy,
     proc::{ExitCode, Pid},
     signal::Signal,
-    mem::memcpy,
     ProgramArgs,
 };
-use vfs::{VnodeKind, VnodeRef};
 
 /// Wrapper type for a process struct reference
 pub type ProcessRef = Rc<Process>;
@@ -58,39 +56,47 @@ impl Process {
     const USTACK_VIRT_TOP: usize = 0x100000000;
     const USTACK_PAGES: usize = 4;
 
+    /// Returns the process ID
     #[inline]
     pub fn id(&self) -> Pid {
         self.inner.lock().id
     }
 
+    /// Returns the process session ID
     #[inline]
     pub fn sid(&self) -> Pid {
         self.inner.lock().sid
     }
 
+    /// Returns parent's [Pid]
     #[inline]
     pub fn pgid(&self) -> Pid {
         self.inner.lock().pgid
     }
 
+    /// Returns parent's [Pid]
     #[inline]
     pub fn ppid(&self) -> Option<Pid> {
         self.inner.lock().ppid
     }
 
+    /// Sets a new group id for the process
     pub fn set_pgid(&self, pgid: Pid) {
         self.inner.lock().pgid = pgid;
     }
 
+    /// Sets a new session id for the process
     pub fn set_sid(&self, sid: Pid) {
         self.inner.lock().sid = sid;
     }
 
+    /// Returns [Rc]-reference to current process
     #[inline]
     pub fn current() -> ProcessRef {
         Thread::current().owner().unwrap()
     }
 
+    /// Executes a closure performing manipulations on the process address space
     #[inline]
     pub fn manipulate_space<R, F>(&self, f: F) -> R
     where
@@ -99,6 +105,7 @@ impl Process {
         f(self.inner.lock().space.as_mut().unwrap())
     }
 
+    /// Creates a new kernel process
     pub fn new_kernel(entry: extern "C" fn(usize) -> !, arg: usize) -> Result<ProcessRef, Errno> {
         let id = new_kernel_pid();
         let thread = Thread::new_kernel(Some(id), entry, arg)?;
@@ -126,6 +133,7 @@ impl Process {
         Ok(res)
     }
 
+    /// Adds all of the process threads to scheduler queue
     pub fn enqueue(&self) {
         let inner = self.inner.lock();
         for &tid in inner.threads.iter() {
@@ -168,12 +176,14 @@ impl Process {
         }
     }
 
+    /// Immediately delivers a signal to requested thread
     pub fn enter_fault_signal(&self, thread: ThreadRef, signal: Signal) {
         let mut lock = self.inner.lock();
         let ttbr0 = lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48);
         thread.enter_signal(signal, ttbr0);
     }
 
+    /// Crates a new thread in the process
     pub fn new_user_thread(&self, entry: usize, stack: usize, arg: usize) -> Result<u32, Errno> {
         let mut lock = self.inner.lock();
 
@@ -264,6 +274,8 @@ impl Process {
         }
     }
 
+    /// Terminates a thread of the process. If the thread is the only
+    /// one remaining, process itself is exited (see [Process::exit])
     pub fn exit_thread(thread: ThreadRef, status: ExitCode) {
         let switch = {
             let switch = thread.state() == ThreadState::Running;
@@ -337,11 +349,11 @@ impl Process {
             phys
         } else {
             let page = phys::alloc_page(PageUsage::UserPrivate)?;
-            let flags = MapAttributes::SH_OUTER |
-                MapAttributes::NOT_GLOBAL |
-                MapAttributes::UXN |
-                MapAttributes::PXN |
-                MapAttributes::AP_BOTH_READONLY;
+            let flags = MapAttributes::SH_OUTER
+                | MapAttributes::NOT_GLOBAL
+                | MapAttributes::UXN
+                | MapAttributes::PXN
+                | MapAttributes::AP_BOTH_READONLY;
             space.map(page_virt, page, flags)?;
             page
         };
@@ -361,17 +373,21 @@ impl Process {
             phys
         } else {
             let page = phys::alloc_page(PageUsage::UserPrivate)?;
-            let flags = MapAttributes::SH_OUTER |
-                MapAttributes::NOT_GLOBAL |
-                MapAttributes::UXN |
-                MapAttributes::PXN |
-                MapAttributes::AP_BOTH_READONLY;
+            let flags = MapAttributes::SH_OUTER
+                | MapAttributes::NOT_GLOBAL
+                | MapAttributes::UXN
+                | MapAttributes::PXN
+                | MapAttributes::AP_BOTH_READONLY;
             space.map(page_virt, page, flags)?;
             page
         };
 
         unsafe {
-            memcpy((mem::virtualize(page_phys) + (dst % 4096)) as *mut u8, src.as_ptr(), src.len());
+            memcpy(
+                (mem::virtualize(page_phys) + (dst % 4096)) as *mut u8,
+                src.as_ptr(),
+                src.len(),
+            );
         }
         Ok(())
     }
@@ -405,7 +421,7 @@ impl Process {
             argc: argv.len(),
             argv: base + argv_offset,
             storage: base,
-            size: offset + core::mem::size_of::<ProgramArgs>()
+            size: offset + core::mem::size_of::<ProgramArgs>(),
         };
         Self::write_paged(space, base + offset, data)?;
 

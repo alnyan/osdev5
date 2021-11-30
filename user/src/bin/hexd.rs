@@ -3,10 +3,8 @@
 
 #[macro_use]
 extern crate libusr;
-#[macro_use]
-extern crate alloc;
 
-use libusr::io::{self, Read, Write};
+use libusr::io::{self, Read};
 use libusr::file::File;
 
 fn line_print(off: usize, line: &[u8]) {

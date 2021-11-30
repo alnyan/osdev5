@@ -472,5 +472,5 @@ pub fn sys_mmap(
 
 #[inline(always)]
 pub unsafe fn sys_munmap(addr: usize, len: usize) -> Result<(), Errno> {
-    Errno::from_syscall_unit(unsafe { syscall!(SystemCall::UnmapMemory, argn!(addr), argn!(len)) })
+    Errno::from_syscall_unit(syscall!(SystemCall::UnmapMemory, argn!(addr), argn!(len)))
 }

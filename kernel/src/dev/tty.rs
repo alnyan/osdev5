@@ -34,6 +34,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
     /// Returns a reference to character device's ring buffer
     fn ring(&self) -> &CharRing<N>;
 
+    /// Returns `true` if the TTY is ready for an operation
     fn is_ready(&self, write: bool) -> Result<bool, Errno> {
         let ring = self.ring();
         if write {
@@ -265,6 +266,7 @@ impl<const N: usize> CharRing<N> {
         }
     }
 
+    /// Returns `true` if a character/line is available for reception
     pub fn is_readable(&self) -> bool {
         let inner = self.inner.lock();
         let config = self.config.lock();

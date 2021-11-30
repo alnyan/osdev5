@@ -114,7 +114,7 @@ macro_rules! errorln {
 }
 
 #[doc(hidden)]
-pub fn _debug(level: Level, args: fmt::Arguments) {
+pub fn _debug(_level: Level, args: fmt::Arguments) {
     use crate::arch::machine;
     use fmt::Write;
 

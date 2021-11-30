@@ -1,9 +1,6 @@
 use crate::{BlockAllocator, Bvec, FileInode};
 use alloc::boxed::Box;
-use libsys::{
-    error::Errno,
-    stat::{DirectoryEntry, OpenFlags, Stat},
-};
+use libsys::{error::Errno, stat::Stat};
 use vfs::{Vnode, VnodeImpl, VnodeKind, VnodeRef};
 
 pub struct DirInode<A: BlockAllocator + Copy + 'static> {
@@ -40,7 +37,7 @@ impl<A: BlockAllocator + Copy + 'static> VnodeImpl for DirInode<A> {
         Ok(Stat {
             size: 0,
             blksize: 4096,
-            mode: props.mode
+            mode: props.mode,
         })
     }
 }
