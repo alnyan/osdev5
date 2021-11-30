@@ -293,7 +293,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
         }
         SystemCall::WaitPid => {
             // TODO special "pid" values
-            let pid = unsafe { Pid::from_raw(args[0] as u32) };
+            let pid = Pid::try_from(args[0] as u32)?;
             let status = arg::struct_mut::<i32>(args[1])?;
 
             match Process::waitpid(pid) {
@@ -312,7 +312,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
                 _ => todo!(),
             }
         }
-        SystemCall::GetPid => Ok(Process::current().id().value() as usize),
+        SystemCall::GetPid => Ok(u32::from(Process::current().id()) as usize),
         SystemCall::GetTid => Ok(Thread::current().id() as usize),
         SystemCall::Sleep => {
             let rem_buf = arg::option_buf_ref(args[1], size_of::<u64>() * 2)?;
@@ -358,7 +358,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let proc = if pid == 0 {
                 current
             } else {
-                let pid = unsafe { Pid::from_raw(pid) };
+                let pid = Pid::try_from(pid)?;
                 let proc = Process::get(pid).ok_or(Errno::DoesNotExist)?;
                 if proc.sid() != current.sid() {
                     return Err(Errno::PermissionDenied);
@@ -366,7 +366,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
                 proc
             };
 
-            Ok(proc.sid().value() as usize)
+            Ok(u32::from(proc.sid()) as usize)
         }
         SystemCall::GetPgid => {
             // TODO handle kernel processes here?
@@ -375,13 +375,13 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let proc = if pid == 0 {
                 current
             } else {
-                let pid = unsafe { Pid::from_raw(pid) };
+                let pid = Pid::try_from(pid)?;
                 Process::get(pid).ok_or(Errno::DoesNotExist)?
             };
 
-            Ok(proc.pgid().value() as usize)
+            Ok(u32::from(proc.pgid()) as usize)
         }
-        SystemCall::GetPpid => Ok(Process::current().ppid().unwrap().value() as usize),
+        SystemCall::GetPpid => Ok(u32::from(Process::current().ppid().unwrap()) as usize),
         SystemCall::SetSid => {
             let proc = Process::current();
             let mut io = proc.io.lock();
@@ -392,7 +392,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
 
             let id = proc.id();
             proc.set_sid(id);
-            Ok(id.value() as usize)
+            Ok(u32::from(id) as usize)
         }
         SystemCall::SetPgid => {
             let pid = args[0] as u32;
@@ -407,7 +407,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
                 todo!();
             }
 
-            Ok(proc.pgid().value() as usize)
+            Ok(u32::from(proc.pgid()) as usize)
         }
 
         // System

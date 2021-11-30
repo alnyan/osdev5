@@ -67,11 +67,11 @@ fn execute(line: &str) -> Result<ExitCode, Errno> {
     if let Some(pid) = unsafe { sys_fork()? } {
         let mut status = 0;
         sys_waitpid(pid, &mut status)?;
-        let pgid = sys_getpgid(unsafe { Pid::from_raw(0) }).unwrap();
+        let pgid = sys_getpgid(None).unwrap();
         io::tcsetpgrp(FileDescriptor::STDIN, pgid).unwrap();
         Ok(ExitCode::from(status))
     } else {
-        let pgid = sys_setpgid(unsafe { Pid::from_raw(0) }, unsafe { Pid::from_raw(0) }).unwrap();
+        let pgid = sys_setpgid(None, None).unwrap();
         io::tcsetpgrp(FileDescriptor::STDIN, pgid).unwrap();
         sys_execve(&filename, &args).unwrap();
         sys_exit(ExitCode::from(-1));
@@ -84,7 +84,7 @@ fn main() -> i32 {
     let mut stdin = io::stdin();
 
     signal::set_handler(Signal::Interrupt, SignalHandler::Ignore);
-    let pgid = sys_setpgid(unsafe { Pid::from_raw(0) }, unsafe { Pid::from_raw(0) }).unwrap();
+    let pgid = sys_setpgid(None, None).unwrap();
     io::tcsetpgrp(FileDescriptor::STDIN, pgid).unwrap();
 
     loop {

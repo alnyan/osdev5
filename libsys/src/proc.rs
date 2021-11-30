@@ -12,6 +12,11 @@ pub struct ExitCode(i32);
 #[repr(transparent)]
 pub struct Pid(u32);
 
+/// Wrapper type for thread ID
+#[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct Tid(u32);
+
 #[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Debug)]
 #[repr(transparent)]
 pub struct Pgid(u32);
@@ -57,10 +62,14 @@ impl Pid {
     pub const IDLE: Self = Self(Self::KERNEL_BIT);
 
     const KERNEL_BIT: u32 = 1 << 31;
+    const USER_MAX: u32 = 256;
 
     /// Constructs an instance of user-space PID
     pub const fn user(id: u32) -> Self {
-        assert!(id < 256, "PID is too high");
+        assert!(id < Self::USER_MAX, "PID is too high");
+        if id == 0 {
+            panic!("User PID cannot be zero");
+        }
         Self(id)
     }
 
@@ -83,18 +92,16 @@ impl Pid {
         self.0 as u8
     }
 
-    /// Returns bit value of this pid
-    pub const fn value(self) -> u32 {
-        self.0
+    pub fn from_option(m: Option<Self>) -> u32 {
+        if let Some(pid) = m {
+            u32::from(pid)
+        } else {
+            0
+        }
     }
 
-    /// Constructs [Pid] from raw [u32] value
-    ///
-    /// # Safety
-    ///
-    /// Unsafe: does not check `num`
-    pub const unsafe fn from_raw(num: u32) -> Self {
-        Self(num)
+    pub fn to_option(m: u32) -> Option<Self> {
+        todo!()
     }
 }
 
@@ -106,6 +113,26 @@ impl fmt::Debug for Pid {
             if self.is_kernel() { "K" } else { "U" },
             self.0 & !Self::KERNEL_BIT
         )
+    }
+}
+
+impl TryFrom<u32> for Pid {
+    type Error = Errno;
+
+    fn try_from(raw: u32) -> Result<Pid, Errno> {
+        if raw & Self::KERNEL_BIT != 0 {
+            Ok(Pid::kernel(raw & !Self::KERNEL_BIT))
+        } else if raw != 0 && raw < Self::USER_MAX {
+            Ok(Pid::user(raw))
+        } else {
+            Err(Errno::InvalidArgument)
+        }
+    }
+}
+
+impl From<Pid> for u32 {
+    fn from(pid: Pid) -> u32 {
+        pid.0
     }
 }
 

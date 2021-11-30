@@ -78,13 +78,13 @@ fn login_as(uid: UserId, gid: GroupId, shell: &str) -> Result<(), Errno> {
     if let Some(pid) = unsafe { sys_fork() }? {
         let mut status = 0;
         sys_waitpid(pid, &mut status).ok();
-        let pgid = sys_getpgid(unsafe { Pid::from_raw(0) }).unwrap();
+        let pgid = sys_getpgid(None).unwrap();
         io::tcsetpgrp(FileDescriptor::STDIN, pgid).unwrap();
         Ok(())
     } else {
         sys_setuid(uid).expect("setuid failed");
         sys_setgid(gid).expect("setgid failed");
-        let pgid = sys_setpgid(unsafe { Pid::from_raw(0) }, unsafe { Pid::from_raw(0) }).unwrap();
+        let pgid = sys_setpgid(None, None).unwrap();
         io::tcsetpgrp(FileDescriptor::STDIN, pgid).unwrap();
         sys_execve(shell, &[shell]).expect("execve() failed");
         panic!();

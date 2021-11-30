@@ -196,11 +196,11 @@ pub fn sys_fstatat(
 /// System call
 #[inline(always)]
 pub unsafe fn sys_fork() -> Result<Option<Pid>, Errno> {
-    Errno::from_syscall(syscall!(SystemCall::Fork)).map(|res| {
+    Errno::from_syscall(syscall!(SystemCall::Fork)).and_then(|res| {
         if res != 0 {
-            Some(unsafe { Pid::from_raw(res as u32) })
+            Pid::try_from(res as u32).map(Some)
         } else {
-            None
+            Ok(None)
         }
     })
 }
@@ -229,7 +229,7 @@ pub fn sys_waitpid(pid: Pid, status: &mut i32) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
         syscall!(
             SystemCall::WaitPid,
-            argn!(pid.value()),
+            argn!(u32::from(pid)),
             argp!(status as *mut i32)
         )
     })
@@ -362,21 +362,21 @@ pub fn sys_ex_gettid() -> u32 {
 
 #[inline(always)]
 pub fn sys_getpid() -> Pid {
-    unsafe { Pid::from_raw(syscall!(SystemCall::GetPid) as u32) }
+    Pid::try_from(unsafe { syscall!(SystemCall::GetPid) as u32 }).unwrap()
 }
 
 #[inline(always)]
-pub fn sys_getpgid(pid: Pid) -> Result<Pid, Errno> {
-    Errno::from_syscall(unsafe { syscall!(SystemCall::GetPgid, argn!(pid.value())) })
-        .map(|e| unsafe { Pid::from_raw(e as u32) })
+pub fn sys_getpgid(pid: Option<Pid>) -> Result<Pid, Errno> {
+    Errno::from_syscall(unsafe { syscall!(SystemCall::GetPgid, argn!(Pid::from_option(pid))) })
+        .and_then(|e| Pid::try_from(e as u32))
 }
 
 #[inline(always)]
-pub fn sys_setpgid(pid: Pid, pgid: Pid) -> Result<Pid, Errno> {
+pub fn sys_setpgid(pid: Option<Pid>, pgid: Option<Pid>) -> Result<Pid, Errno> {
     Errno::from_syscall(unsafe {
-        syscall!(SystemCall::SetPgid, argn!(pid.value()), argn!(pgid.value()))
+        syscall!(SystemCall::SetPgid, argn!(Pid::from_option(pid)), argn!(Pid::from_option(pgid)))
     })
-    .map(|e| unsafe { Pid::from_raw(e as u32) })
+    .and_then(|e| Pid::try_from(e as u32))
 }
 
 #[inline(always)]
@@ -404,7 +404,7 @@ pub fn sys_getgid() -> GroupId {
 #[inline(always)]
 pub fn sys_setsid() -> Result<Pid, Errno> {
     Errno::from_syscall(unsafe { syscall!(SystemCall::SetSid) })
-        .map(|e| unsafe { Pid::from_raw(e as u32) })
+        .and_then(|e| Pid::try_from(e as u32) )
 }
 
 #[inline(always)]

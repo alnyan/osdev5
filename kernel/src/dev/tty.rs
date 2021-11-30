@@ -60,7 +60,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
             },
             IoctlCmd::TtySetPgrp => {
                 let src = arg::struct_ref::<u32>(ptr)?;
-                self.ring().inner.lock().fg_pgid = Some(unsafe { Pid::from_raw(*src) });
+                self.ring().inner.lock().fg_pgid = Some(Pid::try_from(*src)?);
                 Ok(0)
             },
             _ => Err(Errno::InvalidArgument)

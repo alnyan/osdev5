@@ -37,7 +37,7 @@ impl From<isize> for SignalDestination {
 impl From<SignalDestination> for isize {
     fn from(p: SignalDestination) -> isize {
         match p {
-            SignalDestination::Process(pid) => pid.value() as isize,
+            SignalDestination::Process(pid) => u32::from(pid) as isize,
             SignalDestination::Group(pgid) => -(u32::from(pgid) as isize),
             SignalDestination::This => 0,
             SignalDestination::All => -1

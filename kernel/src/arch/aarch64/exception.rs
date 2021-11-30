@@ -127,7 +127,7 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
 
             if num == SystemCall::Fork {
                 match unsafe { syscall::sys_fork(exc) } {
-                    Ok(pid) => exc.x[0] = pid.value() as usize,
+                    Ok(pid) => exc.x[0] = u32::from(pid) as usize,
                     Err(err) => {
                         exc.x[0] = err.to_negative_isize() as usize;
                     }
