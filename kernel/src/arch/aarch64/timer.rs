@@ -8,7 +8,7 @@ use crate::dev::{
 };
 use core::time::Duration;
 use cortex_a::registers::{CNTFRQ_EL0, CNTPCT_EL0, CNTP_CTL_EL0, CNTP_TVAL_EL0};
-use error::Errno;
+use libsys::error::Errno;
 use tock_registers::interfaces::{Readable, Writeable};
 
 /// Generic timer struct
@@ -34,15 +34,9 @@ impl IntSource for GenericTimer {
     fn handle_irq(&self) -> Result<(), Errno> {
         CNTP_TVAL_EL0.set(TIMER_TICK);
         CNTP_CTL_EL0.write(CNTP_CTL_EL0::ENABLE::SET);
-        todo!();
-//<<<<<<< HEAD
-//        use crate::proc;
-//        proc::wait::tick();
-//        proc::switch();
-//=======
-//        use crate::proc::sched;
-//        sched::switch(false);
-//>>>>>>> 61fa9d1 (feat: dirty smp)
+        use crate::proc::{wait, sched};
+        wait::tick();
+        sched::switch(false);
         Ok(())
     }
 

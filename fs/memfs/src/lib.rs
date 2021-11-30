@@ -11,19 +11,25 @@ extern crate alloc;
 #[macro_use]
 extern crate std;
 
+#[macro_use]
+extern crate fs_macros;
+
 use alloc::{boxed::Box, rc::Rc};
 use core::any::Any;
 use core::cell::{Ref, RefCell};
-use error::Errno;
-use libcommon::*;
-use vfs::{BlockDevice, FileMode, Filesystem, Vnode, VnodeKind, VnodeRef};
+use libsys::{
+    error::Errno,
+    path::{path_component_left, path_component_right},
+    stat::FileMode,
+};
+use vfs::{BlockDevice, Filesystem, Vnode, VnodeKind, VnodeRef};
 
 mod block;
 pub use block::{BlockAllocator, BlockRef};
 mod bvec;
 use bvec::Bvec;
 mod tar;
-use tar::TarIterator;
+use tar::{TarIterator, Tar};
 mod file;
 use file::FileInode;
 mod dir;
@@ -61,8 +67,10 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
         Ok(res)
     }
 
-    fn create_node_initial(self: Rc<Self>, name: &str, kind: VnodeKind) -> VnodeRef {
-        let node = Vnode::new(name, kind, Vnode::SEEKABLE);
+    fn create_node_initial(self: Rc<Self>, name: &str, tar: &Tar) -> VnodeRef {
+        let kind = tar.node_kind();
+        let node = Vnode::new(name, kind, Vnode::SEEKABLE | Vnode::CACHE_READDIR);
+        node.props_mut().mode = tar.mode();
         node.set_fs(self.clone());
         match kind {
             VnodeKind::Directory => node.set_data(Box::new(DirInode::new(self.alloc))),
@@ -105,7 +113,10 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
     }
 
     unsafe fn load_tar(self: Rc<Self>, base: *const u8, size: usize) -> Result<VnodeRef, Errno> {
-        let root = self.clone().create_node_initial("", VnodeKind::Directory);
+        let root = Vnode::new("", VnodeKind::Directory, Vnode::SEEKABLE | Vnode::CACHE_READDIR);
+        root.set_fs(self.clone());
+        root.set_data(Box::new(DirInode::new(self.alloc)));
+        root.props_mut().mode = FileMode::default_dir();
 
         // 1. Create all the paths in TAR
         for block in TarIterator::new(base, base.add(size)) {
@@ -114,7 +125,7 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
             let parent = self.clone().make_path(root.clone(), dirname, true)?;
             let node = self
                 .clone()
-                .create_node_initial(basename, block.node_kind());
+                .create_node_initial(basename, block);
             assert_eq!(node.kind(), block.node_kind());
             parent.attach(node);
         }

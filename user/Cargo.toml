@@ -11,7 +11,29 @@ path = "src/init/main.rs"
 
 [[bin]]
 name = "shell"
-path = "src/shell/main.rs"
+path = "src/bin/shell.rs"
+
+[[bin]]
+name = "fuzzy"
+path = "src/bin/fuzzy.rs"
+
+[[bin]]
+name = "ls"
+path = "src/bin/ls.rs"
+
+[[bin]]
+name = "cat"
+path = "src/bin/cat.rs"
+
+[[bin]]
+name = "hexd"
+path = "src/bin/hexd.rs"
+
+[[bin]]
+name = "login"
+path = "src/sbin/login.rs"
 
 [dependencies]
 libusr = { path = "../libusr" }
+libsys = { path = "../libsys" }
+lazy_static = { version = "*", features = ["spin_no_std"] }

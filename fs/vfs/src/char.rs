@@ -1,5 +1,5 @@
-use crate::{OpenFlags, Stat, VnodeImpl, VnodeKind, VnodeRef, IoctlCmd};
-use error::Errno;
+use crate::{VnodeImpl, VnodeKind, VnodeRef};
+use libsys::{error::Errno, ioctl::IoctlCmd, stat::OpenFlags};
 
 /// Generic character device trait
 pub trait CharDevice {
@@ -16,7 +16,11 @@ pub trait CharDevice {
     /// will immediately return an error.
     fn write(&self, blocking: bool, data: &[u8]) -> Result<usize, Errno>;
 
+    /// Performs a TTY control request
     fn ioctl(&self, cmd: IoctlCmd, ptr: usize, lim: usize) -> Result<usize, Errno>;
+
+    /// Returns `true` if the device is ready for an operation
+    fn is_ready(&self, write: bool) -> Result<bool, Errno>;
 }
 
 /// Wrapper struct to attach [VnodeImpl] implementation
@@ -25,19 +29,8 @@ pub struct CharDeviceWrapper {
     device: &'static dyn CharDevice,
 }
 
+#[auto_inode(error)]
 impl VnodeImpl for CharDeviceWrapper {
-    fn create(&mut self, _at: VnodeRef, _name: &str, _kind: VnodeKind) -> Result<VnodeRef, Errno> {
-        panic!();
-    }
-
-    fn remove(&mut self, _at: VnodeRef, _name: &str) -> Result<(), Errno> {
-        panic!();
-    }
-
-    fn lookup(&mut self, _at: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
-        panic!();
-    }
-
     fn open(&mut self, _node: VnodeRef, _opts: OpenFlags) -> Result<usize, Errno> {
         Ok(0)
     }
@@ -54,19 +47,17 @@ impl VnodeImpl for CharDeviceWrapper {
         self.device.write(true, data)
     }
 
-    fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
-        panic!();
+    fn is_ready(&mut self, _node: VnodeRef, write: bool) -> Result<bool, Errno> {
+        self.device.is_ready(write)
     }
 
-    fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-        panic!();
-    }
-
-    fn stat(&mut self, _node: VnodeRef, _stat: &mut Stat) -> Result<(), Errno> {
-        todo!();
-    }
-
-    fn ioctl(&mut self, _node: VnodeRef, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
+    fn ioctl(
+        &mut self,
+        _node: VnodeRef,
+        cmd: IoctlCmd,
+        ptr: usize,
+        len: usize,
+    ) -> Result<usize, Errno> {
         self.device.ioctl(cmd, ptr, len)
     }
 }

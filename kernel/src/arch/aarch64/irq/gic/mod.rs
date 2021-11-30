@@ -7,7 +7,7 @@ use crate::dev::{
 use crate::mem::virt::{DeviceMemory, DeviceMemoryIo};
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
-use error::Errno;
+use libsys::error::Errno;
 
 mod gicc;
 use gicc::Gicc;
@@ -30,7 +30,6 @@ pub struct Gic {
     gicd: InitOnce<Gicd>,
     gicd_base: usize,
     gicc_base: usize,
-    scheduler_irq: IrqNumber,
     table: IrqSafeSpinLock<[Option<&'static (dyn IntSource + Sync)>; MAX_IRQ]>,
 }
 
@@ -89,23 +88,27 @@ impl IntController for Gic {
             return;
         }
 
+//<<<<<<< HEAD
         if irq_number == 1 {
             gicc.clear_irq(irq_number as u32, ic);
             debugln!("Received IPI");
             loop {}
         }
-
-        if self.scheduler_irq.0 == irq_number {
-            use crate::proc::sched;
-            use cortex_a::registers::{CNTP_TVAL_EL0, CNTP_CTL_EL0};
-            use tock_registers::interfaces::Writeable;
-            use crate::arch::platform::cpu::Cpu;
-            gicc.clear_irq(irq_number as u32, ic);
-            CNTP_TVAL_EL0.set(1000000);
-            CNTP_CTL_EL0.write(CNTP_CTL_EL0::ENABLE::SET);
-            sched::switch(false);
-            return;
-        }
+//
+//        if self.scheduler_irq.0 == irq_number {
+//            use crate::proc::sched;
+//            use cortex_a::registers::{CNTP_TVAL_EL0, CNTP_CTL_EL0};
+//            use tock_registers::interfaces::Writeable;
+//            use crate::arch::platform::cpu::Cpu;
+//            gicc.clear_irq(irq_number as u32, ic);
+//            CNTP_TVAL_EL0.set(1000000);
+//            CNTP_CTL_EL0.write(CNTP_CTL_EL0::ENABLE::SET);
+//            sched::switch(false);
+//            return;
+//        }
+//=======
+        gicc.clear_irq(irq_number as u32, ic);
+//>>>>>>> feat/thread
 
         {
             // TODO make timer interrupt a special case and drop table lock
@@ -118,8 +121,6 @@ impl IntController for Gic {
                 }
             }
         }
-
-        gicc.clear_irq(irq_number as u32, ic);
     }
 
     fn register_handler(
@@ -157,13 +158,12 @@ impl Gic {
     /// # Safety
     ///
     /// Does not perform `gicd_base` and `gicc_base` validation.
-    pub const unsafe fn new(gicd_base: usize, gicc_base: usize, scheduler_irq: IrqNumber) -> Self {
+    pub const unsafe fn new(gicd_base: usize, gicc_base: usize) -> Self {
         Self {
             gicc: InitOnce::new(),
             gicd: InitOnce::new(),
             gicd_base,
             gicc_base,
-            scheduler_irq,
             table: IrqSafeSpinLock::new([None; MAX_IRQ]),
         }
     }

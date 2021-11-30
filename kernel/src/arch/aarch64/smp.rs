@@ -10,7 +10,7 @@ use crate::mem::{
     phys::{self, PageUsage},
 };
 use cortex_a::registers::MPIDR_EL1;
-use error::Errno;
+use libsys::error::Errno;
 use fdt_rs::prelude::*;
 use tock_registers::interfaces::Readable;
 

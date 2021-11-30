@@ -1,9 +1,12 @@
-use crate::{VnodeKind, VnodeRef};
+use crate::{VnodeKind, VnodeRef, Vnode};
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use core::cmp::min;
-use error::Errno;
-use libcommon::{Read, Seek, SeekDir, Write};
+use libsys::{
+    error::Errno,
+    stat::DirectoryEntry,
+    traits::{Read, Seek, SeekDir, Write},
+};
 
 struct NormalFile {
     vnode: VnodeRef,
@@ -95,6 +98,11 @@ impl File {
     /// File has to be closed on execve() calls
     pub const CLOEXEC: u32 = 1 << 2;
 
+    /// Special position for cache-readdir: "." entry
+    pub const POS_CACHE_DOT: usize = usize::MAX - 1;
+    /// Special position for cache-readdir: ".." entry
+    pub const POS_CACHE_DOT_DOT: usize = usize::MAX;
+
     /// Constructs a new file handle for a regular file
     pub fn normal(vnode: VnodeRef, pos: usize, flags: u32) -> FileRef {
         Rc::new(RefCell::new(Self {
@@ -116,6 +124,69 @@ impl File {
     pub fn is_cloexec(&self) -> bool {
         self.flags & Self::CLOEXEC != 0
     }
+
+    /// Returns `true` if the file is ready for an operation
+    pub fn is_ready(&self, write: bool) -> Result<bool, Errno> {
+        match &self.inner {
+            FileInner::Normal(inner) => inner.vnode.is_ready(write),
+            _ => todo!(),
+        }
+    }
+
+    fn cache_readdir(inner: &mut NormalFile, entries: &mut [DirectoryEntry]) -> Result<usize, Errno> {
+        let mut count = entries.len();
+        let mut offset = 0usize;
+
+        if inner.pos == Self::POS_CACHE_DOT {
+            if count == 0 {
+                return Ok(offset);
+            }
+
+            entries[offset] = DirectoryEntry::from_str(".");
+            inner.pos = Self::POS_CACHE_DOT_DOT;
+
+            offset += 1;
+            count -= 1;
+        }
+
+        if inner.pos == Self::POS_CACHE_DOT_DOT {
+            if count == 0 {
+                return Ok(offset);
+            }
+
+            entries[offset] = DirectoryEntry::from_str("..");
+            inner.pos = 0;
+
+            offset += 1;
+            count -= 1;
+        }
+
+        if count == 0 {
+            return Ok(offset);
+        }
+
+        let count = inner.vnode.for_each_entry(inner.pos, count, |i, e| {
+            entries[offset + i] = DirectoryEntry::from_str(e.name());
+        });
+        inner.pos += count;
+        Ok(offset + count)
+    }
+
+    /// Reads directory entries into the target buffer
+    pub fn readdir(&mut self, entries: &mut [DirectoryEntry]) -> Result<usize, Errno> {
+        match &mut self.inner {
+            FileInner::Normal(inner) => {
+                assert_eq!(inner.vnode.kind(), VnodeKind::Directory);
+
+                if inner.vnode.flags() & Vnode::CACHE_READDIR != 0 {
+                    Self::cache_readdir(inner, entries)
+                } else {
+                    todo!();
+                }
+            },
+            _ => todo!(),
+        }
+    }
 }
 
 impl Drop for File {
@@ -133,11 +204,13 @@ impl Drop for File {
 mod tests {
     use super::*;
     use crate::{Vnode, VnodeImpl, VnodeKind, VnodeRef};
+    use libsys::{stat::OpenFlags, ioctl::IoctlCmd, stat::Stat};
     use alloc::boxed::Box;
     use alloc::rc::Rc;
 
     struct DummyInode;
 
+    #[auto_inode]
     impl VnodeImpl for DummyInode {
         fn create(
             &mut self,
@@ -150,25 +223,17 @@ mod tests {
             Ok(node)
         }
 
-        fn remove(&mut self, _at: VnodeRef, _name: &str) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn lookup(&mut self, _at: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
-            todo!()
-        }
-
-        fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
+        fn open(&mut self, _node: VnodeRef, _flags: OpenFlags) -> Result<usize, Errno> {
             Ok(0)
         }
 
         fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
+            Ok(())
         }
 
         fn read(&mut self, _node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno> {
             #[cfg(test)]
-            println!("read {}", pos);
+            println!("read {} at {}", data.len(), pos);
             let len = 123;
             if pos >= len {
                 return Ok(0);
@@ -183,41 +248,24 @@ mod tests {
         fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
             Err(Errno::NotImplemented)
         }
-
-        fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
-        }
     }
 
     #[test]
     fn test_normal_read() {
         let node = Vnode::new("", VnodeKind::Regular, 0);
         node.set_data(Box::new(DummyInode {}));
-        let mut file = node.open().unwrap();
-
-        match &file.inner {
-            FileInner::Normal(inner) => {
-                assert!(Rc::ptr_eq(&inner.vnode, &node));
-                assert_eq!(inner.pos, 0);
-            }
-            _ => panic!("Invalid file.inner"),
-        }
-
+        let mut file = node.open(OpenFlags::O_RDONLY).unwrap();
         let mut buf = [0u8; 4096];
 
-        assert_eq!(file.read(&mut buf[0..32]).unwrap(), 32);
+        assert_eq!(file.borrow_mut().read(&mut buf[0..32]).unwrap(), 32);
         for i in 0..32 {
             assert_eq!((i & 0xFF) as u8, buf[i]);
         }
-        assert_eq!(file.read(&mut buf[0..64]).unwrap(), 64);
+        assert_eq!(file.borrow_mut().read(&mut buf[0..64]).unwrap(), 64);
         for i in 0..64 {
             assert_eq!(((i + 32) & 0xFF) as u8, buf[i]);
         }
-        assert_eq!(file.read(&mut buf[0..64]).unwrap(), 27);
+        assert_eq!(file.borrow_mut().read(&mut buf[0..64]).unwrap(), 27);
         for i in 0..27 {
             assert_eq!(((i + 96) & 0xFF) as u8, buf[i]);
         }

@@ -2,7 +2,7 @@
 use crate::arch::platform::smp::NodeAddress;
 use crate::dev::Device;
 use core::marker::PhantomData;
-use error::Errno;
+use libsys::error::Errno;
 
 /// Token to indicate the local core is running in IRQ context
 pub struct IrqContext<'irq_context> {

@@ -1,30 +1,28 @@
 #![allow(missing_docs)]
 
-use cortex_a::registers::{TPIDR_EL1, MPIDR_EL1};
-use tock_registers::interfaces::{Readable, Writeable};
-use core::ptr::null_mut;
-use core::mem::MaybeUninit;
-use core::sync::atomic::{Ordering, AtomicUsize};
-use crate::proc::{Scheduler, process::Context};
+use crate::proc::Scheduler;
 use crate::util::InitOnce;
+use core::mem::MaybeUninit;
+use core::ptr::null_mut;
+use core::sync::atomic::{AtomicUsize, Ordering};
+use cortex_a::registers::{MPIDR_EL1, TPIDR_EL1};
+use tock_registers::interfaces::{Readable, Writeable};
 
 #[repr(C)]
 pub struct Cpu {
-    active_context: *mut Context,           // 0x00
-    counter: AtomicUsize,                   // 0x08
+    counter: AtomicUsize, // 0x08
 
     id: usize,
-    scheduler: Scheduler
+    scheduler: Scheduler,
 }
 
 impl Cpu {
     pub fn new(id: usize) -> Self {
         Self {
-            active_context: null_mut(),
             counter: AtomicUsize::new(0),
 
             id,
-            scheduler: Scheduler::new()
+            scheduler: Scheduler::new(),
         }
     }
 
@@ -46,7 +44,9 @@ impl Cpu {
 }
 
 pub unsafe fn cpus() -> impl Iterator<Item = &'static mut Cpu> {
-    CPUS[..CPU_COUNT.load(Ordering::Acquire)].iter_mut().map(|c| c.assume_init_mut())
+    CPUS[..CPU_COUNT.load(Ordering::Acquire)]
+        .iter_mut()
+        .map(|c| c.assume_init_mut())
 }
 
 pub unsafe fn by_index(idx: usize) -> &'static mut Cpu {

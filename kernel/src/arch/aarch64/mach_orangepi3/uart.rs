@@ -8,11 +8,10 @@ use crate::dev::{
 use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
-use error::Errno;
+use libsys::error::Errno;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 use tock_registers::registers::{Aliased, ReadOnly, ReadWrite};
 use tock_registers::{register_bitfields, register_structs};
-use vfs::{CharDevice, IoctlCmd};
 
 register_bitfields! [
     u32,
@@ -78,6 +77,7 @@ struct UartInner {
     regs: DeviceMemoryIo<Regs>,
 }
 
+#[derive(TtyCharDevice)]
 pub(super) struct Uart {
     inner: InitOnce<IrqSafeSpinLock<UartInner>>,
     ring: CharRing<16>,
@@ -120,22 +120,6 @@ impl SerialDevice for Uart {
             cortex_a::asm::nop();
         }
         Ok(inner.regs.DR_DLL.get() as u8)
-    }
-}
-
-impl CharDevice for Uart {
-    fn read(&self, blocking: bool, data: &mut [u8]) -> Result<usize, Errno> {
-        assert!(blocking);
-        self.line_read(data)
-    }
-
-    fn write(&self, blocking: bool, data: &[u8]) -> Result<usize, Errno> {
-        assert!(blocking);
-        self.line_write(data)
-    }
-
-    fn ioctl(&self, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
-        self.tty_ioctl(cmd, ptr, len)
     }
 }
 

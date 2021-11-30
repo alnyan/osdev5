@@ -13,7 +13,7 @@ use crate::dev::{
 };
 use crate::fs::devfs::{self, CharDeviceType};
 use crate::mem::phys;
-use error::Errno;
+use libsys::error::Errno;
 
 pub use gic::IrqNumber;
 
@@ -84,6 +84,6 @@ pub fn ipi_sender() -> &'static Gic {
 
 static UART0: Pl011 = unsafe { Pl011::new(UART0_BASE, UART0_IRQ) };
 static RTC: Pl031 = unsafe { Pl031::new(RTC_BASE, RTC_IRQ) };
-static GIC: Gic = unsafe { Gic::new(GICD_BASE, GICC_BASE, LOCAL_TIMER_IRQ) };
+static GIC: Gic = unsafe { Gic::new(GICD_BASE, GICC_BASE) };
 static PCIE: GenericPcieHost = unsafe { GenericPcieHost::new(ECAM_BASE, 8) };
 static LOCAL_TIMER: GenericTimer = GenericTimer::new(LOCAL_TIMER_IRQ);

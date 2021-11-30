@@ -2,7 +2,7 @@
 use crate::util::InitOnce;
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicUsize, Ordering};
-use error::Errno;
+use libsys::{stat::FileMode, error::Errno};
 use vfs::{CharDevice, CharDeviceWrapper, Vnode, VnodeKind, VnodeRef};
 
 /// Possible character device kinds
@@ -16,7 +16,9 @@ static DEVFS_ROOT: InitOnce<VnodeRef> = InitOnce::new();
 
 /// Initializes devfs
 pub fn init() {
-    DEVFS_ROOT.init(Vnode::new("", VnodeKind::Directory, 0));
+    let node = Vnode::new("", VnodeKind::Directory, Vnode::CACHE_READDIR | Vnode::CACHE_STAT);
+    node.props_mut().mode = FileMode::default_dir();
+    DEVFS_ROOT.init(node);
 }
 
 /// Returns devfs root node reference
@@ -27,7 +29,8 @@ pub fn root() -> &'static VnodeRef {
 fn _add_char_device(dev: &'static dyn CharDevice, name: &str) -> Result<(), Errno> {
     infoln!("Add char device: {}", name);
 
-    let node = Vnode::new(name, VnodeKind::Char, 0);
+    let node = Vnode::new(name, VnodeKind::Char, Vnode::CACHE_STAT);
+    node.props_mut().mode = FileMode::from_bits(0o600).unwrap() | FileMode::S_IFCHR;
     node.set_data(Box::new(CharDeviceWrapper::new(dev)));
 
     DEVFS_ROOT.get().attach(node);

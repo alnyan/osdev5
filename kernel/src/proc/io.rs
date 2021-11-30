@@ -1,12 +1,13 @@
 //! Process file descriptors and I/O context
 use alloc::collections::BTreeMap;
-use error::Errno;
-use vfs::{FileRef, Ioctx};
+use libsys::{error::Errno, stat::{FileDescriptor, UserId, GroupId}};
+use vfs::{FileRef, Ioctx, VnodeRef, VnodeKind};
 
 /// Process I/O context. Contains file tables, root/cwd info etc.
 pub struct ProcessIo {
     ioctx: Option<Ioctx>,
-    files: BTreeMap<usize, FileRef>,
+    files: BTreeMap<u32, FileRef>,
+    ctty: Option<VnodeRef>,
 }
 
 impl ProcessIo {
@@ -21,9 +22,76 @@ impl ProcessIo {
         Ok(dst)
     }
 
+    /// Sets controlling terminal for the process
+    pub fn set_ctty(&mut self, node: VnodeRef) {
+        assert_eq!(node.kind(), VnodeKind::Char);
+        self.ctty = Some(node);
+    }
+
+    /// Returns current controlling terminal of the process
+    pub fn ctty(&mut self) -> Option<VnodeRef> {
+        self.ctty.clone()
+    }
+
+    /// Returns user ID of the process
+    #[inline(always)]
+    pub fn uid(&self) -> UserId {
+        self.ioctx.as_ref().unwrap().uid
+    }
+
+    /// Returns group ID of the process
+    #[inline(always)]
+    pub fn gid(&self) -> GroupId {
+        self.ioctx.as_ref().unwrap().gid
+    }
+
+    /// Changes (if permitted) user ID of the process
+    #[inline(always)]
+    pub fn set_uid(&mut self, uid: UserId) -> Result<(), Errno> {
+        let old_uid = self.uid();
+        if old_uid == uid {
+            Ok(())
+        } else if !old_uid.is_root() {
+            Err(Errno::PermissionDenied)
+        } else {
+            self.ioctx.as_mut().unwrap().uid = uid;
+            Ok(())
+        }
+    }
+
+    /// Changes (if permitted) group ID of the process
+    #[inline(always)]
+    pub fn set_gid(&mut self, gid: GroupId) -> Result<(), Errno> {
+        let old_gid = self.gid();
+        if old_gid == gid {
+            Ok(())
+        } else if !old_gid.is_root() {
+            Err(Errno::PermissionDenied)
+        } else {
+            self.ioctx.as_mut().unwrap().gid = gid;
+            Ok(())
+        }
+    }
+
+    /// Clones a file descriptor into an available slot or, if specified, requested one
+    pub fn duplicate_file(&mut self, src: FileDescriptor, dst: Option<FileDescriptor>) -> Result<FileDescriptor, Errno> {
+        let file_ref = self.file(src)?;
+        if let Some(dst) = dst {
+            let idx = u32::from(dst);
+            if self.files.get(&idx).is_some() {
+                return Err(Errno::AlreadyExists);
+            }
+
+            self.files.insert(idx, file_ref);
+            Ok(dst)
+        } else {
+            self.place_file(file_ref)
+        }
+    }
+
     /// Returns [File] struct referred to by file descriptor `idx`
-    pub fn file(&mut self, idx: usize) -> Result<FileRef, Errno> {
-        self.files.get(&idx).cloned().ok_or(Errno::InvalidFile)
+    pub fn file(&mut self, fd: FileDescriptor) -> Result<FileRef, Errno> {
+        self.files.get(&u32::from(fd)).cloned().ok_or(Errno::InvalidFile)
     }
 
     /// Returns [Ioctx] structure reference of this I/O context
@@ -32,19 +100,19 @@ impl ProcessIo {
     }
 
     /// Allocates a file descriptor and associates a [File] struct with it
-    pub fn place_file(&mut self, file: FileRef) -> Result<usize, Errno> {
+    pub fn place_file(&mut self, file: FileRef) -> Result<FileDescriptor, Errno> {
         for idx in 0..64 {
             if self.files.get(&idx).is_none() {
                 self.files.insert(idx, file);
-                return Ok(idx);
+                return Ok(FileDescriptor::from(idx));
             }
         }
         Err(Errno::TooManyDescriptors)
     }
 
     /// Performs [File] close and releases its associated file descriptor `idx`
-    pub fn close_file(&mut self, idx: usize) -> Result<(), Errno> {
-        let res = self.files.remove(&idx);
+    pub fn close_file(&mut self, idx: FileDescriptor) -> Result<(), Errno> {
+        let res = self.files.remove(&u32::from(idx));
         assert!(res.is_some());
         Ok(())
     }
@@ -54,12 +122,14 @@ impl ProcessIo {
         Self {
             files: BTreeMap::new(),
             ioctx: None,
+            ctty: None,
         }
     }
 
     /// Assigns a descriptor number to an open file. If the number is not available,
     /// returns [Errno::AlreadyExists].
-    pub fn set_file(&mut self, idx: usize, file: FileRef) -> Result<(), Errno> {
+    pub fn set_file(&mut self, idx: FileDescriptor, file: FileRef) -> Result<(), Errno> {
+        let idx = u32::from(idx);
         if self.files.get(&idx).is_none() {
             self.files.insert(idx, file);
             Ok(())

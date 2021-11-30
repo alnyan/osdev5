@@ -1,65 +1,190 @@
 //! System call argument ABI helpers
 
 use crate::mem;
-use core::mem::size_of;
-use error::Errno;
+use core::alloc::Layout;
+use libsys::error::Errno;
+use crate::proc::Process;
 
-fn translate(virt: usize) -> Option<usize> {
-    let mut res: usize;
-    unsafe {
-        asm!("at s1e1r, {}; mrs {}, par_el1", in(reg) virt, out(reg) res);
-    }
-    if res & 1 == 0 {
-        Some(res & !(0xFFF | (0xFF << 56)))
-    } else {
-        None
+// TODO _mut() versions checking whether pages are actually writable
+
+macro_rules! invalid_memory {
+    ($($args:tt)+) => {
+        warnln!($($args)+);
+        #[cfg(feature = "aggressive_syscall")]
+        {
+            use libsys::signal::Signal;
+            use crate::proc::Thread;
+
+            let thread = Thread::current();
+            let proc = thread.owner().unwrap();
+            proc.enter_fault_signal(thread, Signal::SegmentationFault);
+        }
+        return Err(Errno::InvalidArgument);
     }
 }
 
-/// Unwraps a slim structure pointer
-pub fn validate_user_ptr_struct<'a, T>(base: usize) -> Result<&'a mut T, Errno> {
-    let bytes = validate_user_ptr(base, size_of::<T>())?;
+#[inline(always)]
+fn is_el0_accessible(virt: usize, write: bool) -> bool {
+    let mut res: usize;
+    unsafe {
+        if write {
+            asm!("at s1e0w, {}; mrs {}, par_el1", in(reg) virt, out(reg) res);
+        } else {
+            asm!("at s1e0r, {}; mrs {}, par_el1", in(reg) virt, out(reg) res);
+        }
+    }
+    res & 1 == 0
+}
+
+/// Checks given argument and interprets it as a `T` reference
+pub fn struct_ref<'a, T>(base: usize) -> Result<&'a T, Errno> {
+    let layout = Layout::new::<T>();
+    if base % layout.align() != 0 {
+        invalid_memory!(
+            "Structure pointer is misaligned: base={:#x}, expected {:?}",
+            base,
+            layout
+        );
+    }
+    let bytes = buf_ref(base, layout.size())?;
+    Ok(unsafe { &*(bytes.as_ptr() as *const T) })
+}
+
+/// Checks given argument and interprets it as a `T` mutable reference
+pub fn struct_mut<'a, T>(base: usize) -> Result<&'a mut T, Errno> {
+    let layout = Layout::new::<T>();
+    if base % layout.align() != 0 {
+        invalid_memory!(
+            "Structure pointer is misaligned: base={:#x}, expected {:?}",
+            base,
+            layout
+        );
+    }
+    let bytes = buf_mut(base, layout.size())?;
     Ok(unsafe { &mut *(bytes.as_mut_ptr() as *mut T) })
 }
 
-/// Unwraps an user buffer reference
-pub fn validate_user_ptr<'a>(base: usize, len: usize) -> Result<&'a mut [u8], Errno> {
+/// Checks given argument and interprets it as a `T` array buffer of size `count`
+pub fn struct_buf_ref<'a, T>(base: usize, count: usize) -> Result<&'a [T], Errno> {
+    let layout = Layout::array::<T>(count).unwrap();
+    if base % layout.align() != 0 {
+        invalid_memory!(
+            "Structure pointer is misaligned: base={:#x}, expected {:?}",
+            base,
+            layout
+        );
+    }
+    let bytes = buf_ref(base, layout.size())?;
+    Ok(unsafe { core::slice::from_raw_parts(bytes.as_ptr() as *const T, count) })
+}
+
+/// Checks given argument and interprets it as a `T` array buffer of size `count`
+pub fn struct_buf_mut<'a, T>(base: usize, count: usize) -> Result<&'a mut [T], Errno> {
+    let layout = Layout::array::<T>(count).unwrap();
+    if base % layout.align() != 0 {
+        invalid_memory!(
+            "Structure pointer is misaligned: base={:#x}, expected {:?}",
+            base,
+            layout
+        );
+    }
+    let bytes = buf_mut(base, layout.size())?;
+    Ok(unsafe { core::slice::from_raw_parts_mut(bytes.as_mut_ptr() as *mut T, count) })
+}
+
+/// Checks given argument and interprets it as a `Option<&'a T>`
+pub fn option_struct_ref<'a, T>(base: usize) -> Result<Option<&'a T>, Errno> {
+    if base == 0 {
+        Ok(None)
+    } else {
+        struct_ref(base).map(Some)
+    }
+}
+
+/// Checks given argument and interprets it as a `Option<&'a mut T>`
+pub fn option_struct_mut<'a, T>(base: usize) -> Result<Option<&'a mut T>, Errno> {
+    if base == 0 {
+        Ok(None)
+    } else {
+        struct_mut(base).map(Some)
+    }
+}
+
+/// Validates that the argument pointer is accessible for requested operation
+/// for current process
+pub fn validate_ptr(base: usize, len: usize, write: bool) -> Result<(), Errno> {
     if base > mem::KERNEL_OFFSET || base + len > mem::KERNEL_OFFSET {
-        warnln!(
+        invalid_memory!(
             "User region refers to kernel memory: base={:#x}, len={:#x}",
             base,
             len
         );
-        return Err(Errno::InvalidArgument);
     }
 
+    let process = Process::current();
+
     for i in (base / mem::PAGE_SIZE)..((base + len + mem::PAGE_SIZE - 1) / mem::PAGE_SIZE) {
-        if translate(i * mem::PAGE_SIZE).is_none() {
-            warnln!(
-                "User region refers to unmapped memory: base={:#x}, len={:#x} (page {:#x})",
+        if !is_el0_accessible(i * mem::PAGE_SIZE, write) {
+            // It's possible a CoW page hasn't yet been cloned when trying
+            // a write access
+            let res = if write {
+                process.manipulate_space(|space| {
+                    space.try_cow_copy(i * mem::PAGE_SIZE)
+                })
+            } else {
+                Err(Errno::DoesNotExist)
+            };
+
+            if res.is_ok() {
+                continue;
+            }
+
+            invalid_memory!(
+                "User region refers to inaccessible/unmapped memory: base={:#x}, len={:#x} (page {:#x}, write={})",
                 base,
                 len,
-                i * mem::PAGE_SIZE
+                i * mem::PAGE_SIZE,
+                write
             );
-            return Err(Errno::InvalidArgument);
         }
     }
 
+    Ok(())
+}
+
+/// Checks given argument and interprets it as a byte buffer
+pub fn buf_ref<'a>(base: usize, len: usize) -> Result<&'a [u8], Errno> {
+    validate_ptr(base, len, false)?;
+    Ok(unsafe { core::slice::from_raw_parts(base as *const u8, len) })
+}
+
+/// Checks given argument and interprets it as a mutable byte buffer
+pub fn buf_mut<'a>(base: usize, len: usize) -> Result<&'a mut [u8], Errno> {
+    validate_ptr(base, len, true)?;
     Ok(unsafe { core::slice::from_raw_parts_mut(base as *mut u8, len) })
 }
 
-/// Unwraps a nullable user buffer reference
-pub fn validate_user_ptr_null<'a>(base: usize, len: usize) -> Result<Option<&'a mut [u8]>, Errno> {
+/// Checks possibly NULL given argument and interprets it as a byte buffer
+pub fn option_buf_ref<'a>(base: usize, len: usize) -> Result<Option<&'a [u8]>, Errno> {
     if base == 0 {
         Ok(None)
     } else {
-        validate_user_ptr(base, len).map(Some)
+        buf_ref(base, len).map(Some)
+    }
+}
+
+/// Checks possibly NULL given argument and interprets it as a mutable byte buffer
+pub fn option_buf_mut<'a>(base: usize, len: usize) -> Result<Option<&'a mut [u8]>, Errno> {
+    if base == 0 {
+        Ok(None)
+    } else {
+        buf_mut(base, len).map(Some)
     }
 }
 
 /// Unwraps user string argument
-pub fn validate_user_str<'a>(base: usize, len: usize) -> Result<&'a str, Errno> {
-    let bytes = validate_user_ptr(base, len)?;
+pub fn str_ref<'a>(base: usize, len: usize) -> Result<&'a str, Errno> {
+    let bytes = buf_ref(base, len)?;
     core::str::from_utf8(bytes).map_err(|_| {
         warnln!(
             "User string contains invalid UTF-8 characters: base={:#x}, len={:#x}",
@@ -69,49 +194,3 @@ pub fn validate_user_str<'a>(base: usize, len: usize) -> Result<&'a str, Errno> 
         Errno::InvalidArgument
     })
 }
-//     if base > mem::KERNEL_OFFSET {
-//         warnln!("User string refers to kernel memory: base={:#x}", base);
-//         return Err(Errno::InvalidArgument);
-//     }
-//
-//     let base_ptr = base as *const u8;
-//     let mut len = 0;
-//     let mut page_valid = false;
-//     loop {
-//         if len == limit {
-//             warnln!("User string exceeded limit: base={:#x}", base);
-//             return Err(Errno::InvalidArgument);
-//         }
-//
-//         if (base + len) % mem::PAGE_SIZE == 0 {
-//             page_valid = false;
-//         }
-//
-//         if !page_valid && translate((base + len) & !0xFFF).is_none() {
-//             warnln!(
-//                 "User string refers to unmapped memory: base={:#x}, off={:#x}",
-//                 base,
-//                 len
-//             );
-//             return Err(Errno::InvalidArgument);
-//         }
-//
-//         page_valid = true;
-//
-//         let byte = unsafe { *base_ptr.add(len) };
-//         if byte == 0 {
-//             break;
-//         }
-//
-//         len += 1;
-//     }
-//
-//     let slice = unsafe { core::slice::from_raw_parts(base_ptr, len) };
-//     core::str::from_utf8(slice).map_err(|_| {
-//         warnln!(
-//             "User string contains invalid UTF-8 characters: base={:#x}",
-//             base
-//         );
-//         Errno::InvalidArgument
-//     })
-// }

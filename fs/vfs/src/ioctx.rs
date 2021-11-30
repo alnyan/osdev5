@@ -1,19 +1,28 @@
-use crate::{FileMode, FileRef, OpenFlags, VnodeKind, VnodeRef};
-use error::Errno;
-use libcommon::{path_component_left, path_component_right};
+use crate::{FileRef, VnodeKind, VnodeRef};
+use libsys::{
+    error::Errno,
+    path::{path_component_left, path_component_right},
+    stat::{FileMode, GroupId, OpenFlags, UserId},
+};
 
 /// I/O context structure
 #[derive(Clone)]
 pub struct Ioctx {
     root: VnodeRef,
     cwd: VnodeRef,
+    /// Process user ID
+    pub uid: UserId,
+    /// Process group ID
+    pub gid: GroupId,
 }
 
 impl Ioctx {
     /// Creates a new I/O context with given root node
-    pub fn new(root: VnodeRef) -> Self {
+    pub fn new(root: VnodeRef, uid: UserId, gid: GroupId) -> Self {
         Self {
             cwd: root.clone(),
+            uid,
+            gid,
             root,
         }
     }
@@ -36,6 +45,11 @@ impl Ioctx {
                 "." => {}
                 _ => break,
             }
+        }
+
+        while let Some(target) = at.target() {
+            assert!(at.kind() == VnodeKind::Directory);
+            at = target;
         }
 
         if element.is_empty() && rest.is_empty() {
@@ -110,6 +124,16 @@ impl Ioctx {
 
         node.open(opts)
     }
+
+    /// Changes current working directory of the process
+    pub fn chdir(&mut self, path: &str) -> Result<(), Errno> {
+        let node = self.find(None, path, true)?;
+        if !node.is_directory() {
+            return Err(Errno::NotADirectory);
+        }
+        self.cwd = node;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -117,9 +141,11 @@ mod tests {
     use super::*;
     use crate::{Vnode, VnodeImpl, VnodeKind};
     use alloc::{boxed::Box, rc::Rc};
+    use libsys::{ioctl::IoctlCmd, stat::OpenFlags, stat::Stat};
 
     pub struct DummyInode;
 
+    #[auto_inode]
     impl VnodeImpl for DummyInode {
         fn create(
             &mut self,
@@ -132,36 +158,8 @@ mod tests {
             Ok(vnode)
         }
 
-        fn remove(&mut self, _at: VnodeRef, _name: &str) -> Result<(), Errno> {
-            todo!()
-        }
-
         fn lookup(&mut self, _at: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
             Err(Errno::DoesNotExist)
-        }
-
-        fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            todo!()
-        }
-
-        fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
-            todo!()
-        }
-
-        fn read(&mut self, _node: VnodeRef, _pos: usize, _data: &mut [u8]) -> Result<usize, Errno> {
-            todo!()
-        }
-
-        fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
-            todo!()
-        }
-
-        fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
-            todo!()
-        }
-
-        fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            todo!()
         }
     }
 

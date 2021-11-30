@@ -3,7 +3,7 @@
 use crate::config::{ConfigKey, CONFIG};
 use crate::mem::PAGE_SIZE;
 use core::mem::size_of;
-use error::Errno;
+use libsys::error::Errno;
 
 mod manager;
 mod reserved;
@@ -30,6 +30,18 @@ pub enum PageUsage {
     UserPrivate,
     /// Filesystem data and blocks
     Filesystem,
+}
+
+/// Represents counts of allocated/available pages
+#[allow(missing_docs)]
+#[derive(Clone, Debug)]
+pub struct PageStatistics {
+    pub available: usize,
+    pub kernel: usize,
+    pub kernel_heap: usize,
+    pub paging: usize,
+    pub user_private: usize,
+    pub filesystem: usize,
 }
 
 /// Data structure representing a single physical memory page
@@ -66,18 +78,57 @@ impl Iterator for SimpleMemoryIterator {
     }
 }
 
+#[cfg(feature = "verbose")]
+fn trace_alloc(loc: &core::panic::Location, pu: PageUsage, base: usize, count: usize) {
+    use crate::debug::Level;
+    println!(
+        Level::Debug,
+        "\x1B[36;1m[phys/alloc] {}:{} {:?} {:#x}..{:#x}\x1B[0m",
+        loc.file(),
+        loc.line(),
+        pu,
+        base,
+        base + count * PAGE_SIZE
+    );
+}
+
+#[cfg(feature = "verbose")]
+fn trace_free(loc: &core::panic::Location, page: usize) {
+    use crate::debug::Level;
+    println!(
+        Level::Debug,
+        "\x1B[36;1m[phys/free] {}:{} {:#x}..{:#x}\x1B[0m",
+        loc.file(),
+        loc.line(),
+        page,
+        page + PAGE_SIZE
+    );
+}
+
 /// Allocates a contiguous range of `count` physical memory pages.
+#[cfg_attr(feature = "verbose", track_caller)]
 pub fn alloc_contiguous_pages(pu: PageUsage, count: usize) -> Result<usize, Errno> {
-    MANAGER
+    let res = MANAGER
         .lock()
         .as_mut()
         .unwrap()
-        .alloc_contiguous_pages(pu, count)
+        .alloc_contiguous_pages(pu, count);
+    #[cfg(feature = "verbose")]
+    if let Ok(base) = res {
+        trace_alloc(&core::panic::Location::caller(), pu, base, count);
+    }
+    res
 }
 
 /// Allocates a single physical memory page.
+#[cfg_attr(feature = "verbose", track_caller)]
 pub fn alloc_page(pu: PageUsage) -> Result<usize, Errno> {
-    MANAGER.lock().as_mut().unwrap().alloc_page(pu)
+    let res = MANAGER.lock().as_mut().unwrap().alloc_page(pu);
+    #[cfg(feature = "verbose")]
+    if let Ok(base) = res {
+        trace_alloc(&core::panic::Location::caller(), pu, base, 1);
+    }
+    res
 }
 
 /// Releases a single physical memory page back for further allocation.
@@ -85,10 +136,26 @@ pub fn alloc_page(pu: PageUsage) -> Result<usize, Errno> {
 /// # Safety
 ///
 /// Unsafe: accepts arbitrary `page` arguments
+#[cfg_attr(feature = "verbose", track_caller)]
 pub unsafe fn free_page(page: usize) -> Result<(), Errno> {
+    #[cfg(feature = "verbose")]
+    {
+        trace_free(&core::panic::Location::caller(), page);
+    }
     MANAGER.lock().as_mut().unwrap().free_page(page)
 }
 
+/// Returns current statistics for page allocation
+pub fn statistics() -> PageStatistics {
+    MANAGER.lock().as_ref().unwrap().statistics()
+}
+
+/// Clones the source page.
+///
+/// If returned address is the same as `page`, this means
+/// `page`'s refcount has increased and the page is Copy-on-Write.
+/// This case has to be handled accordingly
+///
 /// # Safety
 ///
 /// Unsafe: accepts arbitrary `page` arguments
@@ -96,6 +163,12 @@ pub unsafe fn fork_page(page: usize) -> Result<usize, Errno> {
     MANAGER.lock().as_mut().unwrap().fork_page(page)
 }
 
+/// Copies a Copy-on-Write page. If refcount is already 1,
+/// page does not need to be copied and the same address is returned.
+///
+/// # Safety
+///
+/// Unsafe: accepts arbitrary `page` arguments
 pub unsafe fn copy_cow_page(page: usize) -> Result<usize, Errno> {
     MANAGER.lock().as_mut().unwrap().copy_cow_page(page)
 }

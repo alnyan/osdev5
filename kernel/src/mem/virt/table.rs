@@ -5,7 +5,7 @@ use crate::mem::{
     phys::{self, PageUsage},
 };
 use core::ops::{Index, IndexMut};
-use error::Errno;
+use libsys::{error::Errno, mem::memset};
 
 /// Transparent wrapper structure representing a single
 /// translation table entry
@@ -38,6 +38,7 @@ bitflags! {
         /// This page is used for device-MMIO mapping and uses MAIR attribute #1
         const DEVICE = 1 << 2;
 
+        /// Pages marked with this bit are Copy-on-Write
         const EX_COW = 1 << 55;
 
         /// UXN bit -- if set, page may not be used for instruction fetching from EL0
@@ -204,11 +205,33 @@ impl Space {
         } else {
             l2_table[l2i] = Entry::table(phys, flags | MapAttributes::ACCESS);
             #[cfg(feature = "verbose")]
-            debugln!("Map {:#x} -> {:#x}", virt, phys);
+            debugln!("{:#p} Map {:#x} -> {:#x}, {:?}", self, virt, phys, flags);
             Ok(())
         }
     }
 
+    /// Translates a virtual address into a corresponding physical one.
+    ///
+    /// Only works for 4K pages atm.
+    // TODO extract attributes
+    pub fn translate(&mut self, virt: usize) -> Result<usize, Errno> {
+        let l0i = virt >> 30;
+        let l1i = (virt >> 21) & 0x1FF;
+        let l2i = (virt >> 12) & 0x1FF;
+
+        let l1_table = self.0.next_level_table(l0i).ok_or(Errno::DoesNotExist)?;
+        let l2_table = l1_table.next_level_table(l1i).ok_or(Errno::DoesNotExist)?;
+
+        let entry = l2_table[l2i];
+        if entry.is_present() {
+            Ok(unsafe { entry.address_unchecked() })
+        } else {
+            Err(Errno::DoesNotExist)
+        }
+    }
+
+    /// Attempts to resolve a page fault at `virt` address by copying the
+    /// underlying Copy-on-Write mapping (if any is present)
     pub fn try_cow_copy(&mut self, virt: usize) -> Result<(), Errno> {
         let virt = virt & !0xFFF;
         let l0i = virt >> 30;
@@ -227,7 +250,11 @@ impl Space {
 
         let src_phys = unsafe { entry.address_unchecked() };
         if !entry.is_cow() {
-            warnln!("Entry is not marked as CoW: {:#x}, points to {:#x}", virt, src_phys);
+            warnln!(
+                "Entry is not marked as CoW: {:#x}, points to {:#x}",
+                virt,
+                src_phys
+            );
             return Err(Errno::DoesNotExist);
         }
 
@@ -237,6 +264,71 @@ impl Space {
         }
         l2_table[l2i].clear_cow();
 
+        Ok(())
+    }
+
+    /// Allocates a contiguous region from the address space and maps
+    /// physical pages to it
+    pub fn allocate(
+        &mut self,
+        start: usize,
+        end: usize,
+        len: usize,
+        flags: MapAttributes,
+        usage: PageUsage,
+    ) -> Result<usize, Errno> {
+        'l0: for page in (start..end).step_by(0x1000) {
+            for i in 0..len {
+                if self.translate(page + i * 0x1000).is_ok() {
+                    continue 'l0;
+                }
+            }
+
+            for i in 0..len {
+                let phys = phys::alloc_page(usage).unwrap();
+                self.map(page + i * 0x1000, phys, flags).unwrap();
+            }
+            return Ok(page);
+        }
+        Err(Errno::OutOfMemory)
+    }
+
+    /// Removes a single 4K page mapping from the table and
+    /// releases the underlying physical memory
+    pub fn unmap_single(&mut self, page: usize) -> Result<(), Errno> {
+        let l0i = page >> 30;
+        let l1i = (page >> 21) & 0x1FF;
+        let l2i = (page >> 12) & 0x1FF;
+
+        let l1_table = self.0.next_level_table(l0i).ok_or(Errno::DoesNotExist)?;
+        let l2_table = l1_table.next_level_table(l1i).ok_or(Errno::DoesNotExist)?;
+
+        let entry = l2_table[l2i];
+
+        if !entry.is_present() {
+            return Err(Errno::DoesNotExist);
+        }
+
+        let phys = unsafe { entry.address_unchecked() };
+        unsafe {
+            phys::free_page(phys)?;
+        }
+        l2_table[l2i] = Entry::invalid();
+
+        unsafe {
+            asm!("tlbi vaae1, {}", in(reg) page);
+        }
+
+        // TODO release paging structure memory
+
+        Ok(())
+    }
+
+    /// Releases a range of virtual pages and their corresponding physical pages
+    pub fn free(&mut self, start: usize, len: usize) -> Result<(), Errno> {
+        for i in 0..len {
+            self.unmap_single(start + i * 0x1000)?;
+        }
         Ok(())
     }
 
@@ -264,13 +356,20 @@ impl Space {
                                 todo!();
                                 // res.map(virt_addr, dst_phys, flags)?;
                             } else {
-                                // TODO only apply CoW to writable pages
-                                flags |= MapAttributes::AP_BOTH_READONLY | MapAttributes::EX_COW;
-                                l2_table[l2i].set_cow();
-                                unsafe {
-                                    asm!("tlbi vaae1, {}", in(reg) virt_addr);
+                                let writable = flags & MapAttributes::AP_BOTH_READONLY
+                                    == MapAttributes::AP_BOTH_READWRITE;
+
+                                if writable {
+                                    flags |=
+                                        MapAttributes::AP_BOTH_READONLY | MapAttributes::EX_COW;
+                                    l2_table[l2i].set_cow();
+
+                                    unsafe {
+                                        asm!("tlbi vaae1, {}", in(reg) virt_addr);
+                                    }
                                 }
-                                res.map(virt_addr, dst_phys, flags);
+
+                                res.map(virt_addr, dst_phys, flags)?;
                             }
                         }
                     }
@@ -280,6 +379,13 @@ impl Space {
         Ok(res)
     }
 
+    /// Releases all the mappings from the address space. Frees all
+    /// memory pages referenced by this space as well as those used for
+    /// its paging tables.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe: may invalidate currently active address space
     pub unsafe fn release(space: &mut Self) {
         for l0i in 0..512 {
             let l0_entry = space.0[l0i];
@@ -288,8 +394,7 @@ impl Space {
             }
 
             assert!(l0_entry.is_table());
-            let l1_table =
-                unsafe { &mut *(mem::virtualize(l0_entry.address_unchecked()) as *mut Table) };
+            let l1_table = &mut *(mem::virtualize(l0_entry.address_unchecked()) as *mut Table);
 
             for l1i in 0..512 {
                 let l1_entry = l1_table[l1i];
@@ -297,8 +402,7 @@ impl Space {
                     continue;
                 }
                 assert!(l1_entry.is_table());
-                let l2_table =
-                    unsafe { &mut *(mem::virtualize(l1_entry.address_unchecked()) as *mut Table) };
+                let l2_table = &mut *(mem::virtualize(l1_entry.address_unchecked()) as *mut Table);
 
                 for l2i in 0..512 {
                     let entry = l2_table[l2i];
@@ -307,20 +411,17 @@ impl Space {
                     }
 
                     assert!(entry.is_table());
-                    unsafe {
-                        phys::free_page(unsafe { entry.address_unchecked() });
-                    }
+                    phys::free_page(entry.address_unchecked()).unwrap();
                 }
-                unsafe {
-                    phys::free_page(unsafe { l1_entry.address_unchecked() });
-                }
+                phys::free_page(l1_entry.address_unchecked()).unwrap();
             }
-            unsafe {
-                phys::free_page(unsafe { l0_entry.address_unchecked() });
-            }
+            phys::free_page(l0_entry.address_unchecked()).unwrap();
         }
-        unsafe {
-            mem::memset(space as *mut Space as *mut u8, 0, 4096);
-        }
+        memset(space as *mut Space as *mut u8, 0, 4096);
+    }
+
+    /// Returns the physical address of this structure
+    pub fn address_phys(&mut self) -> usize {
+        (self as *mut _ as usize) - mem::KERNEL_OFFSET
     }
 }

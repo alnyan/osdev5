@@ -1,5 +1,9 @@
 use crate::Bpb;
-use error::Errno;
+use libsys::{
+    stat::{Stat, OpenFlags},
+    ioctl::IoctlCmd,
+    error::Errno
+};
 use vfs::{VnodeImpl, VnodeKind, VnodeRef};
 
 pub struct FileInode {
@@ -7,25 +11,13 @@ pub struct FileInode {
     pub size: u32,
 }
 
+#[auto_inode]
 impl VnodeImpl for FileInode {
-    fn create(&mut self, _at: VnodeRef, _name: &str, _kind: VnodeKind) -> Result<VnodeRef, Errno> {
-        panic!()
-    }
-
-    fn remove(&mut self, _parent: VnodeRef, _name: &str) -> Result<(), Errno> {
-        panic!()
-    }
-
-    fn lookup(&mut self, _parent: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
-        panic!()
-    }
-
-    fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
+    fn open(&mut self, _node: VnodeRef, flags: OpenFlags) -> Result<usize, Errno> {
+        if flags & OpenFlags::O_ACCESS != OpenFlags::O_RDONLY {
+            return Err(Errno::ReadOnly);
+        }
         Ok(0)
-    }
-
-    fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
-        todo!()
     }
 
     fn read(&mut self, node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno> {
@@ -59,17 +51,5 @@ impl VnodeImpl for FileInode {
         }
 
         Ok(off)
-    }
-
-    fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
-        todo!()
-    }
-
-    fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
-        todo!()
-    }
-
-    fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-        todo!()
     }
 }

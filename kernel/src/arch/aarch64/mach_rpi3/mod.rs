@@ -5,7 +5,7 @@ use crate::dev::{
     Device,
 };
 use crate::mem::phys;
-use error::Errno;
+use libsys::error::Errno;
 
 pub mod irqchip;
 pub use irqchip::{Bcm283xIrqchip, IrqNumber};

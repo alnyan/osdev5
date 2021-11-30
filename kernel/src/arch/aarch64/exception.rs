@@ -3,11 +3,11 @@
 use crate::arch::machine;
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
-use crate::proc::{sched, Process};
 use crate::mem;
+use crate::proc::{sched, Thread};
 use crate::syscall;
-use ::syscall::abi;
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
+use libsys::{abi::SystemCall, signal::Signal};
 use tock_registers::interfaces::Readable;
 
 /// Trapped SIMD/FP functionality
@@ -76,7 +76,7 @@ fn dump_data_abort(level: Level, esr: u64, far: u64) {
     } else {
         print!(level, " at UNKNOWN");
     }
-    println!(level, "");
+    println!(level, "\x1B[0m");
 }
 
 #[no_mangle]
@@ -88,15 +88,21 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
     match err_code {
         EC_DATA_ABORT_EL0 | EC_DATA_ABORT_ELX => {
             let far = FAR_EL1.get() as usize;
+            let iss = esr & 0x1FFFFFF;
+
             // TODO handle scenarios when sheduler is not yet initialized
+            if iss & (1 << 6) != 0 && far < mem::KERNEL_OFFSET {
+                let thread = Thread::current();
+                let proc = thread.owner().unwrap();
 
-            if far < mem::KERNEL_OFFSET {
-                let proc = Process::current();
-
-                if let Err(e) = proc.manipulate_space(|space| space.try_cow_copy(far)) {
+                if proc
+                    .manipulate_space(|space| space.try_cow_copy(far))
+                    .is_err()
+                {
                     // Kill program
+                    errorln!("Data abort from {:#x}", exc.elr_el1);
                     dump_data_abort(Level::Error, esr, far as u64);
-                    panic!("CoW copy returned {:?}", e);
+                    proc.enter_fault_signal(thread, Signal::SegmentationFault);
                 }
 
                 unsafe {
@@ -110,33 +116,46 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
             }
 
             errorln!("Unresolved data abort");
+            errorln!("Data abort from {:#x}", exc.elr_el1);
             dump_data_abort(Level::Error, esr, far as u64);
         }
         EC_SVC_AA64 => {
-            unsafe {
-                if exc.x[8] == abi::SYS_FORK {
-                    match syscall::sys_fork(exc) {
-                        Ok(pid) => exc.x[0] = pid.value() as usize,
-                        Err(err) => {
-                            warnln!("fork() syscall failed: {:?}", err);
-                            exc.x[0] = usize::MAX;
-                        }
-                    }
-                    return;
-                }
+            let num = SystemCall::from_repr(exc.x[8]);
+            if num.is_none() {
+                todo!();
+            }
+            let num = num.unwrap();
 
-                match syscall::syscall(exc.x[8], &exc.x[..6]) {
-                    Ok(val) => exc.x[0] = val,
+            if num == SystemCall::Fork {
+                match unsafe { syscall::sys_fork(exc) } {
+                    Ok(pid) => exc.x[0] = pid.value() as usize,
                     Err(err) => {
-                        warnln!("syscall {} failed: {:?}", exc.x[8], err);
-                        exc.x[0] = usize::MAX
+                        exc.x[0] = err.to_negative_isize() as usize;
                     }
+                }
+                return;
+            }
+
+            match syscall::syscall(num, &exc.x[..6]) {
+                Ok(val) => exc.x[0] = val,
+                Err(err) => {
+                    exc.x[0] = err.to_negative_isize() as usize;
                 }
             }
+
             return;
         }
         _ => {}
     }
+
+    // if sched::is_ready() {
+    //     let thread = Thread::current();
+    //     errorln!(
+    //         "Unhandled exception in thread {}, {:?}",
+    //         thread.id(),
+    //         thread.owner().map(|e| e.id())
+    //     );
+    // }
 
     errorln!(
         "Unhandled exception at ELR={:#018x}, ESR={:#010x}",

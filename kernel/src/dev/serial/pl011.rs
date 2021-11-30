@@ -10,14 +10,12 @@ use crate::dev::{
 use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
-use core::fmt;
-use error::Errno;
+use libsys::error::Errno;
 use tock_registers::{
     interfaces::{ReadWriteable, Readable, Writeable},
     register_bitfields, register_structs,
     registers::{ReadOnly, ReadWrite, WriteOnly},
 };
-use vfs::{CharDevice, IoctlCmd};
 
 register_bitfields! {
     u32,
@@ -78,6 +76,7 @@ struct Pl011Inner {
 }
 
 /// Device struct for PL011
+#[derive(TtyCharDevice)]
 pub struct Pl011 {
     inner: InitOnce<IrqSafeSpinLock<Pl011Inner>>,
     ring: CharRing<16>,
@@ -117,16 +116,16 @@ impl Pl011Inner {
     }
 }
 
-impl fmt::Write for Pl011Inner {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        for &c in s.as_bytes() {
-            unsafe {
-                self.send(c);
-            }
-        }
-        Ok(())
-    }
-}
+// impl fmt::Write for Pl011Inner {
+//     fn write_str(&mut self, s: &str) -> fmt::Result {
+//         for &c in s.as_bytes() {
+//             unsafe {
+//                 self.send(c);
+//             }
+//         }
+//         Ok(())
+//     }
+// }
 
 impl IntSource for Pl011 {
     fn handle_irq(&self) -> Result<(), Errno> {
@@ -167,21 +166,21 @@ impl SerialDevice for Pl011 {
     }
 }
 
-impl CharDevice for Pl011 {
-    fn read(&self, blocking: bool, data: &mut [u8]) -> Result<usize, Errno> {
-        assert!(blocking);
-        self.line_read(data)
-    }
-
-    fn write(&self, blocking: bool, data: &[u8]) -> Result<usize, Errno> {
-        assert!(blocking);
-        self.line_write(data)
-    }
-
-    fn ioctl(&self, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
-        self.tty_ioctl(cmd, ptr, len)
-    }
-}
+// impl CharDevice for Pl011 {
+//     fn read(&self, blocking: bool, data: &mut [u8]) -> Result<usize, Errno> {
+//         assert!(blocking);
+//         self.line_read(data)
+//     }
+//
+//     fn write(&self, blocking: bool, data: &[u8]) -> Result<usize, Errno> {
+//         assert!(blocking);
+//         self.line_write(data)
+//     }
+//
+//     fn ioctl(&self, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
+//         self.tty_ioctl(cmd, ptr, len)
+//     }
+// }
 
 impl TtyDevice<16> for Pl011 {
     fn ring(&self) -> &CharRing<16> {

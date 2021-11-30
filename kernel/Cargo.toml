@@ -10,23 +10,24 @@ name = "kernel"
 test = false
 
 [dependencies]
-error = { path = "../error" }
 vfs = { path = "../fs/vfs" }
 memfs = { path = "../fs/memfs" }
-libcommon = { path = "../libcommon" }
-syscall = { path = "../syscall" }
+libsys = { path = "../libsys" }
 cfg-if = "1.x.x"
 tock-registers = "0.7.x"
 fdt-rs = { version = "0.x.x", default-features = false }
 bitflags = "^1.3.0"
+kernel-macros = { path = "macros" }
 
 [target.'cfg(target_arch = "aarch64")'.dependencies]
 cortex-a = { version = "6.x.x" }
 
 [features]
+default = ["aggressive_syscall"]
 pl011 = []
 pl031 = []
 verbose = []
+aggressive_syscall = []
 
 mach_qemu = ["pl011", "pl031"]
 mach_orangepi3 = []

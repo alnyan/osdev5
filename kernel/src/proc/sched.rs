@@ -1,5 +1,5 @@
 //!
-use crate::proc::{Pid, Process, ProcessRef, PROCESSES};
+use crate::proc::{Thread, ThreadRef, THREADS};
 use crate::util::InitOnce;
 use alloc::{collections::VecDeque, rc::Rc};
 use crate::sync::{IrqSafeSpinLock, IrqSafeSpinLockGuard};
@@ -9,9 +9,9 @@ use core::ops::Deref;
 use tock_registers::interfaces::Readable;
 
 struct SchedulerInner {
-    queue: VecDeque<Pid>,
-    idle: Option<Pid>,
-    current: Option<Pid>,
+    queue: VecDeque<u32>,
+    idle: Option<u32>,
+    current: Option<u32>,
 }
 
 /// Process scheduler state and queues
@@ -27,7 +27,7 @@ impl SchedulerInner {
             current: None,
         };
 
-        this.idle = Some(Process::new_kernel(idle_fn, 0).unwrap().id());
+        this.idle = Some(Thread::new_kernel(None, idle_fn, 0).unwrap().id());
 
         this
     }
@@ -61,13 +61,13 @@ impl Scheduler {
     }
 
     /// Schedules a thread for execution
-    pub fn enqueue(&self, pid: Pid) {
-        self.inner.get().lock().queue.push_back(pid);
+    pub fn enqueue(&self, tid: u32) {
+        self.inner.get().lock().queue.push_back(tid);
     }
 
-    /// Removes given `pid` from execution queue
-    pub fn dequeue(&self, pid: Pid) {
-        self.inner.get().lock().queue.retain(|&p| p != pid)
+    /// Removes given `tid` from execution queue
+    pub fn dequeue(&self, tid: u32) {
+        self.inner.get().lock().queue.retain(|&p| p != tid)
     }
 
     /// Performs initial process entry.
@@ -85,10 +85,11 @@ impl Scheduler {
             };
 
             inner.current = Some(id);
-            PROCESSES.lock().get(&id).unwrap().clone()
+            THREADS.lock().get(&id).unwrap().clone()
         };
 
-        Process::enter((MPIDR_EL1.get() & 0xF) as u32, thread)
+        asm!("msr daifset, #2");
+        Thread::enter((MPIDR_EL1.get() & 0xF) as u32, thread)
     }
 
     /// This hack is required to be called from execve() when downgrading current
@@ -97,8 +98,14 @@ impl Scheduler {
     /// # Safety
     ///
     /// Unsafe: only allowed to be called from Process::execve()
-    pub unsafe fn hack_current_pid(&self, new: Pid) {
-        self.inner.get().lock().current = Some(new);
+    pub unsafe fn hack_current_tid(&self, old: u32, new: u32) {
+        let mut lock = self.inner.get().lock();
+        match lock.current {
+            Some(t) if t == old => {
+                lock.current = Some(new);
+            }
+            _ => {}
+        }
     }
 
     /// Switches to the next task scheduled for execution. If there're
@@ -108,7 +115,11 @@ impl Scheduler {
             let mut inner = self.inner.get().lock();
             let current = inner.current.unwrap();
 
+//<<<<<<< HEAD
             if !discard && current != inner.idle.unwrap() {
+//=======
+//            if !discard && current != 0 {
+//>>>>>>> feat/thread
                 // Put the process into the back of the queue
                 if !enqueue_somewhere_else((MPIDR_EL1.get() & 0xF) as usize, current, &sched_lock) {
                     inner.queue.push_back(current);
@@ -123,7 +134,7 @@ impl Scheduler {
 
             inner.current = Some(next);
             let (from, to) = {
-                let lock = PROCESSES.lock();
+                let lock = THREADS.lock();
                 (
                     lock.get(&current).unwrap().clone(),
                     lock.get(&next).unwrap().clone(),
@@ -135,29 +146,53 @@ impl Scheduler {
 
         if !Rc::ptr_eq(&from, &to) {
             unsafe {
+//<<<<<<< HEAD
                 drop(sched_lock);
-                Process::switch((MPIDR_EL1.get() & 0xF) as u32, from, to, discard);
+//                Process::switch((MPIDR_EL1.get() & 0xF) as u32, from, to, discard);
+//=======
+                asm!("msr daifset, #2");
+                Thread::switch((MPIDR_EL1.get() & 0xF) as u32, from, to, discard);
+//>>>>>>> feat/thread
             }
         }
     }
 
-    /// Returns a Rc-reference to currently running process
-    pub fn current_process(&self) -> ProcessRef {
+    /// Returns a [Rc]-reference to currently running Thread
+    pub fn current_thread(&self) -> ThreadRef {
         let inner = self.inner.get().lock();
-        let current = inner.current.unwrap();
-        PROCESSES.lock().get(&current).unwrap().clone()
+        let id = inner.current.unwrap();
+        THREADS.lock().get(&id).unwrap().clone()
     }
+
+    // /// Returns a Rc-reference to currently running process
+    // pub fn current_process(&self) -> ProcessRef {
+    //     let inner = self.inner.get().lock();
+    //     let current = inner.current.unwrap();
+    //     PROCESSES.lock().get(&current).unwrap().clone()
+    // }
 }
 
+// <<<<<<< HEAD
+// // pub fn is_ready() -> bool {
+// //     SCHED.inner.is_initialized()
+// // }
+// =======
+// /// Returns `true` if the scheduler has been initialized
 // pub fn is_ready() -> bool {
 //     SCHED.inner.is_initialized()
 // }
+// >>>>>>> feat/thread
 
 #[inline(never)]
 extern "C" fn idle_fn(_a: usize) -> ! {
     loop {
         cortex_a::asm::wfi();
     }
+}
+
+pub fn current_thread() -> ThreadRef {
+    let guard = SCHED_LOCK.lock();
+    unsafe { Cpu::get().scheduler().current_thread() }
 }
 
 /// Performs a task switch.
@@ -170,16 +205,17 @@ pub fn switch(discard: bool) {
 }
 
 ///
-pub fn enqueue_to(cpu: usize, pid: Pid) {
-    let _lock = SCHED_LOCK.lock();
-    debugln!("Queue {} to cpu{}", pid, cpu);
-    unsafe {
-        cpu::by_index(cpu).scheduler().enqueue(pid)
-    }
+pub fn enqueue_to(cpu: usize, tid: u32) {
+    todo!()
+    //let _lock = SCHED_LOCK.lock();
+    //debugln!("Queue {} to cpu{}", pid, cpu);
+    //unsafe {
+    //    cpu::by_index(cpu).scheduler().enqueue(pid)
+    //}
 }
 
 ///
-pub fn enqueue(pid: Pid) {
+pub fn enqueue(tid: u32) {
     let _lock = SCHED_LOCK.lock();
     let mut min_idx = 0;
     let mut min_cnt = usize::MAX;
@@ -193,12 +229,12 @@ pub fn enqueue(pid: Pid) {
 
     // debugln!("Queue {} to cpu{}", pid, min_idx);
     unsafe {
-        cpu::by_index(min_idx).scheduler().enqueue(pid)
+        cpu::by_index(min_idx).scheduler().enqueue(tid)
     }
 }
 
 ///
-pub fn enqueue_somewhere_else(ignore: usize, pid: Pid, _guard: &IrqSafeSpinLockGuard<()>) -> bool {
+pub fn enqueue_somewhere_else(ignore: usize, tid: u32, _guard: &IrqSafeSpinLockGuard<()>) -> bool {
     let mut min_idx = 0;
     //let mut min_cnt = usize::MAX;
     static mut LAST: usize = 0;
@@ -222,26 +258,20 @@ pub fn enqueue_somewhere_else(ignore: usize, pid: Pid, _guard: &IrqSafeSpinLockG
         false
     } else {
         unsafe {
-            cpu::by_index(min_idx).scheduler().enqueue(pid)
+            cpu::by_index(min_idx).scheduler().enqueue(tid)
         }
         true
     }
 }
 
 ///
-pub fn dequeue(pid: Pid) {
+pub fn dequeue(tid: u32) {
     // TODO process can be rescheduled to other CPU between scheduler locks
     let lock = SCHED_LOCK.lock();
-    let cpu_id = PROCESSES.lock().get(&pid).unwrap().cpu();
+    let cpu_id = Thread::get(tid).unwrap().cpu();
     unsafe {
-        cpu::by_index(cpu_id as usize).scheduler().dequeue(pid);
+        cpu::by_index(cpu_id as usize).scheduler().dequeue(tid);
     }
-}
-
-///
-pub fn current_process() -> ProcessRef {
-    let _lock = SCHED_LOCK.lock();
-    unsafe { Cpu::get().scheduler().current_process() }
 }
 
 static SCHED_LOCK: IrqSafeSpinLock<()> = IrqSafeSpinLock::new(());

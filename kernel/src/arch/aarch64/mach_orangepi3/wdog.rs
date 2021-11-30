@@ -2,7 +2,7 @@ use crate::dev::Device;
 use crate::mem::virt::DeviceMemoryIo;
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
-use error::Errno;
+use libsys::error::Errno;
 use tock_registers::{
     interfaces::Writeable, register_bitfields, register_structs, registers::ReadWrite,
 };

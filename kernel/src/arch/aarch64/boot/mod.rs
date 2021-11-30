@@ -14,7 +14,7 @@ use crate::config::{ConfigKey, CONFIG};
 use crate::dev::fdt::find_prop;
 use crate::dev::{fdt::DeviceTree, irq::IntSource, Device};
 use crate::fs::devfs;
-use error::Errno;
+use libsys::error::Errno;
 //use crate::debug::Level;
 use crate::mem::{
     self, heap,

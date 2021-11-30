@@ -1,15 +1,16 @@
 //! Teletype (TTY) device facilities
 use crate::dev::serial::SerialDevice;
-use crate::proc::wait::Wait;
+use crate::proc::{Process, wait::{Wait, WAIT_SELECT}};
 use crate::sync::IrqSafeSpinLock;
-use error::Errno;
-use syscall::{
+use libsys::error::Errno;
+use libsys::{
     termios::{Termios, TermiosIflag, TermiosLflag, TermiosOflag},
+    proc::Pid,
+    signal::Signal,
     ioctl::IoctlCmd
 };
 use core::mem::size_of;
-use crate::syscall::arg::validate_user_ptr_struct;
-use vfs::CharDevice;
+use crate::syscall::arg;
 
 #[derive(Debug)]
 struct CharRingInner<const N: usize> {
@@ -17,6 +18,7 @@ struct CharRingInner<const N: usize> {
     wr: usize,
     data: [u8; N],
     flags: u8,
+    fg_pgid: Option<Pid>,
 }
 
 /// Ring buffer for TTYs
@@ -27,26 +29,45 @@ pub struct CharRing<const N: usize> {
     inner: IrqSafeSpinLock<CharRingInner<N>>,
 }
 
+/// Generic teletype device interface
 pub trait TtyDevice<const N: usize>: SerialDevice {
+    /// Returns a reference to character device's ring buffer
     fn ring(&self) -> &CharRing<N>;
 
-    fn tty_ioctl(&self, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
+    /// Returns `true` if the TTY is ready for an operation
+    fn is_ready(&self, write: bool) -> Result<bool, Errno> {
+        let ring = self.ring();
+        if write {
+            todo!()
+        } else {
+            Ok(ring.is_readable())
+        }
+    }
+
+    /// Performs a TTY control request
+    fn tty_ioctl(&self, cmd: IoctlCmd, ptr: usize, _len: usize) -> Result<usize, Errno> {
         match cmd {
             IoctlCmd::TtyGetAttributes => {
                 // TODO validate size
-                let res = validate_user_ptr_struct::<Termios>(ptr)?;
+                let res = arg::struct_mut::<Termios>(ptr)?;
                 *res = self.ring().config.lock().clone();
                 Ok(size_of::<Termios>())
             },
             IoctlCmd::TtySetAttributes => {
-                let src = validate_user_ptr_struct::<Termios>(ptr)?;
+                let src = arg::struct_ref::<Termios>(ptr)?;
                 *self.ring().config.lock() = src.clone();
                 Ok(size_of::<Termios>())
+            },
+            IoctlCmd::TtySetPgrp => {
+                let src = arg::struct_ref::<u32>(ptr)?;
+                self.ring().inner.lock().fg_pgid = Some(unsafe { Pid::from_raw(*src) });
+                Ok(0)
             },
             _ => Err(Errno::InvalidArgument)
         }
     }
 
+    /// Processes and writes output an output byte
     fn line_send(&self, byte: u8) -> Result<(), Errno> {
         let config = self.ring().config.lock();
 
@@ -57,9 +78,18 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         self.send(byte)
     }
 
+    /// Receives input bytes and processes them
     fn recv_byte(&self, mut byte: u8) {
         let ring = self.ring();
         let config = ring.config.lock();
+
+        if byte == b'@' {
+            use crate::mem::phys;
+            let stat = phys::statistics();
+            debugln!("Physical memory stats:");
+            debugln!("{:#?}", stat);
+            return;
+        }
 
         if byte == b'\r' && config.iflag.contains(TermiosIflag::ICRNL) {
             byte = b'\n';
@@ -89,6 +119,19 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
             }
         }
 
+        if byte == 0x3 && config.lflag.contains(TermiosLflag::ISIG) {
+            drop(config);
+            let pgid = ring.inner.lock().fg_pgid;
+            if let Some(pgid) = pgid {
+                // TODO send to pgid
+                let proc = Process::get(pgid);
+                if let Some(proc) = proc {
+                    proc.set_signal(Signal::Interrupt);
+                }
+            }
+            return;
+        }
+
         self.ring().putc(byte, false).ok();
     }
 
@@ -97,7 +140,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         let ring = self.ring();
         let mut config = ring.config.lock();
 
-        if data.len() == 0 {
+        if data.is_empty() {
             return Ok(0);
         }
 
@@ -105,7 +148,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
             drop(config);
             let byte = ring.getc()?;
             data[0] = byte;
-            return Ok(1);
+            Ok(1)
         } else {
             let mut rem = data.len();
             let mut off = 0;
@@ -132,7 +175,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
                         let idx = data[..off].iter().rposition(|&ch| ch == b' ').unwrap_or(0);
                         let len = off;
 
-                        for i in idx..len {
+                        for _ in idx..len {
                             self.raw_write(b"\x1B[D \x1B[D").ok();
                             off -= 1;
                             rem += 1;
@@ -165,6 +208,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         }
     }
 
+    /// Processes and writes string bytes
     fn line_write(&self, data: &[u8]) -> Result<usize, Errno> {
         for &byte in data.iter() {
             self.line_send(byte)?;
@@ -172,6 +216,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
         Ok(data.len())
     }
 
+    /// Writes string bytes without any processing
     fn raw_write(&self, data: &[u8]) -> Result<usize, Errno> {
         for &byte in data.iter() {
             self.send(byte)?;
@@ -209,14 +254,48 @@ impl<const N: usize> CharRing<N> {
     pub const fn new() -> Self {
         Self {
             inner: IrqSafeSpinLock::new(CharRingInner {
+                fg_pgid: None,
                 rd: 0,
                 wr: 0,
                 data: [0; N],
                 flags: 0,
             }),
             config: IrqSafeSpinLock::new(Termios::new()),
-            wait_read: Wait::new(),
-            wait_write: Wait::new(),
+            wait_read: Wait::new("tty_read"),
+            wait_write: Wait::new("tty_write"),
+        }
+    }
+
+    /// Returns `true` if a character/line is available for reception
+    pub fn is_readable(&self) -> bool {
+        let inner = self.inner.lock();
+        let config = self.config.lock();
+        if config.lflag.contains(TermiosLflag::ICANON) {
+            // TODO optimize this somehow?
+            let mut rd = inner.rd;
+            let mut count = 0usize;
+            loop {
+                let readable = if rd <= inner.wr {
+                    (inner.wr - rd) > 0
+                } else {
+                    (inner.wr + (N - rd)) > 0
+                };
+
+                if !readable {
+                    break;
+                }
+
+                let byte = inner.data[rd];
+                if byte == b'\n' || byte == config.chars.eof {
+                    count += 1;
+                }
+
+                rd = (rd + 1) % N;
+            }
+
+            count != 0 || inner.flags != 0
+        } else {
+            inner.is_readable() || inner.flags != 0
         }
     }
 
@@ -232,15 +311,10 @@ impl<const N: usize> CharRing<N> {
                 break;
             }
         }
-        if lock.flags != 0 {
-            if lock.flags & (1 << 0) != 0 {
-                lock.flags &= !(1 << 0);
-                return Err(Errno::EndOfFile);
-            }
-            todo!();
-        }
         let byte = lock.read_unchecked();
+        drop(lock);
         self.wait_write.wakeup_one();
+        WAIT_SELECT.wakeup_all();
         Ok(byte)
     }
 
@@ -251,7 +325,9 @@ impl<const N: usize> CharRing<N> {
             todo!()
         }
         lock.write_unchecked(ch);
+        drop(lock);
         self.wait_read.wakeup_one();
+        WAIT_SELECT.wakeup_all();
         Ok(())
     }
 }

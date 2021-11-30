@@ -1,6 +1,5 @@
 //! Device tree facilities
 use crate::debug::Level;
-use error::Errno;
 use fdt_rs::prelude::*;
 use fdt_rs::{
     base::DevTree,
@@ -8,7 +7,7 @@ use fdt_rs::{
         iters::DevTreeIndexCompatibleNodeIter, DevTreeIndex, DevTreeIndexNode, DevTreeIndexProp,
     },
 };
-use libcommon::path_component_left;
+use libsys::{error::Errno, path::path_component_left};
 
 #[repr(align(16))]
 struct Wrap {

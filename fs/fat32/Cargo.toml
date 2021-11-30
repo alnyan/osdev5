@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 vfs = { path = "../vfs" }
-libcommon = { path = "../../libcommon" }
-error = { path = "../../error" }
+fs-macros = { path = "../macros" }
+libsys = { path = "../../libsys" }

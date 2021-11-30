@@ -9,10 +9,14 @@ use alloc::{
 };
 use core::sync::atomic::{AtomicUsize, Ordering};
 use crate::arch::platform::cpu::{self, Cpu};
+use libsys::proc::Pid;
 
 pub mod elf;
+pub mod thread;
+pub use thread::{Thread, ThreadRef, State as ThreadState};
+pub(self) use thread::Context;
 pub mod process;
-pub use process::{Pid, Process, ProcessRef, State as ProcessState};
+pub use process::{Process, ProcessRef, ProcessState};
 pub mod io;
 pub use io::ProcessIo;
 
@@ -22,6 +26,7 @@ pub mod sched;
 pub use sched::Scheduler;
 //pub(self) use sched::SCHED;
 
+//<<<<<<< HEAD
 // <<<<<<< HEAD
 // macro_rules! spawn {
 //     (fn ($dst_arg:ident : usize) $body:block, $src_arg:expr) => {{
@@ -49,10 +54,10 @@ pub use sched::Scheduler;
 //    SCHED.switch(false);
 //}
 
-///
-pub fn process(id: Pid) -> ProcessRef {
-    PROCESSES.lock().get(&id).unwrap().clone()
-}
+// ///
+// pub fn process(id: Pid) -> ProcessRef {
+//     PROCESSES.lock().get(&id).unwrap().clone()
+// }
 
 macro_rules! spawn {
     (fn ($dst_arg:ident : usize) $body:block, $src_arg:expr) => {{
@@ -74,17 +79,22 @@ macro_rules! spawn {
     (fn () $body:block) => (spawn!(fn (_arg: usize) $body, 0usize))
 }
 
-/// Global list of all processes in the system
+// /// Global list of all processes in the system
+// // =======
+// /// Performs a task switch.
+// ///
+// /// See [Scheduler::switch]
+// pub fn switch() {
+//     SCHED.switch(false);
+// }
+
+// >>>>>>> feat/thread
 pub(self) static PROCESSES: IrqSafeSpinLock<BTreeMap<Pid, ProcessRef>> =
     IrqSafeSpinLock::new(BTreeMap::new());
 
-/// Sets up initial process and enters it.
-///
-/// See [Scheduler::enter]
-///
-/// # Safety
-///
-/// Unsafe: May only be called once.
+pub(self) static THREADS: IrqSafeSpinLock<BTreeMap<u32, ThreadRef>> =
+    IrqSafeSpinLock::new(BTreeMap::new());
+
 pub unsafe fn enter(is_bsp: bool) -> ! {
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -97,24 +107,8 @@ pub unsafe fn enter(is_bsp: bool) -> ! {
     }
 
     if is_bsp {
-        sched::enqueue(Process::new_kernel(init::init_fn, 0).unwrap().id());
-    } else {
-        spawn!(fn () {
-            loop {}
-        });
+        Process::new_kernel(init::init_fn, 0).unwrap().enqueue();
     }
-    // if let Some((start, end)) = initrd {
-    //     let initrd = Box::into_raw(Box::new((mem::virtualize(start), mem::virtualize(end))));
-
-    //     spawn!(fn (initrd_ptr: usize) {
-    //         loop {}
-    //         // debugln!("Running kernel init process");
-
-    //         // let (start, _end) = unsafe { *(initrd_ptr as *const (usize, usize)) };
-    //         // Process::execve(|space| elf::load_elf(space, start as *const u8), 0).unwrap();
-    //         // panic!("This code should not run");
-    //     }, initrd as usize);
-    // }
 
     sched.enter();
 }

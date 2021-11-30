@@ -5,22 +5,31 @@
 #[macro_use]
 extern crate libusr;
 
+use libusr::sys::{stat::MountOptions, sys_execve, sys_fork, sys_mount, sys_waitpid};
+
 #[no_mangle]
 fn main() -> i32 {
-    let pid = unsafe { libusr::sys::sys_fork() };
-    if pid < 0 {
-        eprintln!("fork() failed");
-        return -1;
-    } else if pid == 0 {
-        return unsafe { libusr::sys::sys_execve("/bin/shell") };
-    } else {
+    sys_mount(
+        "/dev",
+        &MountOptions {
+            device: None,
+            fs: Some("devfs"),
+        },
+    )
+    .expect("Failed to mount devfs");
+
+    if let Some(pid) = unsafe { sys_fork().unwrap() } {
         let mut status = 0;
-        let res = unsafe { libusr::sys::sys_waitpid(pid as u32, &mut status) };
-        if res == 0 {
-            println!("Process {} exited with status {}", pid, status);
-        } else {
-            eprintln!("waitpid() failed");
+        sys_waitpid(pid, &mut status).unwrap();
+        println!("Process {:?} exited with status {}", pid, status);
+
+        loop {
+            unsafe {
+                asm!("nop");
+            }
         }
+    } else {
+        sys_execve("/sbin/login", &["/sbin/login", "/dev/ttyS0"]).unwrap();
+        loop {}
     }
-    loop {}
 }

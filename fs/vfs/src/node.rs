@@ -1,8 +1,12 @@
-use crate::{File, FileMode, FileRef, Filesystem, IoctlCmd, OpenFlags, Stat};
+use crate::{File, FileRef, Filesystem, Ioctx};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
-use core::cell::{RefCell, RefMut};
+use core::cell::{RefCell, RefMut, Ref};
 use core::fmt;
-use error::Errno;
+use libsys::{
+    error::Errno,
+    ioctl::IoctlCmd,
+    stat::{AccessMode, DirectoryEntry, FileMode, OpenFlags, Stat},
+};
 
 /// Convenience type alias for [Rc<Vnode>]
 pub type VnodeRef = Rc<Vnode>;
@@ -27,7 +31,8 @@ pub(crate) struct TreeNode {
 
 /// File property cache struct
 pub struct VnodeProps {
-    mode: FileMode,
+    /// Node permissions and type
+    pub mode: FileMode,
 }
 
 /// Virtual filesystem node struct, generalizes access to
@@ -70,12 +75,24 @@ pub trait VnodeImpl {
     /// Resizes the file storage if necessary.
     fn write(&mut self, node: VnodeRef, pos: usize, data: &[u8]) -> Result<usize, Errno>;
 
+    /// Read directory entries into target buffer
+    fn readdir(
+        &mut self,
+        node: VnodeRef,
+        pos: usize,
+        data: &mut [DirectoryEntry],
+    ) -> Result<usize, Errno>;
+
     /// Retrieves file status
-    fn stat(&mut self, node: VnodeRef, stat: &mut Stat) -> Result<(), Errno>;
+    fn stat(&mut self, node: VnodeRef) -> Result<Stat, Errno>;
 
     /// Reports the size of this filesystem object in bytes
     fn size(&mut self, node: VnodeRef) -> Result<usize, Errno>;
 
+    /// Returns `true` if node is ready for an operation
+    fn is_ready(&mut self, node: VnodeRef, write: bool) -> Result<bool, Errno>;
+
+    /// Performs filetype-specific request
     fn ioctl(
         &mut self,
         node: VnodeRef,
@@ -89,6 +106,11 @@ impl Vnode {
     /// If set, allows [File] structures associated with a [Vnode] to
     /// be seeked to arbitrary offsets
     pub const SEEKABLE: u32 = 1 << 0;
+
+    /// If set, readdir() uses only in-memory node tree
+    pub const CACHE_READDIR: u32 = 1 << 1;
+    /// If set, stat() uses only in-memory stat data
+    pub const CACHE_STAT: u32 = 1 << 2;
 
     /// Constructs a new [Vnode], wrapping it in [Rc]. The resulting node
     /// then needs to have [Vnode::set_data()] called on it to be usable.
@@ -113,6 +135,16 @@ impl Vnode {
     /// Returns [Vnode]'s path element name
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Returns a borrowed reference to cached file properties
+    pub fn props_mut(&self) -> RefMut<VnodeProps> {
+        self.props.borrow_mut()
+    }
+
+    /// Returns a borrowed reference to cached file properties
+    pub fn props(&self) -> Ref<VnodeProps> {
+        self.props.borrow()
     }
 
     /// Sets an associated [VnodeImpl] for the [Vnode]
@@ -149,6 +181,12 @@ impl Vnode {
     #[inline(always)]
     pub const fn kind(&self) -> VnodeKind {
         self.kind
+    }
+
+    /// Returns flags of the vnode
+    #[inline(always)]
+    pub const fn flags(&self) -> u32 {
+        self.flags
     }
 
     // Tree operations
@@ -221,6 +259,29 @@ impl Vnode {
             .iter()
             .find(|e| e.name == name)
             .cloned()
+    }
+
+    pub(crate) fn for_each_entry<F: FnMut(usize, &VnodeRef)>(
+        &self,
+        offset: usize,
+        limit: usize,
+        mut f: F,
+    ) -> usize {
+        assert!(self.is_directory());
+        let mut count = 0;
+        for (index, item) in self
+            .tree
+            .borrow()
+            .children
+            .iter()
+            .skip(offset)
+            .take(limit)
+            .enumerate()
+        {
+            f(index, item);
+            count += 1;
+        }
+        count
     }
 
     /// Looks up a child `name` in `self`. Will first try looking up a cached
@@ -296,35 +357,55 @@ impl Vnode {
 
     /// Opens a vnode for access
     pub fn open(self: &VnodeRef, flags: OpenFlags) -> Result<FileRef, Errno> {
-        if self.kind == VnodeKind::Directory {
-            return Err(Errno::IsADirectory);
+        let mut open_flags = 0;
+        if flags.contains(OpenFlags::O_DIRECTORY) {
+            if self.kind != VnodeKind::Directory {
+                return Err(Errno::NotADirectory);
+            }
+            if flags & OpenFlags::O_ACCESS != OpenFlags::O_RDONLY {
+                return Err(Errno::IsADirectory);
+            }
+
+            open_flags = File::READ;
+        } else {
+            if self.kind == VnodeKind::Directory {
+                return Err(Errno::IsADirectory);
+            }
+
+            match flags & OpenFlags::O_ACCESS {
+                OpenFlags::O_RDONLY => open_flags |= File::READ,
+                OpenFlags::O_WRONLY => open_flags |= File::WRITE,
+                OpenFlags::O_RDWR => open_flags |= File::READ | File::WRITE,
+                _ => unimplemented!(),
+            }
         }
 
-        let mut open_flags = 0;
-        match flags & OpenFlags::O_ACCESS {
-            OpenFlags::O_RDONLY => open_flags |= File::READ,
-            OpenFlags::O_WRONLY => open_flags |= File::WRITE,
-            OpenFlags::O_RDWR => open_flags |= File::READ | File::WRITE,
-            _ => unimplemented!(),
-        }
         if flags.contains(OpenFlags::O_CLOEXEC) {
             open_flags |= File::CLOEXEC;
         }
 
-        if let Some(ref mut data) = *self.data() {
-            let pos = data.open(self.clone(), flags)?;
-            Ok(File::normal(self.clone(), pos, open_flags))
+        if self.kind == VnodeKind::Directory && self.flags & Vnode::CACHE_READDIR != 0 {
+            Ok(File::normal(self.clone(), File::POS_CACHE_DOT, open_flags))
         } else {
-            Err(Errno::NotImplemented)
+            if let Some(ref mut data) = *self.data() {
+                let pos = data.open(self.clone(), flags)?;
+                Ok(File::normal(self.clone(), pos, open_flags))
+            } else {
+                Err(Errno::NotImplemented)
+            }
         }
     }
 
     /// Closes a vnode
     pub fn close(self: &VnodeRef) -> Result<(), Errno> {
-        if let Some(ref mut data) = *self.data() {
-            data.close(self.clone())
+        if self.kind == VnodeKind::Directory && self.flags & Vnode::CACHE_READDIR != 0 {
+            Ok(())
         } else {
-            Err(Errno::NotImplemented)
+            if let Some(ref mut data) = *self.data() {
+                data.close(self.clone())
+            } else {
+                Err(Errno::NotImplemented)
+            }
         }
     }
 
@@ -377,9 +458,16 @@ impl Vnode {
     }
 
     /// Reports file status
-    pub fn stat(self: &VnodeRef, stat: &mut Stat) -> Result<(), Errno> {
-        if let Some(ref mut data) = *self.data() {
-            data.stat(self.clone(), stat)
+    pub fn stat(self: &VnodeRef) -> Result<Stat, Errno> {
+        if self.flags & Self::CACHE_STAT != 0 {
+            let props = self.props();
+            Ok(Stat {
+                blksize: 0,
+                size: 0,
+                mode: props.mode
+            })
+        } else if let Some(ref mut data) = *self.data() {
+            data.stat(self.clone())
         } else {
             Err(Errno::NotImplemented)
         }
@@ -391,6 +479,48 @@ impl Vnode {
             data.ioctl(self.clone(), cmd, ptr, len)
         } else {
             Err(Errno::NotImplemented)
+        }
+    }
+
+    /// Returns `true` if the node is ready for operation
+    pub fn is_ready(self: &VnodeRef, write: bool) -> Result<bool, Errno> {
+        if let Some(ref mut data) = *self.data() {
+            data.is_ready(self.clone(), write)
+        } else {
+            Err(Errno::NotImplemented)
+        }
+    }
+
+    /// Checks if given [Ioctx] has `access` permissions to the vnode
+    pub fn check_access(&self, _ioctx: &Ioctx, access: AccessMode) -> Result<(), Errno> {
+        let props = self.props.borrow();
+        let mode = props.mode;
+
+        if access.contains(AccessMode::F_OK) {
+            if access.intersects(AccessMode::R_OK | AccessMode::W_OK | AccessMode::X_OK) {
+                return Err(Errno::InvalidArgument);
+            }
+            return Ok(());
+        } else {
+            if access.contains(AccessMode::F_OK) {
+                return Err(Errno::InvalidArgument);
+            }
+
+            // Check user
+            if access.contains(AccessMode::R_OK) && !mode.contains(FileMode::USER_READ) {
+                return Err(Errno::PermissionDenied);
+            }
+            if access.contains(AccessMode::W_OK) && !mode.contains(FileMode::USER_WRITE) {
+                return Err(Errno::PermissionDenied);
+            }
+            if access.contains(AccessMode::X_OK) && !mode.contains(FileMode::USER_EXEC) {
+                return Err(Errno::PermissionDenied);
+            }
+
+            // TODO check group
+            // TODO check other
+
+            return Ok(());
         }
     }
 }
@@ -405,8 +535,10 @@ impl fmt::Debug for Vnode {
 mod tests {
     use super::*;
 
+    use libsys::{ioctl::IoctlCmd, stat::OpenFlags, stat::Stat};
     pub struct DummyInode;
 
+    #[auto_inode]
     impl VnodeImpl for DummyInode {
         fn create(
             &mut self,
@@ -425,30 +557,6 @@ mod tests {
 
         fn lookup(&mut self, _at: VnodeRef, _name: &str) -> Result<VnodeRef, Errno> {
             Err(Errno::DoesNotExist)
-        }
-
-        fn open(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn read(&mut self, _node: VnodeRef, _pos: usize, _data: &mut [u8]) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn write(&mut self, _node: VnodeRef, _pos: usize, _data: &[u8]) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
-            Err(Errno::NotImplemented)
-        }
-
-        fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
-            Err(Errno::NotImplemented)
         }
     }
 
@@ -469,10 +577,13 @@ mod tests {
 
         root.set_data(Box::new(DummyInode {}));
 
-        let node = root.mkdir("test", FileMode::default_dir()).unwrap();
+        let node = root
+            .create("test", FileMode::default_dir(), VnodeKind::Directory)
+            .unwrap();
 
         assert_eq!(
-            root.mkdir("test", FileMode::default_dir()).unwrap_err(),
+            root.create("test", FileMode::default_dir(), VnodeKind::Directory)
+                .unwrap_err(),
             Errno::AlreadyExists
         );
 

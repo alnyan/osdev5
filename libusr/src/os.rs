@@ -1,42 +1,16 @@
+use libsys::debug::TraceLevel;
 use crate::sys;
 use core::fmt;
-use core::mem::{size_of, MaybeUninit};
-use syscall::{ioctl::IoctlCmd, termios::Termios};
-
-pub fn get_tty_attrs(fd: u32) -> Result<Termios, &'static str> {
-    let mut termios = MaybeUninit::<Termios>::uninit();
-    let res = unsafe {
-        sys::sys_ioctl(
-            fd,
-            IoctlCmd::TtyGetAttributes,
-            termios.as_mut_ptr() as usize,
-            size_of::<Termios>(),
-        )
-    };
-    if res != size_of::<Termios>() as isize {
-        return Err("Failed");
-    }
-    Ok(unsafe { termios.assume_init() })
-}
-
-pub fn set_tty_attrs(fd: u32, attrs: &Termios) -> Result<(), &'static str> {
-    let res = unsafe {
-        sys::sys_ioctl(
-            fd,
-            IoctlCmd::TtySetAttributes,
-            attrs as *const _ as usize,
-            size_of::<Termios>(),
-        )
-    };
-    if res != size_of::<Termios>() as isize {
-        return Err("Failed");
-    }
-    Ok(())
-}
 
 #[macro_export]
 macro_rules! trace {
-    ($($args:tt)+) => ($crate::os::_trace(format_args!($($args)+)))
+    ($level:expr, $($args:tt)+) => ($crate::os::_trace($level, format_args!($($args)+)))
+}
+
+
+#[macro_export]
+macro_rules! trace_debug {
+    ($($args:tt)+) => ($crate::os::_trace($crate::sys::debug::TraceLevel::Debug, format_args!($($args)+)))
 }
 
 struct BufferWriter<'a> {
@@ -54,7 +28,7 @@ impl fmt::Write for BufferWriter<'_> {
     }
 }
 
-pub fn _trace(args: fmt::Arguments) {
+pub fn _trace(level: TraceLevel, args: fmt::Arguments) {
     use core::fmt::Write;
     static mut BUFFER: [u8; 4096] = [0; 4096];
     let mut writer = BufferWriter {
@@ -62,7 +36,5 @@ pub fn _trace(args: fmt::Arguments) {
         pos: 0,
     };
     writer.write_fmt(args).ok();
-    unsafe {
-        sys::sys_ex_debug_trace(&BUFFER[..writer.pos]);
-    }
+    sys::sys_ex_debug_trace(level, unsafe { &BUFFER[..writer.pos] }).ok();
 }

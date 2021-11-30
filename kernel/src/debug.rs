@@ -13,6 +13,7 @@
 
 use crate::dev::serial::SerialDevice;
 use crate::sync::IrqSafeSpinLock;
+use libsys::debug::TraceLevel;
 use core::fmt;
 
 /// Kernel logging levels
@@ -26,6 +27,18 @@ pub enum Level {
     Warn,
     /// Critical errors
     Error,
+}
+
+impl From<TraceLevel> for Level {
+    #[inline(always)]
+    fn from(l: TraceLevel) -> Self {
+        match l {
+            TraceLevel::Debug => Self::Debug,
+            TraceLevel::Info => Self::Info,
+            TraceLevel::Warn => Self::Warn,
+            TraceLevel::Error => Self::Error,
+        }
+    }
 }
 
 struct SerialOutput<T: 'static + SerialDevice> {
