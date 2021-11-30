@@ -30,6 +30,6 @@ fn main() -> i32 {
         }
     } else {
         sys_execve("/sbin/login", &["/sbin/login", "/dev/ttyS0"]).unwrap();
-        loop {}
+        unreachable!();
     }
 }

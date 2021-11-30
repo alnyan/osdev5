@@ -30,7 +30,7 @@ fn main() -> i32 {
 
     if args.len() == 1 {
         if let Err(e) = do_cat(io::stdin()) {
-            eprintln!("{}: {:?}", ".", e);
+            eprintln!(".: {:?}", e);
             res = -1;
         }
     } else {

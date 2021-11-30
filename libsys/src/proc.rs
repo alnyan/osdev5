@@ -31,8 +31,8 @@ bitflags! {
 
 bitflags! {
     pub struct MemoryMap: u32 {
-        const BACKEND = 0x3 << 0;
-        const ANONYMOUS = 1 << 0;
+        const BACKEND = 0x3;
+        const ANONYMOUS = 1;
 
         const SHARING = 0x3 << 2;
         const PRIVATE = 1 << 2;
@@ -58,9 +58,6 @@ impl From<ExitCode> for i32 {
 }
 
 impl Pid {
-    // /// Kernel idle process always has PID of zero
-    // pub const IDLE: Self = Self(Self::KERNEL_BIT);
-
     const KERNEL_BIT: u32 = 1 << 31;
     const USER_MAX: u32 = 256;
 

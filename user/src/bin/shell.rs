@@ -22,13 +22,11 @@ fn cmd_cd(args: &[&str]) -> ExitCode {
     if args.len() != 2 {
         eprintln!("Usage: cd DIR");
         ExitCode::from(-1)
+    } else if let Err(err) = sys_chdir(args[1]) {
+        eprintln!("{}: {:?}", args[1], err);
+        ExitCode::from(-1)
     } else {
-        if let Err(err) = sys_chdir(args[1]) {
-            eprintln!("{}: {:?}", args[1], err);
-            ExitCode::from(-1)
-        } else {
-            ExitCode::from(0)
-        }
+        ExitCode::from(0)
     }
 }
 

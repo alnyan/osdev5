@@ -237,6 +237,7 @@ impl Thread {
 
     /// Changes process wait condition status
     pub fn setup_wait(&self, wait: *const Wait) {
+        #![allow(clippy::not_unsafe_ptr_arg_deref)]
         let mut lock = self.inner.lock();
         // FIXME this is not cool
         lock.pending_wait = Some(unsafe { &*wait });

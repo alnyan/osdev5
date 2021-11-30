@@ -2,6 +2,7 @@ use crate::{VnodeKind, VnodeRef, Vnode};
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use core::cmp::min;
+use core::str::FromStr;
 use libsys::{
     error::Errno,
     stat::DirectoryEntry,
@@ -142,7 +143,7 @@ impl File {
                 return Ok(offset);
             }
 
-            entries[offset] = DirectoryEntry::from_str(".");
+            entries[offset] = DirectoryEntry::from_str(".").unwrap();
             inner.pos = Self::POS_CACHE_DOT_DOT;
 
             offset += 1;
@@ -154,7 +155,7 @@ impl File {
                 return Ok(offset);
             }
 
-            entries[offset] = DirectoryEntry::from_str("..");
+            entries[offset] = DirectoryEntry::from_str("..").unwrap();
             inner.pos = 0;
 
             offset += 1;
@@ -166,7 +167,7 @@ impl File {
         }
 
         let count = inner.vnode.for_each_entry(inner.pos, count, |i, e| {
-            entries[offset + i] = DirectoryEntry::from_str(e.name());
+            entries[offset + i] = DirectoryEntry::from_str(e.name()).unwrap();
         });
         inner.pos += count;
         Ok(offset + count)

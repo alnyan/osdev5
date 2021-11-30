@@ -75,9 +75,6 @@ macro_rules! argp {
 //     ($a:expr) => ($a as *const core::ffi::c_void as usize)
 // }
 
-/// # Safety
-///
-/// System call
 #[inline(always)]
 pub fn sys_exit(code: ExitCode) -> ! {
     unsafe {
@@ -86,17 +83,11 @@ pub fn sys_exit(code: ExitCode) -> ! {
     unreachable!();
 }
 
-/// # Safety
-///
-/// System call
 #[inline(always)]
 pub fn sys_close(fd: FileDescriptor) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe { syscall!(SystemCall::Close, argn!(u32::from(fd))) })
 }
 
-/// # Safety
-///
-/// System call
 #[inline(always)]
 pub fn sys_ex_nanosleep(ns: u64, rem: &mut [u64; 2]) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
@@ -104,9 +95,6 @@ pub fn sys_ex_nanosleep(ns: u64, rem: &mut [u64; 2]) -> Result<(), Errno> {
     })
 }
 
-/// # Safety
-///
-/// System call
 #[inline(always)]
 pub fn sys_ex_debug_trace(level: TraceLevel, msg: &[u8]) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
@@ -119,9 +107,6 @@ pub fn sys_ex_debug_trace(level: TraceLevel, msg: &[u8]) -> Result<(), Errno> {
     })
 }
 
-/// # Safety
-///
-/// System call
 #[inline(always)]
 pub fn sys_openat(
     at: Option<FileDescriptor>,
@@ -142,9 +127,6 @@ pub fn sys_openat(
     .map(|e| FileDescriptor::from(e as u32))
 }
 
-/// # Safety
-///
-/// System call
 #[inline(always)]
 pub fn sys_read(fd: FileDescriptor, data: &mut [u8]) -> Result<usize, Errno> {
     Errno::from_syscall(unsafe {
@@ -169,9 +151,6 @@ pub fn sys_write(fd: FileDescriptor, data: &[u8]) -> Result<usize, Errno> {
     })
 }
 
-/// # Safety
-///
-/// System call
 #[inline(always)]
 pub fn sys_fstatat(
     at: Option<FileDescriptor>,
@@ -205,9 +184,6 @@ pub unsafe fn sys_fork() -> Result<Option<Pid>, Errno> {
     })
 }
 
-/// # Safety
-///
-/// System call
 #[inline(always)]
 pub fn sys_execve(pathname: &str, argv: &[&str]) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
@@ -221,9 +197,6 @@ pub fn sys_execve(pathname: &str, argv: &[&str]) -> Result<(), Errno> {
     })
 }
 
-/// # Safety
-///
-/// System call
 #[inline(always)]
 pub fn sys_waitpid(pid: Pid, status: &mut i32) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
@@ -235,9 +208,6 @@ pub fn sys_waitpid(pid: Pid, status: &mut i32) -> Result<(), Errno> {
     })
 }
 
-/// # Safety
-///
-/// System call
 #[inline(always)]
 pub fn sys_ioctl(
     fd: FileDescriptor,
@@ -474,6 +444,10 @@ pub fn sys_mmap(
     })
 }
 
+
+/// # Safety
+///
+/// System call
 #[inline(always)]
 pub unsafe fn sys_munmap(addr: usize, len: usize) -> Result<(), Errno> {
     Errno::from_syscall_unit(syscall!(SystemCall::UnmapMemory, argn!(addr), argn!(len)))

@@ -1,5 +1,6 @@
 // TODO split up this file
 use crate::error::Errno;
+use core::str::FromStr;
 use core::fmt;
 
 const AT_FDCWD: i32 = -2;
@@ -143,16 +144,20 @@ impl DirectoryEntry {
         Self { name: [0; 64] }
     }
 
-    pub fn from_str(i: &str) -> DirectoryEntry {
-        let mut res = DirectoryEntry { name: [0; 64] };
-        let bytes = i.as_bytes();
-        res.name[..bytes.len()].copy_from_slice(bytes);
-        res
-    }
-
     pub fn as_str(&self) -> &str {
         let zero = self.name.iter().position(|&c| c == 0).unwrap();
         core::str::from_utf8(&self.name[..zero]).unwrap()
+    }
+}
+
+impl FromStr for DirectoryEntry {
+    type Err = Errno;
+
+    fn from_str(i: &str) -> Result<Self, Errno> {
+        let mut res = DirectoryEntry { name: [0; 64] };
+        let bytes = i.as_bytes();
+        res.name[..bytes.len()].copy_from_slice(bytes);
+        Ok(res)
     }
 }
 

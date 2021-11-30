@@ -102,7 +102,7 @@ impl Zone {
 
     unsafe fn free(zone: *mut Self) {
         trace_debug!("Zone::free({:p})", zone);
-        sys_munmap(zone as usize, (&*zone).size + size_of::<Zone>())
+        sys_munmap(zone as usize, (*zone).size + size_of::<Zone>())
             .expect("Failed to unmap heap pages");
     }
 
@@ -165,7 +165,7 @@ unsafe fn alloc_from(list: &mut ZoneList, zone_size: usize, size: usize) -> *mut
             if !ptr.is_null() {
                 return ptr;
             }
-            zone = (&mut *zone).next;
+            zone = (*zone).next;
         }
 
         let zone = match Zone::alloc(zone_size) {
@@ -175,7 +175,7 @@ unsafe fn alloc_from(list: &mut ZoneList, zone_size: usize, size: usize) -> *mut
                 return null_mut();
             }
         };
-        list.add(&mut (&mut *zone).list);
+        list.add(&mut (*zone).list);
     }
 }
 
@@ -232,7 +232,7 @@ unsafe impl GlobalAlloc for Allocator {
         if !next.is_null() && next_ref.flags & BLOCK_ALLOC == 0 {
             next_ref.flags = 0;
             if !next_ref.next.is_null() {
-                (&mut *(next_ref.next)).prev = block;
+                (*next_ref.next).prev = block;
             }
             block_ref.next = next_ref.next;
             block_ref.size += (next_ref.size as usize + size_of::<Block>()) as u32;
@@ -241,15 +241,15 @@ unsafe impl GlobalAlloc for Allocator {
         if block_ref.prev.is_null() && block_ref.next.is_null() {
             let zone = (block as usize - size_of::<Zone>()) as *mut Zone;
             assert_eq!((zone as usize) & 0xFFF, 0);
-            (&mut *zone).list.del();
+            (*zone).list.del();
             Zone::free(zone);
         }
     }
 }
 
 #[alloc_error_handler]
-fn alloc_error_handler(_layout: Layout) -> ! {
-    loop {}
+fn alloc_error_handler(layout: Layout) -> ! {
+    panic!("Allocation failed: {:?}", layout);
 }
 
 #[global_allocator]

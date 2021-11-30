@@ -1,6 +1,6 @@
 use crate::{File, FileRef, Filesystem, Ioctx};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
-use core::cell::{RefCell, RefMut, Ref};
+use core::cell::{Ref, RefCell, RefMut};
 use core::fmt;
 use libsys::{
     error::Errno,
@@ -288,10 +288,8 @@ impl Vnode {
     /// vnode and will load it from disk if it's missing.
     pub fn lookup_or_load(self: &VnodeRef, name: &str) -> Result<VnodeRef, Errno> {
         if let Some(node) = self.lookup(name) {
-            return Ok(node);
-        }
-
-        if let Some(ref mut data) = *self.data() {
+            Ok(node)
+        } else if let Some(ref mut data) = *self.data() {
             let vnode = data.lookup(self.clone(), name)?;
             if let Some(fs) = self.fs() {
                 vnode.set_fs(fs);
@@ -386,13 +384,11 @@ impl Vnode {
 
         if self.kind == VnodeKind::Directory && self.flags & Vnode::CACHE_READDIR != 0 {
             Ok(File::normal(self.clone(), File::POS_CACHE_DOT, open_flags))
+        } else if let Some(ref mut data) = *self.data() {
+            let pos = data.open(self.clone(), flags)?;
+            Ok(File::normal(self.clone(), pos, open_flags))
         } else {
-            if let Some(ref mut data) = *self.data() {
-                let pos = data.open(self.clone(), flags)?;
-                Ok(File::normal(self.clone(), pos, open_flags))
-            } else {
-                Err(Errno::NotImplemented)
-            }
+            Err(Errno::NotImplemented)
         }
     }
 
@@ -400,22 +396,18 @@ impl Vnode {
     pub fn close(self: &VnodeRef) -> Result<(), Errno> {
         if self.kind == VnodeKind::Directory && self.flags & Vnode::CACHE_READDIR != 0 {
             Ok(())
+        } else if let Some(ref mut data) = *self.data() {
+            data.close(self.clone())
         } else {
-            if let Some(ref mut data) = *self.data() {
-                data.close(self.clone())
-            } else {
-                Err(Errno::NotImplemented)
-            }
+            Err(Errno::NotImplemented)
         }
     }
 
     /// Reads data from offset `pos` into `buf`
     pub fn read(self: &VnodeRef, pos: usize, buf: &mut [u8]) -> Result<usize, Errno> {
         if self.kind == VnodeKind::Directory {
-            return Err(Errno::IsADirectory);
-        }
-
-        if let Some(ref mut data) = *self.data() {
+            Err(Errno::IsADirectory)
+        } else if let Some(ref mut data) = *self.data() {
             data.read(self.clone(), pos, buf)
         } else {
             Err(Errno::NotImplemented)
@@ -425,10 +417,8 @@ impl Vnode {
     /// Writes data from `buf` to offset `pos`
     pub fn write(self: &VnodeRef, pos: usize, buf: &[u8]) -> Result<usize, Errno> {
         if self.kind == VnodeKind::Directory {
-            return Err(Errno::IsADirectory);
-        }
-
-        if let Some(ref mut data) = *self.data() {
+            Err(Errno::IsADirectory)
+        } else if let Some(ref mut data) = *self.data() {
             data.write(self.clone(), pos, buf)
         } else {
             Err(Errno::NotImplemented)
@@ -438,10 +428,8 @@ impl Vnode {
     /// Resizes the vnode data
     pub fn truncate(self: &VnodeRef, size: usize) -> Result<(), Errno> {
         if self.kind != VnodeKind::Regular {
-            return Err(Errno::IsADirectory);
-        }
-
-        if let Some(ref mut data) = *self.data() {
+            Err(Errno::IsADirectory)
+        } else if let Some(ref mut data) = *self.data() {
             data.truncate(self.clone(), size)
         } else {
             Err(Errno::NotImplemented)
@@ -464,7 +452,7 @@ impl Vnode {
             Ok(Stat {
                 blksize: 0,
                 size: 0,
-                mode: props.mode
+                mode: props.mode,
             })
         } else if let Some(ref mut data) = *self.data() {
             data.stat(self.clone())
@@ -500,7 +488,6 @@ impl Vnode {
             if access.intersects(AccessMode::R_OK | AccessMode::W_OK | AccessMode::X_OK) {
                 return Err(Errno::InvalidArgument);
             }
-            return Ok(());
         } else {
             if access.contains(AccessMode::F_OK) {
                 return Err(Errno::InvalidArgument);
@@ -519,9 +506,9 @@ impl Vnode {
 
             // TODO check group
             // TODO check other
-
-            return Ok(());
         }
+
+        Ok(())
     }
 }
 

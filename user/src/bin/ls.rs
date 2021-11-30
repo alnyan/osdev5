@@ -57,7 +57,7 @@ fn main() -> i32 {
 
     if args.len() == 1 {
         if let Err(e) = list_directory(".") {
-            eprintln!("{}: {:?}", ".", e);
+            eprintln!(".: {:?}", e);
             res = -1;
         }
     } else {

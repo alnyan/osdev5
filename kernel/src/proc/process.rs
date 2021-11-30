@@ -410,7 +410,7 @@ impl Process {
         let mut data_offset = 0usize;
         for arg in argv.iter() {
             // XXX this is really unsafe and I am not really sure ABI will stay like this XXX
-            Self::write_paged(space, base + offset + 0, base + data_offset)?;
+            Self::write_paged(space, base + offset, base + data_offset)?;
             Self::write_paged(space, base + offset + 8, arg.len())?;
             offset += 16;
             data_offset += arg.len();

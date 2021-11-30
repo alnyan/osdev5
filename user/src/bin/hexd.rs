@@ -27,7 +27,7 @@ fn line_print(off: usize, line: &[u8]) {
             print!(".");
         }
     }
-    println!("");
+    println!();
 }
 
 fn do_hexd<F: Read>(mut fd: F) -> Result<(), io::Error> {
@@ -53,7 +53,7 @@ fn main() -> i32 {
 
     if args.len() == 1 {
         if let Err(e) = do_hexd(io::stdin()) {
-            eprintln!("{}: {:?}", ".", e);
+            eprintln!(".: {:?}", e);
             res = -1;
         }
     } else {

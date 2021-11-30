@@ -8,7 +8,8 @@ macro_rules! print {
 
 #[macro_export]
 macro_rules! println {
-    ($($args:tt)+) => (print!("{}\n", format_args!($($args)+)))
+    ($($args:tt)+) => (print!("{}\n", format_args!($($args)+)));
+    () => (print!("\n"));
 }
 
 #[macro_export]
@@ -18,7 +19,8 @@ macro_rules! eprint {
 
 #[macro_export]
 macro_rules! eprintln {
-    ($($args:tt)+) => (eprint!("{}\n", format_args!($($args)+)))
+    ($($args:tt)+) => (eprint!("{}\n", format_args!($($args)+)));
+    () => (eprint!("\n"));
 }
 
 pub fn _print<T: Write>(out: fn() -> T, args: fmt::Arguments) {

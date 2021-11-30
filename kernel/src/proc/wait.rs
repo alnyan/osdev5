@@ -83,8 +83,12 @@ pub fn select(
     }
     let read = rfds.as_deref().map(FdSet::clone);
     let write = wfds.as_deref().map(FdSet::clone);
-    rfds.as_deref_mut().map(FdSet::reset);
-    wfds.as_deref_mut().map(FdSet::reset);
+    if let Some(rfds) = &mut rfds {
+        rfds.reset();
+    }
+    if let Some(wfds) = &mut wfds {
+        wfds.reset();
+    }
 
     let deadline = timeout.map(|v| v + machine::local_timer().timestamp().unwrap());
     let proc = thread.owner().unwrap();
