@@ -56,8 +56,7 @@ fn find_at_node<T: DerefMut<Target = ProcessIo>>(
     }
 }
 
-/// Main system call dispatcher function
-pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
+fn _syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
     match num {
         // I/O
         SystemCall::Read => {
@@ -448,4 +447,15 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
         // Handled elsewhere
         SystemCall::Fork => unreachable!(),
     }
+}
+
+/// Main system call dispatcher function
+pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
+    let thread = Thread::current();
+    let process = thread.owner().unwrap();
+    let result = _syscall(num, args);
+    if !thread.is_handling_signal() {
+        process.handle_pending_signals();
+    }
+    result
 }

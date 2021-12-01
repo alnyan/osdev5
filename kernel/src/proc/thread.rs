@@ -61,6 +61,11 @@ impl Thread {
         SCHED.current_thread()
     }
 
+    /// Returns `true` if the thread is currently executing a signal handler context
+    pub fn is_handling_signal(&self) -> bool {
+        self.signal_pending.load(Ordering::Acquire) != 0
+    }
+
     /// Returns a reference to thread `tid`, if it exists
     #[inline]
     pub fn get(tid: Tid) -> Option<ThreadRef> {

@@ -146,6 +146,33 @@ impl Process {
         PROCESSES.lock().get(&pid).cloned()
     }
 
+    fn find1(a: u32) -> Option<usize> {
+        for i in 0..32 {
+            if a & (1 << i) != 0 {
+                return Some(i);
+            }
+        }
+        None
+    }
+
+    /// Handles all pending signals (when returning from aborted syscall)
+    pub fn handle_pending_signals(&self) {
+        let mut lock = self.inner.lock();
+        let ttbr0 = lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48);
+        let main_thread = Thread::get(lock.threads[0]).unwrap();
+        drop(lock);
+
+        loop {
+            let state = self.signal_state.load(Ordering::Acquire);
+            if let Some(signal) = Self::find1(state).map(|e| Signal::try_from(e as u32).unwrap()) {
+                self.signal_state.fetch_and(!(1 << (signal as u32)), Ordering::Release);
+                main_thread.clone().enter_signal(signal, ttbr0);
+            } else {
+                break;
+            }
+        }
+    }
+
     /// Sets a pending signal for a process
     pub fn set_signal(&self, signal: Signal) {
         let mut lock = self.inner.lock();
@@ -162,7 +189,7 @@ impl Process {
                 main_thread.enter_signal(signal, ttbr0);
             }
             ThreadState::Waiting => {
-                main_thread.clone().setup_signal(signal, ttbr0);
+                self.signal_state.fetch_or(1 << (signal as u32), Ordering::Release);
                 main_thread.interrupt_wait(true);
             }
             ThreadState::Ready => {
@@ -180,6 +207,7 @@ impl Process {
     pub fn enter_fault_signal(&self, thread: ThreadRef, signal: Signal) {
         let mut lock = self.inner.lock();
         let ttbr0 = lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48);
+        drop(lock);
         thread.enter_signal(signal, ttbr0);
     }
 
@@ -249,7 +277,11 @@ impl Process {
         lock.state = ProcessState::Finished;
 
         for &tid in lock.threads.iter() {
-            Thread::get(tid).unwrap().terminate(status);
+            let thread = Thread::get(tid).unwrap();
+            if thread.state() == ThreadState::Waiting {
+                todo!()
+            }
+            thread.terminate(status);
             SCHED.dequeue(tid);
         }
 
