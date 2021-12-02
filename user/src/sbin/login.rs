@@ -14,7 +14,8 @@ use libsys::{
     stat::{FileDescriptor, FileMode, GroupId, OpenFlags, UserId},
     termios::{Termios, TermiosLflag},
 };
-use libusr::{env, io};
+use libusr::{env::{self, UserInfo, UserShadow}, io};
+use core::str::FromStr;
 
 struct HiddenInput {
     fd: FileDescriptor,
@@ -73,7 +74,7 @@ fn readline(fd: FileDescriptor, buf: &mut [u8]) -> Result<&str, Errno> {
     }
 }
 
-fn login_as(uid: UserId, gid: GroupId, shell: &str) -> Result<(), Errno> {
+fn login(uid: UserId, gid: GroupId, shell: &str) -> Result<(), Errno> {
     if let Some(pid) = unsafe { sys_fork() }? {
         let mut status = 0;
         sys_waitpid(pid, &mut status).ok();
@@ -88,6 +89,11 @@ fn login_as(uid: UserId, gid: GroupId, shell: &str) -> Result<(), Errno> {
         sys_execve(shell, &[shell]).expect("execve() failed");
         panic!();
     }
+}
+
+fn login_as(name: &str) -> Result<(), Errno> {
+    let ent = UserInfo::by_name(name).map_err(|_| Errno::DoesNotExist)?;
+    login(ent.uid(), ent.gid(), ent.shell())
 }
 
 // TODO baud rate and misc port settings
@@ -132,15 +138,26 @@ fn main() -> i32 {
     loop {
         print!("login: ");
         let username = readline(FileDescriptor::STDIN, &mut user_buf).expect("Login read failed");
-        print!("password: ");
-        let password = {
-            let mut input = HiddenInput::open(FileDescriptor::STDIN).unwrap();
-            input.readline(&mut password_buf)
-        }
-        .expect("Password read failed");
 
-        if username == "root" && password == "toor" {
-            login_as(UserId::from(0), GroupId::from(0), "/bin/shell").unwrap();
+        let shadow = match UserShadow::by_name(username) {
+            Ok(e) => e,
+            Err(_) => continue
+        };
+
+        if !shadow.password().is_empty() {
+            print!("password: ");
+            let password = {
+                let mut input = HiddenInput::open(FileDescriptor::STDIN).unwrap();
+                input.readline(&mut password_buf)
+            }
+            .expect("Password read failed");
+
+            if password != shadow.password() {
+                eprintln!("Incorrect password");
+                continue;
+            }
         }
+
+        login_as(username);
     }
 }

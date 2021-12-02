@@ -42,3 +42,27 @@ pub fn stat(pathname: &str) -> Result<Stat, Error> {
     sys_fstatat(None, pathname, &mut buf, 0).unwrap();
     Ok(buf)
 }
+
+// TODO use BufRead instead once it's implemented
+pub(crate) fn read_line<'a, F: Read>(f: &mut F, buf: &'a mut [u8]) -> Result<Option<&'a str>, ()> {
+    let mut pos = 0;
+    loop {
+        if pos == buf.len() {
+            return Err(());
+        }
+
+        let count = f.read(&mut buf[pos..=pos]).map_err(|_| ())?;
+        if count == 0 {
+            if pos == 0 {
+                return Ok(None);
+            }
+            break;
+        }
+        if buf[pos] == b'\n' {
+            break;
+        }
+
+        pos += 1;
+    }
+    core::str::from_utf8(&buf[..pos]).map_err(|_| ()).map(Some)
+}

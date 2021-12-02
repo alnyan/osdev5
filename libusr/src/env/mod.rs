@@ -1,6 +1,14 @@
-use libsys::{debug::TraceLevel, ProgramArgs};
-use alloc::vec::Vec;
 use crate::trace;
+use alloc::vec::Vec;
+use libsys::{
+    debug::TraceLevel,
+    ProgramArgs,
+};
+
+mod passwd;
+pub use passwd::UserInfo;
+mod shadow;
+pub use shadow::UserShadow;
 
 static mut PROGRAM_ARGS: Vec<&'static str> = Vec::new();
 
