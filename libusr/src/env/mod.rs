@@ -25,5 +25,6 @@ pub(crate) unsafe fn setup_env(arg: &ProgramArgs) {
         PROGRAM_ARGS.push(string);
     }
 
+    #[cfg(feature = "verbose")]
     trace!(TraceLevel::Debug, "args = {:?}", PROGRAM_ARGS);
 }

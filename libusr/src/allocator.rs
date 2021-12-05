@@ -82,6 +82,7 @@ impl Zone {
             MemoryAccess::READ | MemoryAccess::WRITE,
             MemoryMap::ANONYMOUS | MemoryMap::PRIVATE,
         )?;
+        #[cfg(feature = "verbose")]
         trace_debug!("Zone::alloc({}) => {:#x}", size, pages);
 
         let zone_ptr = pages as *mut Zone;
@@ -101,6 +102,7 @@ impl Zone {
     }
 
     unsafe fn free(zone: *mut Self) {
+        #[cfg(feature = "verbose")]
         trace_debug!("Zone::free({:p})", zone);
         sys_munmap(zone as usize, (*zone).size + size_of::<Zone>())
             .expect("Failed to unmap heap pages");
@@ -183,6 +185,7 @@ unsafe impl GlobalAlloc for Allocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         assert!(layout.align() < 16);
         let size = (layout.size() + 15) & !15;
+        #[cfg(feature = "verbose")]
         trace_debug!("alloc({:?})", layout);
         if size <= SMALL_ZONE_ELEM {
             alloc_from(SMALL_ZONE_LIST.assume_init_mut(), SMALL_ZONE_SIZE, size)
@@ -196,6 +199,7 @@ unsafe impl GlobalAlloc for Allocator {
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        #[cfg(feature = "verbose")]
         trace_debug!("free({:p}, {:?})", ptr, layout);
         assert!(!ptr.is_null());
         let mut block = ptr.sub(size_of::<Block>()) as *mut Block;
