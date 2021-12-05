@@ -8,7 +8,7 @@ use crate::mem::{
 use crate::proc::{
     wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, PROCESSES, SCHED, Tid,
 };
-use crate::sync::IrqSafeSpinLock;
+use crate::sync::{IrqSafeSpinLock};
 use alloc::{rc::Rc, vec::Vec};
 use core::sync::atomic::{AtomicU32, Ordering};
 use libsys::{
@@ -217,6 +217,7 @@ impl Process {
 
         let space_phys = lock.space.as_mut().unwrap().address_phys();
         let ttbr0 = space_phys | ((lock.id.asid() as usize) << 48);
+        debugln!("New user thread for {:?}, asid={:#x}", lock.id, lock.id.asid());
 
         let thread = Thread::new_user(lock.id, entry, stack, arg, ttbr0)?;
         let tid = thread.id();
@@ -236,6 +237,7 @@ impl Process {
         let dst_space = src_inner.space.as_mut().unwrap().fork()?;
         let dst_space_phys = (dst_space as *mut _ as usize) - mem::KERNEL_OFFSET;
         let dst_ttbr0 = dst_space_phys | ((dst_id.asid() as usize) << 48);
+        debugln!("New TTBR0 for {:?}, asid={:#x}", dst_id, dst_id.asid());
 
         let mut threads = Vec::new();
         let tid = Thread::fork(Some(dst_id), frame, dst_ttbr0)?.id();
@@ -288,7 +290,7 @@ impl Process {
         if let Some(space) = lock.space.take() {
             unsafe {
                 Space::release(space);
-                asm!("tlbi aside1, {}", in(reg) ((lock.id.asid() as usize) << 48));
+                Process::invalidate_asid((lock.id.asid() as usize) << 48);
             }
         }
 
@@ -460,6 +462,21 @@ impl Process {
         Ok(base + offset)
     }
 
+    pub fn asid(&self) -> usize {
+        (self.id().asid() as usize) << 48
+    }
+
+    pub fn invalidate_tlb(&self) {
+        Process::invalidate_asid(self.asid());
+    }
+
+    #[inline]
+    pub fn invalidate_asid(asid: usize) {
+        unsafe {
+            asm!("tlbi aside1, {}", in(reg) asid);
+        }
+    }
+
     /// Loads a new program into current process address space
     pub fn execve<F: FnOnce(&mut Space) -> Result<usize, Errno>>(
         loader: F,
@@ -525,7 +542,7 @@ impl Process {
             // TODO drop old context
             let ctx = thread.ctx.get();
             let asid = (process_lock.id.asid() as usize) << 48;
-            asm!("tlbi aside1, {}", in(reg) asid);
+            Process::invalidate_asid(asid);
 
             ctx.write(Context::user(
                 entry,

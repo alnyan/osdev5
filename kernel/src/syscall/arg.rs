@@ -122,6 +122,7 @@ pub fn validate_ptr(base: usize, len: usize, write: bool) -> Result<(), Errno> {
     }
 
     let process = Process::current();
+    let asid = process.asid();
 
     for i in (base / mem::PAGE_SIZE)..((base + len + mem::PAGE_SIZE - 1) / mem::PAGE_SIZE) {
         if !is_el0_accessible(i * mem::PAGE_SIZE, write) {
@@ -129,7 +130,9 @@ pub fn validate_ptr(base: usize, len: usize, write: bool) -> Result<(), Errno> {
             // a write access
             let res = if write {
                 process.manipulate_space(|space| {
-                    space.try_cow_copy(i * mem::PAGE_SIZE)
+                    space.try_cow_copy(i * mem::PAGE_SIZE)?;
+                    Process::invalidate_asid(asid);
+                    Ok(())
                 })
             } else {
                 Err(Errno::DoesNotExist)

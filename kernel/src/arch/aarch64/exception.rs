@@ -4,10 +4,10 @@ use crate::arch::machine;
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
 use crate::mem;
-use crate::proc::{sched, Thread};
+use crate::proc::{sched, Process, Thread};
 use crate::syscall;
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
-use libsys::{abi::SystemCall, signal::Signal};
+use libsys::{abi::SystemCall, signal::Signal, error::Errno};
 use tock_registers::interfaces::Readable;
 
 /// Trapped SIMD/FP functionality
@@ -93,22 +93,19 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
             if iss & (1 << 6) != 0 && far < mem::KERNEL_OFFSET && sched::is_ready() {
                 let thread = Thread::current();
                 let proc = thread.owner().unwrap();
+                let asid = proc.asid();
 
-                if proc
-                    .manipulate_space(|space| space.try_cow_copy(far))
-                    .is_err()
-                {
+                let res = proc.manipulate_space(|space| {
+                    space.try_cow_copy(far)?;
+                    Process::invalidate_asid(asid);
+                    Result::<(), Errno>::Ok(())
+                });
+
+                if res.is_err() {
                     // Kill program
                     errorln!("Data abort from {:#x}", exc.elr_el1);
                     dump_data_abort(Level::Error, esr, far as u64);
                     proc.enter_fault_signal(thread, Signal::SegmentationFault);
-                }
-
-                unsafe {
-                    use cortex_a::registers::TTBR0_EL1;
-                    let ttbr = TTBR0_EL1.get() as usize;
-                    let asid = (ttbr >> 48) & 0xFF;
-                    asm!("tlbi aside1, {}", in(reg) (asid << 48));
                 }
 
                 return;
