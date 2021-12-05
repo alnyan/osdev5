@@ -96,4 +96,4 @@ static UART0: Uart = unsafe { Uart::new(UART0_BASE, IrqNumber::new(32)) };
 static LOCAL_TIMER: GenericTimer = GenericTimer::new(LOCAL_TIMER_IRQ);
 pub(super) static GPIO: Gpio = unsafe { Gpio::new(PIO_BASE) };
 static RTC: Rtc = unsafe { Rtc::new(RTC_BASE, RTC_IRQ) };
-static GIC: Gic = unsafe { Gic::new(GICD_BASE, GICC_BASE, LOCAL_TIMER_IRQ) };
+static GIC: Gic = unsafe { Gic::new(GICD_BASE, GICC_BASE) };
