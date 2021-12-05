@@ -50,9 +50,11 @@ impl IntSource for GenericTimer {
 
 impl TimestampSource for GenericTimer {
     fn timestamp(&self) -> Result<Duration, Errno> {
-        let cnt = CNTPCT_EL0.get() * 1_000_000_000;
-        let frq = CNTFRQ_EL0.get();
-        Ok(Duration::from_nanos(cnt / frq))
+        let cnt = (CNTPCT_EL0.get() as u128) * 1_000_000_000u128;
+        let frq = CNTFRQ_EL0.get() as u128;
+        let secs = ((cnt / frq) / 1_000_000_000) as u64;
+        let nanos = ((cnt / frq) % 1_000_000_000) as u32;
+        Ok(Duration::new(secs, nanos))
     }
 }
 
