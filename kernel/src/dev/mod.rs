@@ -11,6 +11,7 @@ pub mod rtc;
 pub mod sd;
 pub mod serial;
 pub mod timer;
+pub mod pseudo;
 pub mod tty;
 
 /// Generic device trait

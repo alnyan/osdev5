@@ -26,7 +26,7 @@ pub fn root() -> &'static VnodeRef {
     DEVFS_ROOT.get()
 }
 
-fn _add_char_device(dev: &'static dyn CharDevice, name: &str) -> Result<(), Errno> {
+pub fn add_named_char_device(dev: &'static dyn CharDevice, name: &str) -> Result<(), Errno> {
     infoln!("Add char device: {}", name);
 
     let node = Vnode::new(name, VnodeKind::Char, Vnode::CACHE_STAT);
@@ -56,5 +56,5 @@ pub fn add_char_device(dev: &'static dyn CharDevice, kind: CharDeviceType) -> Re
 
     let name = core::str::from_utf8(&buf[..=prefix.len()]).map_err(|_| Errno::InvalidArgument)?;
 
-    _add_char_device(dev, name)
+    add_named_char_device(dev, name)
 }

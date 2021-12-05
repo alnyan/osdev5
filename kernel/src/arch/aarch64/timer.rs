@@ -1,7 +1,9 @@
 //! ARM generic timer implementation
 
 use crate::arch::machine::{self, IrqNumber};
+use crate::proc;
 use crate::dev::{
+    pseudo,
     irq::{IntController, IntSource},
     timer::TimestampSource,
     Device,
@@ -34,9 +36,9 @@ impl IntSource for GenericTimer {
     fn handle_irq(&self) -> Result<(), Errno> {
         CNTP_TVAL_EL0.set(TIMER_TICK);
         CNTP_CTL_EL0.write(CNTP_CTL_EL0::ENABLE::SET);
-        use crate::proc;
         proc::wait::tick();
         proc::switch();
+        pseudo::RANDOM.set_state(CNTPCT_EL0.get() as u32);
         Ok(())
     }
 

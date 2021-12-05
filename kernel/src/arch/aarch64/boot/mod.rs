@@ -11,6 +11,7 @@ use crate::dev::{
     Device,
 };
 use crate::fs::devfs;
+use crate::dev::pseudo;
 use libsys::error::Errno;
 //use crate::debug::Level;
 use crate::mem::{
@@ -23,21 +24,15 @@ use cortex_a::asm::barrier::{self, dsb, isb};
 use cortex_a::registers::{SCTLR_EL1, VBAR_EL1};
 use tock_registers::interfaces::{ReadWriteable, Writeable};
 
-fn init_device_tree(fdt_base_phys: usize) -> Result<(), Errno> {
+fn init_device_tree(fdt_base_phys: usize) -> Result<Option<DeviceTree>, Errno> {
     use fdt_rs::prelude::*;
 
     let fdt = if fdt_base_phys != 0 {
         DeviceTree::from_phys(fdt_base_phys + 0xFFFFFF8000000000)?
     } else {
         warnln!("No FDT present");
-        return Ok(());
+        return Ok(None);
     };
-
-    #[cfg(feature = "verbose")]
-    {
-        use crate::debug::Level;
-        fdt.dump(Level::Debug);
-    }
 
     let mut cfg = CONFIG.lock();
 
@@ -56,7 +51,7 @@ fn init_device_tree(fdt_base_phys: usize) -> Result<(), Errno> {
         }
     }
 
-    Ok(())
+    Ok(Some(fdt))
 }
 
 #[no_mangle]
@@ -87,7 +82,7 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
     // Enable MMU
     virt::enable().expect("Failed to initialize virtual memory");
 
-    init_device_tree(fdt_base).expect("Device tree init failed");
+    let fdt = init_device_tree(fdt_base).expect("Device tree init failed");
 
     // Most basic machine init: initialize proper debug output
     // physical memory
@@ -104,6 +99,15 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
     devfs::init();
 
     machine::init_board().unwrap();
+
+    #[cfg(feature = "verbose")]
+    if let Some(fdt) = fdt {
+        use crate::debug::Level;
+        fdt.dump(Level::Debug);
+    }
+
+    devfs::add_named_char_device(&pseudo::ZERO, "zero").unwrap();
+    devfs::add_named_char_device(&pseudo::RANDOM, "random").unwrap();
 
     infoln!("Machine init finished");
 
