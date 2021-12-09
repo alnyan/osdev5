@@ -10,7 +10,7 @@ use crate::dev::{
     irq::IntSource,
     Device,
 };
-use crate::fs::devfs;
+use crate::fs::{devfs, sysfs};
 use crate::dev::pseudo;
 use libsys::error::Errno;
 //use crate::debug::Level;
@@ -97,6 +97,7 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
     }
 
     devfs::init();
+    sysfs::init();
 
     machine::init_board().unwrap();
 

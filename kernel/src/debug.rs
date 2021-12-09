@@ -12,20 +12,39 @@
 //! * [errorln!]
 
 use crate::dev::serial::SerialDevice;
-use libsys::debug::TraceLevel;
+use libsys::{debug::TraceLevel, error::Errno};
+use core::convert::TryFrom;
 use core::fmt;
 
+pub static LEVEL: Level = Level::Debug;
+
 /// Kernel logging levels
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[repr(u32)]
 pub enum Level {
     /// Debugging information
-    Debug,
+    Debug = 1,
     /// General informational messages
-    Info,
+    Info = 2,
     /// Non-critical warnings
-    Warn,
+    Warn = 3,
     /// Critical errors
-    Error,
+    Error = 4,
+}
+
+impl TryFrom<u32> for Level {
+    type Error = Errno;
+
+    #[inline(always)]
+    fn try_from(l: u32) -> Result<Level, Errno> {
+        match l {
+            1 => Ok(Level::Debug),
+            2 => Ok(Level::Info),
+            3 => Ok(Level::Warn),
+            4 => Ok(Level::Error),
+            _ => Err(Errno::InvalidArgument)
+        }
+    }
 }
 
 impl From<TraceLevel> for Level {
@@ -114,13 +133,15 @@ macro_rules! errorln {
 }
 
 #[doc(hidden)]
-pub fn _debug(_level: Level, args: fmt::Arguments) {
+pub fn _debug(level: Level, args: fmt::Arguments) {
     use crate::arch::machine;
     use fmt::Write;
 
-    SerialOutput {
-        inner: machine::console(),
+    if level >= LEVEL {
+        SerialOutput {
+            inner: machine::console(),
+        }
+        .write_fmt(args)
+        .ok();
     }
-    .write_fmt(args)
-    .ok();
 }

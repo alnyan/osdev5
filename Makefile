@@ -92,10 +92,11 @@ initrd:
 		--target=../etc/$(ARCH)-osdev5.json \
 		-Z build-std=core,alloc,compiler_builtins \
 		$(CARGO_COMMON_OPTS)
-	mkdir -p $(O)/rootfs/bin $(O)/rootfs/sbin $(O)/rootfs/dev $(O)/rootfs/etc
+	mkdir -p $(O)/rootfs/bin $(O)/rootfs/sbin $(O)/rootfs/dev $(O)/rootfs/etc $(O)/rootfs/sys
 	cp etc/initrd/passwd $(O)/rootfs/etc
 	cp etc/initrd/shadow $(O)/rootfs/etc
-	touch $(O)/rootfs/dev/.do_no_remove
+	touch $(O)/rootfs/dev/.do_not_remove
+	touch $(O)/rootfs/sys/.do_not_remove
 	cp target/$(ARCH)-osdev5/$(PROFILE)/init $(O)/rootfs/init
 	cp target/$(ARCH)-osdev5/$(PROFILE)/shell $(O)/rootfs/bin
 	cp target/$(ARCH)-osdev5/$(PROFILE)/fuzzy $(O)/rootfs/bin

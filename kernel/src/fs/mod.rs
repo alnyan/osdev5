@@ -8,6 +8,7 @@ use vfs::VnodeRef;
 use memfs::BlockAllocator;
 
 pub mod devfs;
+pub mod sysfs;
 
 /// Allocator implementation for memfs
 #[derive(Clone, Copy)]
@@ -32,9 +33,9 @@ unsafe impl BlockAllocator for MemfsBlockAlloc {
 pub fn create_filesystem(options: &MountOptions) -> Result<VnodeRef, Errno> {
     let fs_name = options.fs.unwrap();
 
-    if fs_name == "devfs" {
-        Ok(devfs::root().clone())
-    } else {
-        todo!();
+    match fs_name {
+        "devfs" => Ok(devfs::root().clone()),
+        "sysfs" => Ok(sysfs::root().clone()),
+        _ => todo!()
     }
 }

@@ -17,6 +17,14 @@ fn main() -> i32 {
         },
     )
     .expect("Failed to mount devfs");
+    sys_mount(
+        "/sys",
+        &MountOptions {
+            device: None,
+            fs: Some("sysfs"),
+        },
+    )
+    .expect("Failed to mount sysfs");
 
     if let Some(pid) = unsafe { sys_fork().unwrap() } {
         let mut status = 0;

@@ -93,6 +93,7 @@ dependencies = [
  "cfg-if",
  "cortex-a",
  "fdt-rs",
+ "fs-macros",
  "kernel-macros",
  "libsys",
  "memfs",
