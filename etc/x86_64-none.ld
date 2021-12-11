@@ -6,7 +6,8 @@ SECTIONS {
     . = 0x400000 + KERNEL_OFFSET;
 
     .text : AT(. - KERNEL_OFFSET) {
-        KEEP(*(.multiboot))
+        KEEP(*(.text._multiboot))
+        *(.text._entry)
         *(.text*)
     }
 

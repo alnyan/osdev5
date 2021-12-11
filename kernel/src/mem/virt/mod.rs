@@ -2,10 +2,7 @@
 
 use core::marker::PhantomData;
 use core::ops::Deref;
-use cortex_a::asm::barrier::{self, dsb, isb};
-use cortex_a::registers::TTBR0_EL1;
 use libsys::{mem::memcpy, error::Errno};
-use tock_registers::interfaces::Writeable;
 use crate::mem::{self, phys::{self, PageUsage}};
 
 pub mod table;
@@ -89,15 +86,18 @@ impl<T> Deref for DeviceMemoryIo<T> {
 /// identity-mapped translation
 pub fn enable() -> Result<(), Errno> {
     unsafe {
-        virt_impl::init_device_map();
-
-        dsb(barrier::ISH);
-        isb(barrier::SY);
+        virt_impl::enable();
     }
+    // unsafe {
+    //     virt_impl::init_device_map();
 
-    // Disable lower-half translation
-    TTBR0_EL1.set(0);
-    //TCR_EL1.modify(TCR_EL1::EPD0::SET);
+    //     dsb(barrier::ISH);
+    //     isb(barrier::SY);
+    // }
+
+    // // Disable lower-half translation
+    // TTBR0_EL1.set(0);
+    // //TCR_EL1.modify(TCR_EL1::EPD0::SET);
 
     Ok(())
 }

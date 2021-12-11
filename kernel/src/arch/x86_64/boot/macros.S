@@ -1,0 +1,7 @@
+.set KERNEL_OFFSET,     0xFFFFFF8000000000
+
+.set PTE_PRESENT,   1 << 0
+.set PTE_WRITABLE,  1 << 1
+.set PTE_USERSPACE, 1 << 2
+.set PTE_BLOCK,     1 << 7
+

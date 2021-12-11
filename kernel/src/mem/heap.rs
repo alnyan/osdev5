@@ -59,7 +59,7 @@ static HEAP: InitOnce<IrqSafeSpinLock<Heap>> = InitOnce::new();
 pub unsafe fn init(base: usize, size: usize) {
     let heap = Heap { base, size, ptr: 0 };
 
-    infoln!("Kernel heap: {:#x}..{:#x}", base, base + size);
+    // infoln!("Kernel heap: {:#x}..{:#x}", base, base + size);
 
     HEAP.init(IrqSafeSpinLock::new(heap));
 }

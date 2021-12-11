@@ -7,9 +7,9 @@
     const_trait_impl,
     panic_info_message,
     alloc_error_handler,
-    linked_list_cursors,
-    const_btree_new,
-    asm_const
+    asm_const,
+    core_intrinsics,
+    const_generics_defaults,
 )]
 #![no_std]
 #![no_main]
@@ -21,20 +21,20 @@ extern crate kernel_macros;
 extern crate cfg_if;
 #[macro_use]
 extern crate bitflags;
-extern crate alloc;
+// extern crate alloc;
 
 #[macro_use]
 pub mod debug;
-
+//
 pub mod arch;
 pub mod config;
 pub mod dev;
-pub mod fs;
-pub mod init;
+// pub mod fs;
+// pub mod init;
 pub mod mem;
-pub mod proc;
+// pub mod proc;
 pub mod sync;
-pub mod syscall;
+// pub mod syscall;
 pub mod util;
 
 #[panic_handler]
@@ -43,7 +43,7 @@ fn panic_handler(pi: &core::panic::PanicInfo) -> ! {
         arch::intrin::irq_disable();
     }
 
-    errorln!("Panic: {:?}", pi);
+    // errorln!("Panic: {:?}", pi);
     // TODO
     loop {}
 }

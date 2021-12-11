@@ -38,7 +38,7 @@ impl<T> IrqSafeSpinLock<T> {
     #[inline(always)]
     unsafe fn force_release(&self) {
         self.state.store(false, Ordering::Release);
-        cortex_a::asm::sev();
+        // cortex_a::asm::sev();
     }
 
     /// Returns [IrqSafeSpinLockGuard] for this lock
@@ -47,7 +47,7 @@ impl<T> IrqSafeSpinLock<T> {
         let irq_state = unsafe { irq_mask_save() };
 
         while self.try_lock().is_err() {
-            cortex_a::asm::wfe();
+            // cortex_a::asm::wfe();
         }
 
         IrqSafeSpinLockGuard {

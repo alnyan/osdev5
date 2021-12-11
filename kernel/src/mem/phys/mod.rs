@@ -209,7 +209,7 @@ pub unsafe fn init_from_iter<T: Iterator<Item = MemoryRegion> + Clone>(iter: T) 
             mem_base = reg.start;
         }
     }
-    infoln!("Memory base is {:#x}", mem_base);
+    // infoln!("Memory base is {:#x}", mem_base);
     // Step 1. Count available memory
     let mut total_pages = 0usize;
     for reg in iter.clone() {
@@ -238,7 +238,7 @@ pub unsafe fn init_from_iter<T: Iterator<Item = MemoryRegion> + Clone>(iter: T) 
             }
         }
     }
-    infoln!("{}K of usable physical memory", usable_pages * 4);
+    // infoln!("{}K of usable physical memory", usable_pages * 4);
     *MANAGER.lock() = Some(manager);
 }
 

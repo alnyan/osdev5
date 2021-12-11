@@ -15,13 +15,13 @@ memfs = { path = "../fs/memfs" }
 libsys = { path = "../libsys" }
 cfg-if = "1.x.x"
 tock-registers = "0.7.x"
-fdt-rs = { version = "0.x.x", default-features = false }
 bitflags = "^1.3.0"
 kernel-macros = { path = "macros" }
 fs-macros = { path = "../fs/macros" }
 
 [target.'cfg(target_arch = "aarch64")'.dependencies]
 cortex-a = { version = "7.0.x" }
+fdt-rs = { version = "0.x.x", default-features = false }
 
 [features]
 default = ["aggressive_syscall"]

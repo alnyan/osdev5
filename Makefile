@@ -29,7 +29,14 @@ endif
 
 QEMU_OPTS=-s
 ifeq ($(ARCH),x86_64)
-$(error TODO)
+MACH=none
+QEMU_OPTS+=-cdrom $(O)/image.iso \
+		   -M q35,accel=kvm \
+		   -cpu host \
+		   -enable-kvm \
+		   -m 512 \
+		   -serial mon:stdio \
+		   -net none
 else
 ifeq ($(MACH),qemu)
 QEMU_OPTS+=-kernel $(O)/kernel.bin \
@@ -66,10 +73,16 @@ endif
 
 .PHONY: address error etc kernel src
 
-all: kernel initrd
+all: kernel
 
 kernel:
 	cd kernel && cargo build $(CARGO_BUILD_OPTS)
+ifeq ($(ARCH),x86_64)
+	mkdir -p $(O)/image/boot/grub
+	cp etc/x86_64-none.grub $(O)/image/boot/grub/grub.cfg
+	cp $(O)/kernel $(O)/image/boot/kernel
+	grub-mkrescue -o $(O)/image.iso $(O)/image
+endif
 ifeq ($(ARCH),aarch64)
 	$(LLVM_BASE)/llvm-strip -o $(O)/kernel.strip $(O)/kernel
 	$(LLVM_BASE)/llvm-size $(O)/kernel.strip
