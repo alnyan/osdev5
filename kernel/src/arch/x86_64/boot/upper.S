@@ -2,57 +2,48 @@
 
 .section .text._entry
 __x86_64_enter_upper:
-    // Setup paging table
-    mov $(PTE_PRESENT | PTE_BLOCK | PTE_WRITABLE | PTE_USERSPACE), %eax
-    // Fill PD0: 0..1GiB
-    lea (KERNEL_PD0 - KERNEL_OFFSET), %edi
-    mov $512, %ecx
-1:
-    dec %ecx
-
-    mov %ecx, %edx
-    shl $21, %edx
-    or %eax, %edx
-
-    mov %edx, (%edi, %ecx, 8)
-
-    test %ecx, %ecx
-    jnz 1b
-
-    // Fill PD1: 1GiB..2GiB
-    lea (KERNEL_PD1 - KERNEL_OFFSET), %edi
-    mov $512, %ecx
-1:
-    dec %ecx
-
-    mov %ecx, %edx
-    add $512, %edx
-    shl $21, %edx
-    or %eax, %edx
-
-    mov %edx, (%edi, %ecx, 8)
-
-    test %ecx, %ecx
-    jnz 1b
+    mov $(PTE_PRESENT | PTE_WRITABLE | PTE_USERSPACE), %edx
+    // Setup PML4
+    lea (KERNEL_FIXED - KERNEL_OFFSET), %edi
+    lea (KERNEL_FIXED + 4096 - KERNEL_OFFSET), %esi
+    mov %edx, %eax
+    or %esi, %eax
+    //  pml4[0] = %eax
+    mov %eax, (%edi)
+    //  pml4[511] = %eax
+    mov %eax, 4088(%edi)
 
     // Setup PDPT
-    mov $(PTE_PRESENT | PTE_WRITABLE | PTE_USERSPACE), %eax
-    lea (KERNEL_PDPT - KERNEL_OFFSET), %edi
+    mov %esi, %edi
+    lea (KERNEL_FIXED + 8192 - KERNEL_OFFSET), %esi
+    xor %ecx, %ecx
+1:
+    // %eax = &table[%ecx] | attrs
+    mov %esi, %eax
+    or %edx, %eax
+    mov %eax, (%edi, %ecx, 8)
 
-    lea (KERNEL_PD0 - KERNEL_OFFSET), %esi
-    or %eax, %esi
-    mov %esi, (%edi)
+    add $4096, %esi
+    inc %ecx
+    cmp $16, %ecx
+    jne 1b
 
-    lea (KERNEL_PD1 - KERNEL_OFFSET), %esi
-    or %eax, %esi
-    mov %esi, 8(%edi)
+    // Setup PDs
+    lea (KERNEL_FIXED + 8192 - KERNEL_OFFSET), %edi
+    mov $(PTE_PRESENT | PTE_BLOCK | PTE_WRITABLE), %edx
+    mov $(512 * 16), %ecx
+1:
+    dec %ecx
 
-    // Setup PML4
-    lea (KERNEL_PML4 - KERNEL_OFFSET), %edi
-    lea (KERNEL_PDPT - KERNEL_OFFSET), %esi
-    or %eax, %esi
-    mov %esi, (%edi)
-    mov %esi, 4088(%edi)
+    // %eax = attrs | (i << 21)
+    mov %ecx, %eax
+    shl $21, %eax
+    or %edx, %eax
+
+    mov %eax, (%edi, %ecx, 8)
+
+    test %ecx, %ecx
+    jnz 1b
 
     // Enable PAE/PSE
     mov %cr4, %eax
@@ -66,6 +57,7 @@ __x86_64_enter_upper:
     wrmsr
 
     // Set CR3
+    lea (KERNEL_FIXED - KERNEL_OFFSET), %edi
     mov %edi, %cr3
 
     // Enable paging

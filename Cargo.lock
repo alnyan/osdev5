@@ -97,6 +97,7 @@ dependencies = [
  "kernel-macros",
  "libsys",
  "memfs",
+ "multiboot2",
  "tock-registers",
  "vfs",
 ]
@@ -160,6 +161,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59accc507f1338036a0477ef61afdae33cde60840f4dfe481319ce3ad116ddf9"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "multiboot2"
+version = "0.12.2"
+source = "git+https://github.com/alnyan/multiboot2?branch=expose-extra-traits-for-iters#7e86b55fa5ab82e54978021f8022068a1591166b"
+dependencies = [
+ "bitflags",
 ]
 
 [[package]]

@@ -22,5 +22,8 @@ SECTIONS {
     .bss : AT(. - KERNEL_OFFSET) {
         *(COMMON)
         *(.bss*)
+        . = ALIGN(4K);
     }
+
+    PROVIDE(__kernel_end = .);
 }

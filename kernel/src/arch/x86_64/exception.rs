@@ -1,5 +1,7 @@
 use core::arch::asm;
+use crate::arch::x86_64;
 use crate::debug::Level;
+use crate::dev::irq::{IrqContext, IntController};
 
 #[derive(Debug)]
 struct ExceptionFrame {
@@ -68,4 +70,12 @@ extern "C" fn __x86_64_exception_handler(frame: &mut ExceptionFrame) {
     errorln!("ss:rsp = {:02x}:{:#x}", frame.ss, frame.rsp);
 
     panic!("Unhandled exception");
+}
+
+#[no_mangle]
+extern "C" fn __x86_64_irq_handler(frame: &mut ExceptionFrame) {
+    unsafe {
+        let ic = IrqContext::new(frame.err_no as usize);
+        x86_64::intc().handle_pending_irqs(&ic);
+    }
 }

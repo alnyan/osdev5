@@ -12,6 +12,7 @@ use super::RawAttributesImpl;
 #[repr(transparent)]
 pub struct EntryImpl(u64);
 
+#[derive(Clone, Copy)]
 #[repr(C, align(0x1000))]
 pub struct TableImpl {
     entries: [EntryImpl; 512],
@@ -141,12 +142,12 @@ impl Index<usize> for TableImpl {
     type Output = EntryImpl;
 
     fn index(&self, index: usize) -> &Self::Output {
-        todo!()
+        &self.entries[index]
     }
 }
 
 impl IndexMut<usize> for TableImpl {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        todo!()
+        &mut self.entries[index]
     }
 }

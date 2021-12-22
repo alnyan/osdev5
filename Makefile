@@ -31,7 +31,7 @@ QEMU_OPTS=-s
 ifeq ($(ARCH),x86_64)
 MACH=none
 QEMU_OPTS+=-cdrom $(O)/image.iso \
-		   -M q35,accel=kvm \
+		   -M q35 \
 		   -cpu host \
 		   -enable-kvm \
 		   -m 512 \

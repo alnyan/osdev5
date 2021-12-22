@@ -5,13 +5,14 @@ use libsys::error::Errno;
 // Device classes
 // pub mod fdt;
 // pub mod gpio;
-// pub mod irq;
+pub mod irq;
+pub mod display;
 // pub mod pci;
 // pub mod rtc;
 // pub mod sd;
 pub mod serial;
-// pub mod timer;
-// pub mod pseudo;
+pub mod timer;
+pub mod pseudo;
 // pub mod tty;
 
 /// Generic device trait

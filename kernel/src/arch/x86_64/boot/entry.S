@@ -8,6 +8,14 @@
 .long ARCH
 .long HDRLEN
 .long CHKSUM
+
+.short 5
+.short 0
+.long 20
+.long 800
+.long 600
+.long 32
+
 .short 0
 .long 8
 

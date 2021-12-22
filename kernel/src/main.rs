@@ -21,7 +21,7 @@ extern crate kernel_macros;
 extern crate cfg_if;
 #[macro_use]
 extern crate bitflags;
-// extern crate alloc;
+extern crate alloc;
 
 #[macro_use]
 pub mod debug;
@@ -29,7 +29,8 @@ pub mod debug;
 pub mod arch;
 pub mod config;
 pub mod dev;
-// pub mod fs;
+pub mod fs;
+pub mod font;
 // pub mod init;
 pub mod mem;
 // pub mod proc;
@@ -43,7 +44,7 @@ fn panic_handler(pi: &core::panic::PanicInfo) -> ! {
         arch::intrin::irq_disable();
     }
 
-    // errorln!("Panic: {:?}", pi);
+    errorln!("Panic: {:?}", pi);
     // TODO
     loop {}
 }

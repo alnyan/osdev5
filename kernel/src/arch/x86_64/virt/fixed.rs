@@ -1,12 +1,16 @@
 use super::{table::TableImpl, SpaceImpl};
 
+#[repr(C, align(0x1000))]
+pub struct FixedTableGroup {
+    pub pml4: TableImpl,
+    pub pdpt: TableImpl,
+    pub pd: [TableImpl; 16]
+}
+
 // Upper mappings
 #[no_mangle]
-static KERNEL_PDPT: TableImpl = TableImpl::empty();
-#[no_mangle]
-static KERNEL_PD0: TableImpl = TableImpl::empty();
-#[no_mangle]
-static KERNEL_PD1: TableImpl = TableImpl::empty();
-
-#[no_mangle]
-static KERNEL_PML4: TableImpl = TableImpl::empty();
+pub(super) static mut KERNEL_FIXED: FixedTableGroup = FixedTableGroup {
+    pml4: TableImpl::empty(),
+    pdpt: TableImpl::empty(),
+    pd: [TableImpl::empty(); 16]
+};

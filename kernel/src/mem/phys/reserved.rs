@@ -47,12 +47,12 @@ static mut RESERVED_REGION_PAGES: MaybeUninit<ReservedRegion> = MaybeUninit::uni
 ///
 /// Unsafe: `region` is passed as a raw pointer.
 pub unsafe fn reserve(usage: &str, region: *mut ReservedRegion) {
-    // infoln!(
-    //     "Reserving {:?} region: {:#x}..{:#x}",
-    //     usage,
-    //     (*region).start,
-    //     (*region).end
-    // );
+    infoln!(
+        "Reserving {:?} region: {:#x}..{:#x}",
+        usage,
+        (*region).start,
+        (*region).end
+    );
     (*region).next = RESERVED_REGIONS_HEAD;
     RESERVED_REGIONS_HEAD = region;
 }

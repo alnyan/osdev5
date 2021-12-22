@@ -9,7 +9,7 @@ mod manager;
 mod reserved;
 
 use manager::{Manager, SimpleManager, MANAGER};
-pub use reserved::ReservedRegion;
+pub use reserved::{ReservedRegion, reserve};
 
 type ManagerImpl = SimpleManager;
 
@@ -209,11 +209,14 @@ pub unsafe fn init_from_iter<T: Iterator<Item = MemoryRegion> + Clone>(iter: T) 
             mem_base = reg.start;
         }
     }
-    // infoln!("Memory base is {:#x}", mem_base);
+    infoln!("Memory base is {:#x}", mem_base);
     // Step 1. Count available memory
     let mut total_pages = 0usize;
     for reg in iter.clone() {
-        total_pages += (reg.end - reg.start) / PAGE_SIZE;
+        let upper = (reg.end - mem_base) / PAGE_SIZE;
+        if upper > total_pages {
+            total_pages = upper;
+        }
     }
     // TODO maybe instead of size_of::<...> use Layout?
     let need_pages = ((total_pages * size_of::<PageInfo>()) + 0xFFF) / 0x1000;
@@ -238,7 +241,7 @@ pub unsafe fn init_from_iter<T: Iterator<Item = MemoryRegion> + Clone>(iter: T) 
             }
         }
     }
-    // infoln!("{}K of usable physical memory", usable_pages * 4);
+    infoln!("{}K of usable physical memory", usable_pages * 4);
     *MANAGER.lock() = Some(manager);
 }
 

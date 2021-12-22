@@ -19,11 +19,11 @@ struct Pointer {
     offset: usize,
 }
 
-const SIZE: usize = 256;
+pub const SIZE: usize = 256;
 
 impl Entry {
-    const PRESENT: u8 = 1 << 7;
-    const INT32: u8 = 0xE;
+    pub const PRESENT: u8 = 1 << 7;
+    pub const INT32: u8 = 0xE;
 
     pub const fn new(base: usize, selector: u16, flags: u8) -> Self {
         Self {
@@ -60,6 +60,8 @@ pub unsafe fn init<F: FnOnce(&mut [Entry; SIZE]) -> ()>(f: F) {
     for (i, &entry) in __x86_64_exception_vectors.iter().enumerate() {
         IDT[i] = Entry::new(entry, 0x08, Entry::PRESENT | Entry::INT32);
     }
+
+    f(&mut IDT);
 
     let idtr = Pointer {
         limit: size_of_val(&IDT) as u16 - 1,

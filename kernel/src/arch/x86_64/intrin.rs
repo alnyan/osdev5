@@ -8,7 +8,7 @@ use core::arch::asm;
 /// Unsafe: requires ring 0
 #[inline(always)]
 pub unsafe fn irq_disable() {
-    todo!()
+    asm!("cli");
 }
 
 /// Discards an entry related to `addr` from TLB cache

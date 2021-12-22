@@ -20,6 +20,14 @@ impl<T> InitOnce<T> {
         }
     }
 
+    pub fn as_ref_option(&self) -> Option<&T> {
+        if self.is_initialized() {
+            Some(self.get())
+        } else {
+            None
+        }
+    }
+
     /// Returns `true` if this [InitOnce<T>] can be used
     #[inline(always)]
     pub fn is_initialized(&self) -> bool {

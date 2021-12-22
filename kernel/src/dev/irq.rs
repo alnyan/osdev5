@@ -5,6 +5,7 @@ use libsys::error::Errno;
 
 /// Token to indicate the local core is running in IRQ context
 pub struct IrqContext<'irq_context> {
+    token: usize,
     _0: PhantomData<&'irq_context ()>,
 }
 
@@ -45,7 +46,11 @@ impl<'q> IrqContext<'q> {
     ///
     /// Only allowed to be constructed in top-level IRQ handlers
     #[inline(always)]
-    pub unsafe fn new() -> Self {
-        Self { _0: PhantomData }
+    pub unsafe fn new(token: usize) -> Self {
+        Self { token, _0: PhantomData }
+    }
+
+    pub const fn token(&self) -> usize {
+        self.token
     }
 }
