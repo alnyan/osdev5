@@ -75,7 +75,7 @@ extern "C" fn __x86_64_bsp_main(mb_checksum: u32, mb_info_ptr: u32) -> ! {
 
     // Setup hardware
     unsafe {
-        x86_64::INTC.enable();
+        x86_64::INTC.enable().ok();
     }
 
     let fb_info = mb_info.framebuffer_tag().unwrap();

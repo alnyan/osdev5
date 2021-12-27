@@ -19,31 +19,15 @@ use crate::font;
 use crate::sync::IrqSafeSpinLock;
 use core::convert::TryFrom;
 use core::fmt;
-use libsys::{debug::TraceLevel, error::Errno};
+use libsys::{debug::TraceLevel, error::Errno, mem::memcpy};
 
 /// Currently active print level
 pub static LEVEL: Level = Level::Debug;
 static COLOR_MAP: [u32; 16] = [
-    0x000000,
-    0x0000AA,
-    0x00AA00,
-    0x00AAAA,
-    0xAA0000,
-    0xAA00AA,
-    0xAA5500,
-    0xAAAAAA,
-    0x555555,
-    0x5555FF,
-    0x55FF55,
-    0x55FFFF,
-    0xFF5555,
-    0xFF55FF,
-    0xFFFF55,
-    0xFFFFFF,
+    0x000000, 0x0000AA, 0x00AA00, 0x00AAAA, 0xAA0000, 0xAA00AA, 0xAA5500, 0xAAAAAA, 0x555555,
+    0x5555FF, 0x55FF55, 0x55FFFF, 0xFF5555, 0xFF55FF, 0xFFFF55, 0xFFFFFF,
 ];
-static ATTR_MAP: [usize; 10] = [
-     0, 4, 2, 6, 1, 5, 3, 7, 7, 7
-];
+static ATTR_MAP: [usize; 10] = [0, 4, 2, 6, 1, 5, 3, 7, 7, 7];
 static DISPLAY: IrqSafeSpinLock<FramebufferOutput> = IrqSafeSpinLock::new(FramebufferOutput {
     display: None,
     col: 0,
@@ -52,13 +36,13 @@ static DISPLAY: IrqSafeSpinLock<FramebufferOutput> = IrqSafeSpinLock::new(Frameb
     bg: 0x000000,
     esc: EscapeState::None,
     esc_argv: [0; 8],
-    esc_argc: 0
+    esc_argc: 0,
 });
 
 enum EscapeState {
     None,
     Esc,
-    Data
+    Data,
 }
 
 struct FramebufferOutput {
@@ -69,7 +53,7 @@ struct FramebufferOutput {
     bg: u32,
     esc: EscapeState,
     esc_argv: [usize; 8],
-    esc_argc: usize
+    esc_argc: usize,
 }
 
 impl fmt::Write for FramebufferOutput {
@@ -234,6 +218,23 @@ impl FramebufferOutput {
         font::get().draw(fb, x * Self::CW, y * Self::CH, ch, self.fg, self.bg);
     }
 
+    pub fn scroll(&mut self, fb: &FramebufferInfo) {
+        let stride = 4 * Self::CH * fb.width;
+        let h = fb.height / Self::CH - 1;
+        if self.row == h {
+            for y in 0..(h - 1) {
+                unsafe {
+                    memcpy(
+                        (fb.virt_base + stride * y) as *mut u8,
+                        (fb.virt_base + (y + 1) * stride) as *const u8,
+                        stride,
+                    );
+                }
+            }
+            self.row = h - 1;
+        }
+    }
+
     pub fn putc(&mut self, fb: &FramebufferInfo, ch: char) {
         match self.esc {
             EscapeState::None => {
@@ -259,21 +260,15 @@ impl FramebufferOutput {
                     }
                     _ => {}
                 }
-
-                if (self.row + 1) * Self::CH >= fb.height {
-                    todo!()
-                }
             }
-            EscapeState::Esc => {
-                match ch {
-                    '[' => {
-                        self.esc = EscapeState::Data;
-                    }
-                    _ => {
-                        self.esc = EscapeState::None;
-                    }
+            EscapeState::Esc => match ch {
+                '[' => {
+                    self.esc = EscapeState::Data;
                 }
-            }
+                _ => {
+                    self.esc = EscapeState::None;
+                }
+            },
             EscapeState::Data => {
                 match ch {
                     '0'..='9' => {
@@ -299,12 +294,13 @@ impl FramebufferOutput {
                             if item / 10 == 3 {
                                 self.fg = COLOR_MAP[ATTR_MAP[(item % 10) as usize]];
                             }
-
                         }
                     }
                     _ => {}
                 }
             }
-        }
+        };
+
+        self.scroll(fb);
     }
 }
