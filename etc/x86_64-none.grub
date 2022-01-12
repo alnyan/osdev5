@@ -1,3 +1,4 @@
 menuentry "OS" {
     multiboot2 /boot/kernel
+    module2 /boot/initrd.img
 }

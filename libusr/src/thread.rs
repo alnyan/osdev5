@@ -61,16 +61,16 @@ impl<T> JoinHandle<T> {
 }
 
 unsafe fn init_common(signal_stack_pointer: *mut u8) {
-    let tid = u32::from(sys_ex_gettid()) as u64;
-    asm!("msr tpidr_el0, {:x}", in(reg) tid);
+    // let tid = u32::from(sys_ex_gettid()) as u64;
+    // asm!("msr tpidr_el0, {:x}", in(reg) tid);
 
     // thread::current() should be valid at this point
 
-    sys_ex_signal(
-        signal::signal_handler as usize,
-        signal_stack_pointer as usize,
-    )
-    .unwrap();
+    // sys_ex_signal(
+    //     signal::signal_handler as usize,
+    //     signal_stack_pointer as usize,
+    // )
+    // .unwrap();
 }
 
 pub(crate) unsafe fn init_main() {
@@ -83,13 +83,7 @@ pub(crate) unsafe fn init_main() {
 }
 
 pub fn current() -> Thread {
-    let mut id: u64;
-    unsafe {
-        asm!("mrs {:x}, tpidr_el0", out(reg) id);
-    }
-    Thread {
-        id: Tid::from(id as u32),
-    }
+    todo!()
 }
 
 pub fn spawn<F, T>(f: F) -> JoinHandle<T>

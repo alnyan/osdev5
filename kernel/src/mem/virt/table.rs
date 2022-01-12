@@ -103,6 +103,40 @@ pub trait Space {
         create_intermediate: bool,
         overwrite: bool,
     ) -> Result<(), Errno>;
+// =======
+// bitflags! {
+//     /// Attributes attached to each translation [Entry]
+//     pub struct MapAttributes: u64 {
+//         const USER_READ = 1 << 1;
+//         const USER_WRITE = 1 << 2;
+//         const USER_EXEC = 1 << 3;
+//         const KERNEL_WRITE = 1 << 4;
+//         const KERNEL_EXEC = 1 << 5;
+//
+//         const SHARE_OUTER = 1 << 6;
+//         const SHARE_INNER = 2 << 6;
+//
+//         const NOT_GLOBAL = 1 << 8;
+//     }
+// }
+//
+// pub trait Entry: Clone + Copy {
+//     fn from_parts(phys: usize, attrs: MapAttributes) -> Self;
+//     fn target(self) -> usize;
+//     fn is_present(self) -> bool;
+//     fn is_table(self) -> bool;
+// }
+//
+// pub trait AddressSpace {
+//     type Entry: Entry;
+//
+//     fn alloc_empty() -> Result<&'static mut Self, Errno>;
+//     fn release(space: &mut Self);
+//     fn address_phys(&mut self) -> usize;
+//     fn read_last_level_entry(&mut self, virt: usize) -> Result<Self::Entry, Errno>;
+//     fn write_last_level_entry(
+// >>>>>>> d14ca5e (Make x86_64 work (pre-syscalls))
+
     /// Reads an entry corresponding to `virt` address
     fn read_last_level(&self, virt: usize) -> Result<Self::Entry, Errno>;
 

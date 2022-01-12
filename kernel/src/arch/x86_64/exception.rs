@@ -1,7 +1,7 @@
-use core::arch::asm;
 use crate::arch::x86_64;
 use crate::debug::Level;
-use crate::dev::irq::{IrqContext, IntController};
+use crate::dev::irq::{IntController, IrqContext};
+use core::arch::{asm, global_asm};
 
 #[derive(Debug)]
 struct ExceptionFrame {
@@ -50,7 +50,12 @@ fn pfault_access_type(code: u64) -> &'static str {
 
 fn pfault_dump(level: Level, frame: &ExceptionFrame, cr2: u64) {
     println!(level, "\x1B[41;1mPage fault:");
-    println!(level, "  Illegal {} at {:#018x}\x1B[0m", pfault_access_type(frame.err_code), cr2);
+    println!(
+        level,
+        "  Illegal {} at {:#018x}\x1B[0m",
+        pfault_access_type(frame.err_code),
+        cr2
+    );
 }
 
 #[no_mangle]

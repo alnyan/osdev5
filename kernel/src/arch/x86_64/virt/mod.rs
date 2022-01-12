@@ -9,12 +9,26 @@ use fixed::KERNEL_FIXED;
 
 bitflags! {
     pub struct RawAttributesImpl: u64 {
+        const PRESENT = 1 << 0;
+        const WRITE = 1 << 1;
+        const USER = 1 << 2;
+        const BLOCK = 1 << 7;
+        const GLOBAL = 1 << 8;
     }
 }
 
 impl From<MapAttributes> for RawAttributesImpl {
-    fn from(src: MapAttributes) -> Self {
-        todo!()
+    fn from(i: MapAttributes) -> Self {
+        let mut res = RawAttributesImpl::empty();
+
+        if i.contains(MapAttributes::USER_READ) {
+            res |= RawAttributesImpl::USER;
+        }
+        if i.contains(MapAttributes::USER_WRITE) || i.contains(MapAttributes::KERNEL_WRITE) {
+            res |= RawAttributesImpl::WRITE;
+        }
+
+        res
     }
 }
 

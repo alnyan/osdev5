@@ -34,6 +34,9 @@ _entry:
 
 .code64
 _entry_upper:
+    movabsq $1f, %rax
+    jmp *%rax
+1:
     lea bsp_stack_top(%rip), %rax
     mov %rax, %rsp
 

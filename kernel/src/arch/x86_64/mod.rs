@@ -12,6 +12,7 @@ pub(self) use io::PortIo;
 pub mod boot;
 pub mod virt;
 pub mod intrin;
+pub mod context;
 pub(self) mod gdt;
 pub(self) mod idt;
 pub(self) mod exception;

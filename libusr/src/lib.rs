@@ -26,11 +26,14 @@ extern "C" fn _start(arg: &'static ProgramArgs) -> ! {
         fn main() -> i32;
     }
 
-    unsafe {
-        allocator::init();
-        thread::init_main();
-        env::setup_env(arg);
-    }
+    trace!(TraceLevel::Debug, "Test!");
+    loop {}
+
+    // unsafe {
+    //     allocator::init();
+    //     thread::init_main();
+    //     env::setup_env(arg);
+    // }
 
     let res = unsafe { main() };
     sys::sys_exit(ExitCode::from(res));

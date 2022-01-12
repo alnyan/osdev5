@@ -1,5 +1,4 @@
 //! Process data and control
-use crate::arch::{aarch64::exception::ExceptionFrame, intrin};
 use crate::mem::{
     self,
     phys::{self, PageUsage},
@@ -8,7 +7,8 @@ use crate::mem::{
 use crate::proc::{
     wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, Tid, PROCESSES, SCHED,
 };
-use crate::sync::IrqSafeSpinLock;
+use crate::arch::intrin;
+use crate::sync::{IrqSafeSpinLock, IrqSafeSpinLockGuard};
 use alloc::{rc::Rc, vec::Vec};
 use core::sync::atomic::{AtomicU32, Ordering};
 use libsys::{
@@ -17,6 +17,7 @@ use libsys::{
     signal::Signal,
     ProgramArgs,
 };
+use core::arch::asm;
 
 /// Wrapper type for a process struct reference
 pub type ProcessRef = Rc<Process>;
@@ -154,193 +155,19 @@ impl Process {
         None
     }
 
-    /// Handles all pending signals (when returning from aborted syscall)
-    pub fn handle_pending_signals(&self) {
-        let mut lock = self.inner.lock();
-        let ttbr0 = lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48);
-        let main_thread = Thread::get(lock.threads[0]).unwrap();
-        drop(lock);
-
-        loop {
-            let state = self.signal_state.load(Ordering::Acquire);
-            if let Some(signal) = Self::find1(state).map(|e| Signal::try_from(e as u32).unwrap()) {
-                self.signal_state
-                    .fetch_and(!(1 << (signal as u32)), Ordering::Release);
-                main_thread.clone().enter_signal(signal, ttbr0);
-            } else {
-                break;
-            }
-        }
-    }
-
-    /// Sets a pending signal for a process
-    pub fn set_signal(&self, signal: Signal) {
-        let mut lock = self.inner.lock();
-        let ttbr0 = lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48);
-        let main_thread = Thread::get(lock.threads[0]).unwrap();
-        drop(lock);
-
-        // TODO check that `signal` is not a fault signal
-        //      it is illegal to call this function with
-        //      fault signals
-
-        match main_thread.state() {
-            ThreadState::Running => {
-                main_thread.enter_signal(signal, ttbr0);
-            }
-            ThreadState::Waiting => {
-                self.signal_state
-                    .fetch_or(1 << (signal as u32), Ordering::Release);
-                main_thread.interrupt_wait(true);
-            }
-            ThreadState::Ready => {
-                main_thread.clone().setup_signal(signal, ttbr0);
-                main_thread.interrupt_wait(false);
-            }
-            ThreadState::Finished => {
-                // TODO report error back
-                todo!()
-            }
-        }
-    }
-
-    /// Immediately delivers a signal to requested thread
-    pub fn enter_fault_signal(&self, thread: ThreadRef, signal: Signal) {
-        let mut lock = self.inner.lock();
-        let ttbr0 = lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48);
-        drop(lock);
-        thread.enter_signal(signal, ttbr0);
-    }
-
-    /// Crates a new thread in the process
-    pub fn new_user_thread(&self, entry: usize, stack: usize, arg: usize) -> Result<Tid, Errno> {
-        let mut lock = self.inner.lock();
-
-        let space_phys = lock.space.as_mut().unwrap().address_phys();
-        let ttbr0 = space_phys | ((lock.id.asid() as usize) << 48);
-
-        let thread = Thread::new_user(lock.id, entry, stack, arg, ttbr0)?;
-        let tid = thread.id();
-        lock.threads.push(tid);
-        SCHED.enqueue(tid);
-
-        Ok(tid)
-    }
-
-    /// Creates a "fork" of the process, cloning its address space and
-    /// resources
-    pub fn fork(&self, frame: &mut ExceptionFrame) -> Result<Pid, Errno> {
-        let src_io = self.io.lock();
-        let mut src_inner = self.inner.lock();
-
-        let dst_id = new_user_pid();
-        let dst_space = src_inner.space.as_mut().unwrap().fork()?;
-        let dst_space_phys = (dst_space as *mut _ as usize) - mem::KERNEL_OFFSET;
-        let dst_ttbr0 = dst_space_phys | ((dst_id.asid() as usize) << 48);
-
-        let mut threads = Vec::new();
-        let tid = Thread::fork(Some(dst_id), frame, dst_ttbr0)?.id();
-        threads.push(tid);
-
-        let dst = Rc::new(Self {
-            exit_wait: Wait::new("process_exit"),
-            io: IrqSafeSpinLock::new(src_io.fork()?),
-            signal_state: AtomicU32::new(0),
-            inner: IrqSafeSpinLock::new(ProcessInner {
-                threads,
-                exit: None,
-                space: Some(dst_space),
-                state: ProcessState::Active,
-                id: dst_id,
-                pgid: src_inner.pgid,
-                ppid: Some(src_inner.id),
-                sid: src_inner.sid,
-            }),
-        });
-
-        debugln!("Process {:?} forked into {:?}", src_inner.id, dst_id);
-        assert!(PROCESSES.lock().insert(dst_id, dst).is_none());
-
-        SCHED.enqueue(tid);
-
-        Ok(dst_id)
+    fn space_phys(lock: &mut IrqSafeSpinLockGuard<ProcessInner>) -> usize {
+        lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48)
     }
 
     /// Terminates a process.
     pub fn exit(self: ProcessRef, status: ExitCode) {
-        let thread = Thread::current();
-        let mut lock = self.inner.lock();
-        let is_running = thread.owner_id().map(|e| e == lock.id).unwrap_or(false);
-
-        infoln!("Process {:?} is exiting: {:?}", lock.id, status);
-        assert!(lock.exit.is_none());
-        lock.exit = Some(status);
-        lock.state = ProcessState::Finished;
-
-        for &tid in lock.threads.iter() {
-            let thread = Thread::get(tid).unwrap();
-            if thread.state() == ThreadState::Waiting {
-                todo!()
-            }
-            thread.terminate(status);
-            SCHED.dequeue(tid);
-        }
-
-        if let Some(space) = lock.space.take() {
-            unsafe {
-                SpaceImpl::release(space);
-                intrin::flush_tlb_asid((lock.id.asid() as usize) << 48);
-            }
-        }
-
-        // TODO when exiting from signal handler interrupting an IO operation
-        //      deadlock is achieved
-        self.io.lock().handle_exit();
-
-        drop(lock);
-
-        self.exit_wait.wakeup_all();
-
-        if is_running {
-            SCHED.switch(true);
-            panic!("This code should never run");
-        }
+        todo!()
     }
 
     /// Terminates a thread of the process. If the thread is the only
     /// one remaining, process itself is exited (see [Process::exit])
     pub fn exit_thread(thread: ThreadRef, status: ExitCode) {
-        let switch = {
-            let switch = thread.state() == ThreadState::Running;
-            let process = thread.owner().unwrap();
-            let mut lock = process.inner.lock();
-            let tid = thread.id();
-
-            if lock.threads.len() == 1 {
-                // TODO call Process::exit instead?
-                drop(lock);
-                process.exit(status);
-                return;
-            }
-
-            lock.threads.retain(|&e| e != tid);
-
-            thread.terminate(status);
-            SCHED.dequeue(tid);
-            debugln!("Thread {:?} terminated", tid);
-
-            switch
-        };
-
-        if switch {
-            // TODO retain thread ID in process "finished" list and
-            //      drop it when process finishes
-            SCHED.switch(true);
-            panic!("This code should not run");
-        } else {
-            // Can drop this thread: it's not running
-            todo!();
-        }
+        todo!()
     }
 
     fn collect(&self) -> Option<ExitCode> {
@@ -418,13 +245,6 @@ impl Process {
         (self.id().asid() as usize) << 48
     }
 
-    /// Flushes TLB cache for the process address space
-    pub fn invalidate_tlb(&self) {
-        unsafe {
-            intrin::flush_tlb_asid(self.asid());
-        }
-    }
-
     /// Loads a new program into current process address space
     pub fn execve<F: FnOnce(&mut SpaceImpl) -> Result<usize, Errno>>(
         loader: F,
@@ -488,7 +308,7 @@ impl Process {
             // TODO drop old context
             let ctx = thread.ctx.get();
             let asid = (process_lock.id.asid() as usize) << 48;
-            intrin::flush_tlb_asid(asid);
+            // Process::invalidate_asid(asid);
 
             ctx.write(Context::user(
                 entry,

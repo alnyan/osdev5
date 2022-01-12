@@ -10,6 +10,8 @@ use libusr::sys::{stat::MountOptions, sys_execve, sys_fork, sys_mount, sys_waitp
 
 #[no_mangle]
 fn main() -> i32 {
+    loop {}
+
     sys_mount(
         "/dev",
         &MountOptions {
@@ -33,9 +35,6 @@ fn main() -> i32 {
         println!("Process {:?} exited with status {}", pid, status);
 
         loop {
-            unsafe {
-                asm!("nop");
-            }
         }
     } else {
         sys_execve("/sbin/login", &["/sbin/login", "/dev/ttyS0"]).unwrap();

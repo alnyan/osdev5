@@ -27,6 +27,11 @@ pub fn switch() {
     SCHED.switch(false);
 }
 
+#[no_mangle]
+extern "C" fn sched_yield() {
+    SCHED.switch(false);
+}
+
 pub(self) static PROCESSES: IrqSafeSpinLock<BTreeMap<Pid, ProcessRef>> =
     IrqSafeSpinLock::new(BTreeMap::new());
 

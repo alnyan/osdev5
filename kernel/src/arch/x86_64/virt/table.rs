@@ -6,7 +6,7 @@ use crate::mem::{
 use core::ops::{Index, IndexMut};
 use libsys::{error::Errno, mem::memset};
 
-use super::RawAttributesImpl;
+use super::{RawAttributesImpl, KERNEL_FIXED};
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
@@ -29,17 +29,17 @@ impl Entry for EntryImpl {
 
     #[inline]
     fn normal(addr: usize, attrs: MapAttributes) -> Self {
-        todo!()
+        Self((addr as u64) | attrs.bits() | (1 << 0))
     }
 
     #[inline]
     fn block(addr: usize, attrs: MapAttributes) -> Self {
-        todo!()
+        Self((addr as u64) | attrs.bits() | (1 << 7) | (1 << 0))
     }
 
     #[inline]
     fn address(self) -> usize {
-        todo!()
+        (self.0 & !0xFFF) as usize
     }
 
     #[inline]
@@ -49,12 +49,12 @@ impl Entry for EntryImpl {
 
     #[inline]
     fn is_present(self) -> bool {
-        todo!()
+        self.0 & (1 << 0) != 0
     }
 
     #[inline]
     fn is_normal(self) -> bool {
-        todo!()
+        self.0 & (1 << 7) == 0
     }
 
     #[inline]
@@ -82,7 +82,14 @@ impl Space for SpaceImpl {
     type Entry = EntryImpl;
 
     fn alloc_empty() -> Result<&'static mut Self, Errno> {
-        todo!()
+        let kernel_pdpt_phys = unsafe {
+            &KERNEL_FIXED.pdpt as *const _ as usize - mem::KERNEL_OFFSET
+        };
+        let page = phys::alloc_page(PageUsage::Paging)?;
+        let res = unsafe { &mut *(mem::virtualize(page) as *mut Self) };
+        res.0.entries[..511].fill(EntryImpl::EMPTY);
+        res.0.entries[511] = EntryImpl::normal(kernel_pdpt_phys, MapAttributes::SHARE_OUTER | MapAttributes::KERNEL_EXEC | MapAttributes::KERNEL_WRITE);
+        Ok(res)
     }
 
     unsafe fn release(space: &'static mut Self) {
@@ -100,11 +107,43 @@ impl Space for SpaceImpl {
         _create_intermediate: bool, // TODO handle this properly
         overwrite: bool,
     ) -> Result<(), Errno> {
-        todo!()
+        let l0i = virt >> 39;
+        let l1i = (virt >> 30) & 0x1FF;
+        let l2i = (virt >> 21) & 0x1FF;
+        let l3i = (virt >> 12) & 0x1FF;
+
+        let l0_table = self.0.next_level_table_or_alloc(l0i)?;
+        let l1_table = l0_table.next_level_table_or_alloc(l1i)?;
+        let l2_table = l1_table.next_level_table_or_alloc(l2i)?;
+
+        if l2_table[l3i].is_present() {
+            warnln!("Entry already exists for address: virt={:#x}, prev={:#x}, new={:#x}", virt, l2_table[l3i].address(), entry.address());
+            Err(Errno::AlreadyExists)
+        } else {
+            l2_table[l3i] = entry;
+            unsafe {
+                core::arch::asm!("invlpg ({})", in(reg) virt, options(att_syntax));
+            }
+            Ok(())
+        }
     }
 
     fn read_last_level(&self, virt: usize) -> Result<Self::Entry, Errno> {
-        todo!()
+        let l0i = virt >> 39;
+        let l1i = (virt >> 30) & 0x1FF;
+        let l2i = (virt >> 21) & 0x1FF;
+        let l3i = (virt >> 12) & 0x1FF;
+
+        let l0_table = self.0.next_level_table(l0i).ok_or(Errno::DoesNotExist)?;
+        let l1_table = l0_table.next_level_table(l1i).ok_or(Errno::DoesNotExist)?;
+        let l2_table = l1_table.next_level_table(l2i).ok_or(Errno::DoesNotExist)?;
+
+        let entry = l2_table[l3i];
+        if entry.is_present() {
+            Ok(entry)
+        } else {
+            Err(Errno::DoesNotExist)
+        }
     }
 }
 
@@ -121,20 +160,51 @@ impl TableImpl {
     /// If `index` does not map to any translation table, will try to allocate, init and
     /// map a new one, returning it after doing so.
     pub fn next_level_table_or_alloc(&mut self, index: usize) -> Result<&'static mut Self, Errno> {
-        todo!()
+        let entry = self[index];
+        if entry.is_present() {
+            if !entry.is_normal() {
+                return Err(Errno::InvalidArgument);
+            }
+
+            Ok(unsafe { &mut *(mem::virtualize(entry.address()) as *mut _) })
+        } else {
+            let phys = phys::alloc_page(PageUsage::Paging)?;
+            let res = unsafe { &mut *(mem::virtualize(phys) as *mut Self) };
+            self[index] = EntryImpl::normal(phys, MapAttributes::USER_WRITE | MapAttributes::USER_READ);
+            res.entries.fill(EntryImpl::EMPTY);
+            Ok(res)
+        }
     }
 
     /// Returns next-level translation table reference for `index`, if one is present.
     /// Same as [next_level_table_or_alloc], but returns `None` if no table is mapped.
     pub fn next_level_table(&self, index: usize) -> Option<&'static Self> {
-        todo!()
+        let entry = self[index];
+        if entry.is_present() {
+            if !entry.is_normal() {
+                panic!("Entry is not a table: idx={}", index);
+            }
+
+            Some(unsafe { &*(mem::virtualize(entry.address()) as *const _) })
+        } else {
+            None
+        }
     }
 
     /// Returns mutable next-level translation table reference for `index`,
     /// if one is present. Same as [next_level_table_or_alloc], but returns
     /// `None` if no table is mapped.
     pub fn next_level_table_mut(&mut self, index: usize) -> Option<&'static mut Self> {
-        todo!()
+        let entry = self[index];
+        if entry.is_present() {
+            if !entry.is_normal() {
+                panic!("Entry is not a table: idx={}", index);
+            }
+
+            Some(unsafe { &mut *(mem::virtualize(entry.address()) as *mut _) })
+        } else {
+            None
+        }
     }
 }
 

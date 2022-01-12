@@ -1,15 +1,17 @@
-use crate::arch::x86_64::{self, intc, gdt, idt};
-use core::arch::{global_asm, asm};
+use crate::arch::x86_64::{self, gdt, idt, intc};
+use crate::config::{ConfigKey, CONFIG};
+use crate::debug;
+use crate::dev::{display::FramebufferInfo, pseudo, Device};
+use crate::font;
+use crate::fs::{devfs, sysfs};
 use crate::mem::{
     self, heap,
     phys::{self, MemoryRegion, PageUsage, ReservedRegion},
     virt,
 };
-use crate::debug;
-use crate::fs::{devfs, sysfs};
-use crate::dev::{pseudo, Device, display::FramebufferInfo};
+use crate::proc;
+use core::arch::{asm, global_asm};
 use core::mem::MaybeUninit;
-use crate::font;
 use multiboot2::{BootInformation, MemoryArea};
 
 static mut RESERVED_REGION_MB2: MaybeUninit<ReservedRegion> = MaybeUninit::uninit();
@@ -73,6 +75,14 @@ extern "C" fn __x86_64_bsp_main(mb_checksum: u32, mb_info_ptr: u32) -> ! {
         heap::init(heap_base_virt, 16 * 1024 * 1024);
     }
 
+    let initrd_info = mb_info.module_tags().next().unwrap();
+    {
+        let mut cfg = CONFIG.lock();
+
+        cfg.set_usize(ConfigKey::InitrdBase, initrd_info.start_address() as usize);
+        cfg.set_usize(ConfigKey::InitrdSize, initrd_info.module_size() as usize);
+    }
+
     // Setup hardware
     unsafe {
         x86_64::INTC.enable().ok();
@@ -80,12 +90,16 @@ extern "C" fn __x86_64_bsp_main(mb_checksum: u32, mb_info_ptr: u32) -> ! {
 
     let fb_info = mb_info.framebuffer_tag().unwrap();
     let virt = mem::virtualize(fb_info.address as usize);
-    debugln!("Framebuffer base: phys={:#x}, virt={:#x}", fb_info.address, virt);
+    debugln!(
+        "Framebuffer base: phys={:#x}, virt={:#x}",
+        fb_info.address,
+        virt
+    );
     x86_64::DISPLAY.set_framebuffer(FramebufferInfo {
         width: fb_info.width as usize,
         height: fb_info.height as usize,
         phys_base: fb_info.address as usize,
-        virt_base: virt
+        virt_base: virt,
     });
     font::init();
     debug::set_display(&x86_64::DISPLAY);
@@ -96,10 +110,8 @@ extern "C" fn __x86_64_bsp_main(mb_checksum: u32, mb_info_ptr: u32) -> ! {
     devfs::add_named_char_device(&pseudo::ZERO, "zero").unwrap();
     devfs::add_named_char_device(&pseudo::RANDOM, "random").unwrap();
 
-    loop {
-        unsafe {
-            asm!("sti; hlt");
-        }
+    unsafe {
+        proc::enter();
     }
 }
 

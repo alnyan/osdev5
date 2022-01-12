@@ -32,8 +32,6 @@ ifeq ($(ARCH),x86_64)
 MACH=none
 QEMU_OPTS+=-cdrom $(O)/image.iso \
 		   -M q35 \
-		   -cpu host \
-		   -enable-kvm \
 		   -m 512 \
 		   -serial mon:stdio \
 		   -net none
@@ -73,16 +71,10 @@ endif
 
 .PHONY: address error etc kernel src
 
-all: kernel
+all: image
 
 kernel:
 	cd kernel && cargo build $(CARGO_BUILD_OPTS)
-ifeq ($(ARCH),x86_64)
-	mkdir -p $(O)/image/boot/grub
-	cp etc/x86_64-none.grub $(O)/image/boot/grub/grub.cfg
-	cp $(O)/kernel $(O)/image/boot/kernel
-	grub-mkrescue -o $(O)/image.iso $(O)/image
-endif
 ifeq ($(ARCH),aarch64)
 	$(LLVM_BASE)/llvm-strip -o $(O)/kernel.strip $(O)/kernel
 	$(LLVM_BASE)/llvm-size $(O)/kernel.strip
@@ -101,6 +93,16 @@ ifeq ($(MACH),orangepi3)
 		$(O)/uImage
 endif
 
+image: kernel initrd
+ifeq ($(ARCH),x86_64)
+	mkdir -p $(O)/image/boot/grub
+	cp etc/x86_64-none.grub $(O)/image/boot/grub/grub.cfg
+	cp $(O)/kernel $(O)/image/boot/kernel
+	cp $(O)/initrd.img $(O)/image/boot/initrd.img
+
+	grub-mkrescue -o $(O)/image.iso $(O)/image
+endif
+
 initrd:
 	cd user && cargo build \
 		--target=../etc/$(ARCH)-osdev5.json \
@@ -113,7 +115,6 @@ initrd:
 	touch $(O)/rootfs/sys/.do_not_remove
 	cp target/$(ARCH)-osdev5/$(PROFILE)/init $(O)/rootfs/init
 	cp target/$(ARCH)-osdev5/$(PROFILE)/shell $(O)/rootfs/bin
-	cp target/$(ARCH)-osdev5/$(PROFILE)/fuzzy $(O)/rootfs/bin
 	cp target/$(ARCH)-osdev5/$(PROFILE)/ls $(O)/rootfs/bin
 	cp target/$(ARCH)-osdev5/$(PROFILE)/cat $(O)/rootfs/bin
 	cp target/$(ARCH)-osdev5/$(PROFILE)/hexd $(O)/rootfs/bin

@@ -5,6 +5,7 @@
     const_fn_fn_ptr_basics,
     const_fn_trait_bound,
     const_trait_impl,
+    const_btree_new,
     panic_info_message,
     alloc_error_handler,
     asm_const,
@@ -31,9 +32,9 @@ pub mod config;
 pub mod dev;
 pub mod fs;
 pub mod font;
-// pub mod init;
+pub mod init;
 pub mod mem;
-// pub mod proc;
+pub mod proc;
 pub mod sync;
 // pub mod syscall;
 pub mod util;
