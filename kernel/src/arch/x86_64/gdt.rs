@@ -91,6 +91,7 @@ impl Tss {
 }
 
 const SIZE: usize = 7;
+#[no_mangle]
 static mut TSS: Tss = Tss::new();
 static mut GDT: [Entry; SIZE] = [
     Entry::null(),

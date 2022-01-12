@@ -10,12 +10,12 @@ __x86_64_ctx_enter_user:
     pop %rdi
     pop %rdx
 
-    push $0x10
+    push $0x1B
     push %rcx
 
-    push $0 // $0x200
+    push $0x200
 
-    push $0x08
+    push $0x23
     push %rdx
 
     iretq
@@ -52,6 +52,7 @@ __x86_64_ctx_switch:
     mov %cr3, %rax
     push %rax
     // TODO save gs_base
+    mov (4 + TSS)(%rip), %rax
     push %rax
 
     mov %rsp, (%rsi)
@@ -71,6 +72,7 @@ __x86_64_ctx_switch_to:
     mov %rax, %cr3
 1:
     pop %rax
+    mov %rax, (4 + TSS)(%rip)
     // TODO set gs_base = rax
 
     ret

@@ -28,7 +28,7 @@ impl Context {
         stack.push(entry);
         stack.push(arg);
 
-        stack.setup_common(__x86_64_ctx_enter_kernel as usize, 0);
+        stack.setup_common(__x86_64_ctx_enter_kernel as usize, 0, 0);
 
         Self {
             k_sp: stack.sp,
@@ -42,13 +42,14 @@ impl Context {
     pub fn user(entry: usize, arg: usize, cr3: usize, ustack: usize) -> Self {
         let cr3 = cr3 & 0xFFFFFFFF;
         let mut stack = Stack::new(8);
+        let stack_top = stack.sp;
 
         stack.push(entry);
         stack.push(arg);
         stack.push(0);
         stack.push(ustack);
 
-        stack.setup_common(__x86_64_ctx_enter_user as usize, cr3);
+        stack.setup_common(__x86_64_ctx_enter_user as usize, cr3, stack_top);
 
         Self {
             k_sp: stack.sp,
@@ -115,9 +116,9 @@ impl Stack {
         }
     }
 
-    pub fn setup_common(&mut self, entry: usize, cr3: usize) {
+    pub fn setup_common(&mut self, entry: usize, cr3: usize, tss_rsp0: usize) {
         self.push(entry);   // return address
-        self.push(0);       // gs_base
+        self.push(tss_rsp0);       // gs_base
         self.push(cr3);
         self.push(0);       // r15
         self.push(0);       // r14
