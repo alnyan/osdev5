@@ -31,3 +31,18 @@ pub unsafe fn flush_tlb_virt(addr: usize) {
 pub unsafe fn flush_tlb_asid(asid: usize) {
     todo!()
 }
+
+#[inline(always)]
+pub unsafe fn rdmsr(a: u32) -> u64 {
+    let mut eax: u32;
+    let mut edx: u32;
+    asm!("rdmsr", in("ecx") a, out("eax") eax, out("edx") edx);
+    (eax as u64) | ((edx as u64) << 32)
+}
+
+#[inline(always)]
+pub unsafe fn wrmsr(a: u32, b: u64) {
+    let eax = b as u32;
+    let edx = (b >> 32) as u32;
+    asm!("wrmsr", in("ecx") a, in("eax") eax, in("edx") edx);
+}

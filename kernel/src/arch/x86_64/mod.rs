@@ -1,4 +1,4 @@
-use crate::dev::{serial::SerialDevice, display::StaticFramebuffer, irq::IntController};
+use crate::dev::{display::StaticFramebuffer, irq::IntController, serial::SerialDevice};
 use core::arch::asm;
 
 mod uart;
@@ -10,12 +10,14 @@ mod io;
 pub(self) use io::PortIo;
 
 pub mod boot;
-pub mod virt;
-pub mod intrin;
 pub mod context;
+pub(self) mod exception;
 pub(self) mod gdt;
 pub(self) mod idt;
-pub(self) mod exception;
+pub mod intrin;
+pub mod reg;
+pub(self) mod syscall;
+pub mod virt;
 
 /// Masks IRQs and returns previous IRQ mask state
 ///

@@ -1,4 +1,8 @@
-use crate::arch::x86_64::{self, gdt, idt, intc};
+use crate::arch::x86_64::{
+    self, gdt, idt, intc,
+    reg::{CR0, CR4},
+    syscall,
+};
 use crate::config::{ConfigKey, CONFIG};
 use crate::debug;
 use crate::dev::{display::FramebufferInfo, pseudo, Device};
@@ -13,28 +17,16 @@ use crate::proc;
 use core::arch::{asm, global_asm};
 use core::mem::MaybeUninit;
 use multiboot2::{BootInformation, MemoryArea};
+use tock_registers::interfaces::ReadWriteable;
 
 static mut RESERVED_REGION_MB2: MaybeUninit<ReservedRegion> = MaybeUninit::uninit();
 
 #[no_mangle]
 extern "C" fn __x86_64_bsp_main(mb_checksum: u32, mb_info_ptr: u32) -> ! {
+    CR4.modify(CR4::OSXMMEXCPT::SET + CR4::OSFXSR::SET);
+    CR0.modify(CR0::EM::CLEAR + CR0::MP::SET);
+
     unsafe {
-        // Enable SSE support
-        asm!(
-            r#"
-            mov %cr4, %rax
-            or $(1 << 9), %rax  // FXSAVE, FXRSTOR
-            or $(1 << 10), %rax // OSXMMEXCPT
-            mov %rax, %cr4
-
-            mov %cr0, %rax
-            and $~(1 << 2), %rax    // Disable EM
-            or $(1 << 1), %rax      // Enable MP
-            mov %rax, %cr0
-        "#,
-            options(att_syntax)
-        );
-
         // Setup a proper GDT
         gdt::init();
         idt::init(intc::map_isr_entries);
@@ -103,6 +95,7 @@ extern "C" fn __x86_64_bsp_main(mb_checksum: u32, mb_info_ptr: u32) -> ! {
     });
     font::init();
     debug::set_display(&x86_64::DISPLAY);
+    syscall::init();
 
     devfs::init();
     sysfs::init();

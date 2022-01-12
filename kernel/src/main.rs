@@ -36,7 +36,7 @@ pub mod init;
 pub mod mem;
 pub mod proc;
 pub mod sync;
-// pub mod syscall;
+pub mod syscall;
 pub mod util;
 
 #[panic_handler]
