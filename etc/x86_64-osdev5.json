@@ -16,6 +16,6 @@
 
   "os": "none",
   "pre-link-args": {
-    "ld.lld": [ "-Tetc/aarch64-osdev5.ld" ]
+    "ld.lld": [ "-Tetc/x86_64-osdev5.ld" ]
   }
 }

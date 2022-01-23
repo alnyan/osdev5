@@ -36,26 +36,26 @@ pub extern "C" fn init_fn(_arg: usize) -> ! {
 
     proc.io.lock().set_ioctx(ioctx);
 
-    // // Open stdin/stdout/stderr
-    // {
-    //     let devfs_root = devfs::root();
-    //     let tty_node = if console.is_empty() {
-    //         devfs_root.lookup("ttyS0")
-    //     } else {
-    //         devfs_root.lookup(console)
-    //     }
-    //     .expect("Failed to open stdout for init process");
+    // Open stdin/stdout/stderr
+    {
+        let devfs_root = devfs::root();
+        let tty_node = if console.is_empty() {
+            devfs_root.lookup("ttyS0")
+        } else {
+            devfs_root.lookup(console)
+        }
+        .expect("Failed to open stdout for init process");
 
-    //     let mut io = proc.io.lock();
-    //     let stdin = tty_node.open(OpenFlags::O_RDONLY).unwrap();
-    //     let stdout = tty_node.open(OpenFlags::O_WRONLY).unwrap();
-    //     let stderr = stdout.clone();
+        let mut io = proc.io.lock();
+        let stdin = tty_node.open(OpenFlags::O_RDONLY).unwrap();
+        let stdout = tty_node.open(OpenFlags::O_WRONLY).unwrap();
+        let stderr = stdout.clone();
 
-    //     io.set_file(FileDescriptor::STDIN, stdin).unwrap();
-    //     io.set_file(FileDescriptor::STDOUT, stdout).unwrap();
-    //     io.set_file(FileDescriptor::STDERR, stderr).unwrap();
-    //     io.set_ctty(tty_node);
-    // }
+        io.set_file(FileDescriptor::STDIN, stdin).unwrap();
+        io.set_file(FileDescriptor::STDOUT, stdout).unwrap();
+        io.set_file(FileDescriptor::STDERR, stderr).unwrap();
+        io.set_ctty(tty_node);
+    }
 
     drop(cfg);
 

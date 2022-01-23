@@ -107,15 +107,17 @@ where
         let page_off = (dst_page_off + off) % mem::PAGE_SIZE;
         let count = core::cmp::min(rem, mem::PAGE_SIZE - page_off);
 
-        let page = phys::alloc_page(PageUsage::UserPrivate)?;
+        let page = if let Ok(page) = space.translate(dst_page + page_idx * mem::PAGE_SIZE) {
+            page
+        } else {
+            let page = phys::alloc_page(PageUsage::UserPrivate)?;
 
-        // TODO fetch existing mapping and test flag equality instead
-        //      if flags differ, bail out
-        if let Err(e) = space.map(dst_page + page_idx * mem::PAGE_SIZE, page, map_flags(flags)) {
-            if e != Errno::AlreadyExists {
-                return Err(e);
-            }
-        }
+            // TODO fetch existing mapping and test flag equality instead
+            //      if flags differ, bail out
+            space.map(dst_page + page_idx * mem::PAGE_SIZE, page, map_flags(flags))?;
+
+            page
+        };
 
         let dst_page_virt = mem::virtualize(page + page_off);
         let dst = core::slice::from_raw_parts_mut(dst_page_virt as *mut u8, count);
@@ -169,6 +171,7 @@ pub fn load_elf(space: &mut SpaceImpl, source: FileRef) -> Result<usize, Errno> 
             );
 
             if phdr.filesz > 0 {
+                debugln!("Load bytes {:#x}..{:#x}", phdr.vaddr, phdr.vaddr + phdr.filesz);
                 unsafe {
                     load_bytes(
                         space,
@@ -190,6 +193,7 @@ pub fn load_elf(space: &mut SpaceImpl, source: FileRef) -> Result<usize, Errno> 
 
             if phdr.memsz > phdr.filesz {
                 let len = (phdr.memsz - phdr.filesz) as usize;
+                debugln!("Zero bytes {:#x}..{:#x}", phdr.vaddr + phdr.filesz, phdr.vaddr + phdr.memsz);
                 unsafe {
                     load_bytes(
                         space,

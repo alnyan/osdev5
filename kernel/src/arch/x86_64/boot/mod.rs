@@ -7,7 +7,7 @@ use crate::config::{ConfigKey, CONFIG};
 use crate::debug;
 use crate::dev::{display::FramebufferInfo, pseudo, Device};
 use crate::font;
-use crate::fs::{devfs, sysfs};
+use crate::fs::{devfs::{self, CharDeviceType}, sysfs};
 use crate::mem::{
     self, heap,
     phys::{self, MemoryRegion, PageUsage, ReservedRegion},
@@ -100,6 +100,7 @@ extern "C" fn __x86_64_bsp_main(mb_checksum: u32, mb_info_ptr: u32) -> ! {
     devfs::init();
     sysfs::init();
 
+    devfs::add_char_device(&x86_64::COM1, CharDeviceType::TtySerial).unwrap();
     devfs::add_named_char_device(&pseudo::ZERO, "zero").unwrap();
     devfs::add_named_char_device(&pseudo::RANDOM, "random").unwrap();
 

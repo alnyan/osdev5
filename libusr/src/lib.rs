@@ -26,14 +26,11 @@ extern "C" fn _start(arg: &'static ProgramArgs) -> ! {
         fn main() -> i32;
     }
 
-    trace!(TraceLevel::Debug, "Test!");
-    loop {}
-
-    // unsafe {
-    //     allocator::init();
-    //     thread::init_main();
-    //     env::setup_env(arg);
-    // }
+    unsafe {
+        allocator::init();
+        thread::init_main();
+        env::setup_env(arg);
+    }
 
     let res = unsafe { main() };
     sys::sys_exit(ExitCode::from(res));
@@ -43,7 +40,8 @@ extern "C" fn _start(arg: &'static ProgramArgs) -> ! {
 fn panic_handler(pi: &PanicInfo) -> ! {
     // TODO unwind to send panic argument back to parent thread
     // TODO print to stdout/stderr (if available)
-    let thread = thread::current();
-    trace!(TraceLevel::Error, "{:?} panicked: {:?}", thread, pi);
-    sys::sys_exit(ExitCode::from(-1));
+    // let thread = thread::current();
+    // trace!(TraceLevel::Error, "{:?} panicked: {:?}", thread, pi);
+    loop {}
+    // sys::sys_exit(ExitCode::from(-1));
 }

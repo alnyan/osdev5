@@ -3,6 +3,7 @@ use crate::mem::{
     phys::{self, PageUsage},
     virt::table::{Entry, MapAttributes, Space},
 };
+use core::fmt;
 use core::ops::{Index, IndexMut};
 use libsys::{error::Errno, mem::memset};
 
@@ -23,18 +24,27 @@ pub struct SpaceImpl(TableImpl);
 
 impl EntryImpl {}
 
+impl fmt::Debug for EntryImpl {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("EntryImpl")
+            .field("address", &self.address())
+            .field("flags", &unsafe { RawAttributesImpl::from_bits_unchecked(self.0 & 0xFFF) })
+            .finish_non_exhaustive()
+    }
+}
+
 impl Entry for EntryImpl {
     type RawAttributes = RawAttributesImpl;
     const EMPTY: Self = Self(0);
 
     #[inline]
     fn normal(addr: usize, attrs: MapAttributes) -> Self {
-        Self((addr as u64) | attrs.bits() | (1 << 0))
+        Self((addr as u64) | RawAttributesImpl::from(attrs).bits() | (1 << 0))
     }
 
     #[inline]
     fn block(addr: usize, attrs: MapAttributes) -> Self {
-        Self((addr as u64) | attrs.bits() | (1 << 7) | (1 << 0))
+        Self((addr as u64) | RawAttributesImpl::from(attrs).bits() | (1 << 7) | (1 << 0))
     }
 
     #[inline]
@@ -82,13 +92,19 @@ impl Space for SpaceImpl {
     type Entry = EntryImpl;
 
     fn alloc_empty() -> Result<&'static mut Self, Errno> {
-        let kernel_pdpt_phys = unsafe {
-            &KERNEL_FIXED.pdpt as *const _ as usize - mem::KERNEL_OFFSET
-        };
+        let kernel_pdpt_phys =
+            unsafe { &KERNEL_FIXED.pdpt as *const _ as usize - mem::KERNEL_OFFSET };
         let page = phys::alloc_page(PageUsage::Paging)?;
         let res = unsafe { &mut *(mem::virtualize(page) as *mut Self) };
         res.0.entries[..511].fill(EntryImpl::EMPTY);
-        res.0.entries[511] = EntryImpl::normal(kernel_pdpt_phys, MapAttributes::SHARE_OUTER | MapAttributes::KERNEL_EXEC | MapAttributes::KERNEL_WRITE);
+        res.0.entries[511] = EntryImpl::normal(
+            kernel_pdpt_phys,
+            MapAttributes::SHARE_OUTER
+                | MapAttributes::KERNEL_EXEC
+                | MapAttributes::KERNEL_WRITE
+                | MapAttributes::USER_READ
+                | MapAttributes::USER_WRITE,
+        );
         Ok(res)
     }
 
@@ -97,7 +113,29 @@ impl Space for SpaceImpl {
     }
 
     fn fork(&mut self) -> Result<&'static mut Self, Errno> {
-        todo!()
+        let res = Self::alloc_empty()?;
+        let pdpt0 = self.0.next_level_table_mut(0).unwrap();
+
+        for pdpti in 0..512 {
+            if let Some(pd) = pdpt0.next_level_table_mut(pdpti) {
+                for pdi in 0..512 {
+                    if let Some(pt) = pd.next_level_table_mut(pdi) {
+                        for pti in 0..512 {
+                            let entry = &mut pt[pti];
+
+                            if !entry.is_present() {
+                                continue;
+                            }
+
+                            assert!(entry.is_normal());
+
+                            todo!();
+                        }
+                    }
+                }
+            }
+        }
+        Ok(res)
     }
 
     unsafe fn write_last_level(
@@ -117,9 +155,15 @@ impl Space for SpaceImpl {
         let l2_table = l1_table.next_level_table_or_alloc(l2i)?;
 
         if l2_table[l3i].is_present() {
-            warnln!("Entry already exists for address: virt={:#x}, prev={:#x}, new={:#x}", virt, l2_table[l3i].address(), entry.address());
+            warnln!(
+                "Entry already exists for address: virt={:#x}, prev={:#x}, new={:#x}",
+                virt,
+                l2_table[l3i].address(),
+                entry.address()
+            );
             Err(Errno::AlreadyExists)
         } else {
+            debugln!("write_last_level {:#x}, {:#x?}", virt, entry);
             l2_table[l3i] = entry;
             unsafe {
                 core::arch::asm!("invlpg ({})", in(reg) virt, options(att_syntax));
@@ -151,7 +195,7 @@ impl TableImpl {
     /// Constructs a table with no valid mappings
     pub const fn empty() -> Self {
         Self {
-            entries: [EntryImpl::EMPTY; 512]
+            entries: [EntryImpl::EMPTY; 512],
         }
     }
 
@@ -170,7 +214,13 @@ impl TableImpl {
         } else {
             let phys = phys::alloc_page(PageUsage::Paging)?;
             let res = unsafe { &mut *(mem::virtualize(phys) as *mut Self) };
-            self[index] = EntryImpl::normal(phys, MapAttributes::USER_WRITE | MapAttributes::USER_READ);
+            self[index] = EntryImpl::normal(
+                phys,
+                MapAttributes::USER_WRITE
+                    | MapAttributes::USER_READ
+                    | MapAttributes::KERNEL_WRITE
+                    | MapAttributes::USER_EXEC,
+            );
             res.entries.fill(EntryImpl::EMPTY);
             Ok(res)
         }

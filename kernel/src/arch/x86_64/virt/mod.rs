@@ -24,8 +24,8 @@ impl From<MapAttributes> for RawAttributesImpl {
         if i.contains(MapAttributes::USER_READ) {
             res |= RawAttributesImpl::USER;
         }
-        if i.contains(MapAttributes::USER_WRITE) || i.contains(MapAttributes::KERNEL_WRITE) {
-            res |= RawAttributesImpl::WRITE;
+        if i.contains(MapAttributes::USER_WRITE) {
+            res |= RawAttributesImpl::WRITE | RawAttributesImpl::USER;
         }
 
         res

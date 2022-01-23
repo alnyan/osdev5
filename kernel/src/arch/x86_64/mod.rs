@@ -19,6 +19,8 @@ pub mod reg;
 pub(self) mod syscall;
 pub mod virt;
 
+pub use syscall::SyscallFrame as ForkFrame;
+
 /// Masks IRQs and returns previous IRQ mask state
 ///
 /// # Safety

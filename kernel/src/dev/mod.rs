@@ -13,7 +13,7 @@ pub mod display;
 pub mod serial;
 pub mod timer;
 pub mod pseudo;
-// pub mod tty;
+pub mod tty;
 
 /// Generic device trait
 pub trait Device {

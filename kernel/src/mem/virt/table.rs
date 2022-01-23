@@ -103,39 +103,6 @@ pub trait Space {
         create_intermediate: bool,
         overwrite: bool,
     ) -> Result<(), Errno>;
-// =======
-// bitflags! {
-//     /// Attributes attached to each translation [Entry]
-//     pub struct MapAttributes: u64 {
-//         const USER_READ = 1 << 1;
-//         const USER_WRITE = 1 << 2;
-//         const USER_EXEC = 1 << 3;
-//         const KERNEL_WRITE = 1 << 4;
-//         const KERNEL_EXEC = 1 << 5;
-//
-//         const SHARE_OUTER = 1 << 6;
-//         const SHARE_INNER = 2 << 6;
-//
-//         const NOT_GLOBAL = 1 << 8;
-//     }
-// }
-//
-// pub trait Entry: Clone + Copy {
-//     fn from_parts(phys: usize, attrs: MapAttributes) -> Self;
-//     fn target(self) -> usize;
-//     fn is_present(self) -> bool;
-//     fn is_table(self) -> bool;
-// }
-//
-// pub trait AddressSpace {
-//     type Entry: Entry;
-//
-//     fn alloc_empty() -> Result<&'static mut Self, Errno>;
-//     fn release(space: &mut Self);
-//     fn address_phys(&mut self) -> usize;
-//     fn read_last_level_entry(&mut self, virt: usize) -> Result<Self::Entry, Errno>;
-//     fn write_last_level_entry(
-// >>>>>>> d14ca5e (Make x86_64 work (pre-syscalls))
 
     /// Reads an entry corresponding to `virt` address
     fn read_last_level(&self, virt: usize) -> Result<Self::Entry, Errno>;
@@ -170,6 +137,7 @@ pub trait Space {
     /// Creates a new virtual -> physical memory mapping. Will fail if one is
     /// already associated with given virtual address.
     fn map(&mut self, virt: usize, phys: usize, attrs: MapAttributes) -> Result<(), Errno> {
+        debugln!("Map {:#x} -> {:#x}, {:?}", virt, phys, attrs);
         unsafe {
             self.write_last_level(
                 virt,
@@ -183,6 +151,16 @@ pub trait Space {
     /// Returns a virtual address physical mapping destination
     fn translate(&mut self, virt: usize) -> Result<usize, Errno> {
         self.read_last_level(virt).map(Entry::address)
+    }
+
+    /// Releases memory from virtual address range `start`..`start + len * 0x1000`
+    fn free(&mut self, start: usize, len: usize) -> Result<(), Errno> {
+        for i in 0..len {
+            unsafe {
+                self.write_last_level(start + i * 0x1000, Self::Entry::EMPTY, false, true)?;
+            }
+        }
+        Ok(())
     }
 
     /// Allocates a contiguous region from the address space and maps
@@ -209,15 +187,5 @@ pub trait Space {
             return Ok(page);
         }
         Err(Errno::OutOfMemory)
-    }
-
-    /// Releases memory from virtual address range `start`..`start + len * 0x1000`
-    fn free(&mut self, start: usize, len: usize) -> Result<(), Errno> {
-        for i in 0..len {
-            unsafe {
-                self.write_last_level(start + i * 0x1000, Self::Entry::EMPTY, false, true)?;
-            }
-        }
-        Ok(())
     }
 }

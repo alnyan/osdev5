@@ -7,7 +7,7 @@ use crate::mem::{
 use crate::proc::{
     wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, Tid, PROCESSES, SCHED,
 };
-use crate::arch::intrin;
+use crate::arch::{intrin, platform::ForkFrame};
 use crate::sync::{IrqSafeSpinLock, IrqSafeSpinLockGuard};
 use alloc::{rc::Rc, vec::Vec};
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -54,7 +54,7 @@ pub struct Process {
 
 impl Process {
     const USTACK_VIRT_TOP: usize = 0x100000000;
-    const USTACK_PAGES: usize = 4;
+    const USTACK_PAGES: usize = 8;
 
     /// Returns the process ID
     #[inline]
@@ -157,6 +157,12 @@ impl Process {
 
     fn space_phys(lock: &mut IrqSafeSpinLockGuard<ProcessInner>) -> usize {
         lock.space.as_mut().unwrap().address_phys() | ((lock.id.asid() as usize) << 48)
+    }
+
+    /// Creates a "fork" of the process, cloning its address space and
+    /// resources
+    pub fn fork(&self, frame: &mut ForkFrame) -> Result<Pid, Errno> {
+        todo!();
     }
 
     /// Terminates a process.
@@ -291,8 +297,7 @@ impl Process {
             let page = phys::alloc_page(PageUsage::UserPrivate).unwrap();
             let flags = MapAttributes::SHARE_OUTER
                 | MapAttributes::USER_READ
-                | MapAttributes::USER_WRITE
-                | MapAttributes::KERNEL_WRITE;
+                | MapAttributes::USER_WRITE;
             new_space
                 .map(ustack_virt_bottom + i * mem::PAGE_SIZE, page, flags)
                 .unwrap();

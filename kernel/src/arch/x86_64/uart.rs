@@ -1,9 +1,16 @@
-use crate::dev::{Device, serial::SerialDevice};
 use crate::arch::x86_64::PortIo;
 use libsys::error::Errno;
+use crate::dev::{
+    tty::{CharRing, TtyDevice},
+    irq::{IntController, IntSource},
+    serial::SerialDevice,
+    Device,
+};
 
+#[derive(TtyCharDevice)]
 pub(super) struct Uart {
-    dr: PortIo<u8>
+    dr: PortIo<u8>,
+    ring: CharRing<16>
 }
 
 impl Device for Uart {
@@ -13,6 +20,12 @@ impl Device for Uart {
 
     unsafe fn enable(&self) -> Result<(), Errno> {
         Ok(())
+    }
+}
+
+impl TtyDevice<16> for Uart {
+    fn ring(&self) -> &CharRing<16> {
+        &self.ring
     }
 }
 
@@ -30,7 +43,8 @@ impl SerialDevice for Uart {
 impl Uart {
     pub const unsafe fn new(base: u16) -> Self {
         Self {
-            dr: PortIo::new(base)
+            dr: PortIo::new(base),
+            ring: CharRing::new()
         }
     }
 }

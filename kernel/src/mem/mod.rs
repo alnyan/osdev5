@@ -29,6 +29,7 @@ pub fn kernel_end_phys() -> usize {
 
 // TODO cross-platform variant
 /// Returns `true` if `virt` address is accessible for requested operation
+#[cfg(target_arch = "aarch64")]
 #[inline(always)]
 pub fn is_el0_accessible(virt: usize, write: bool) -> bool {
     use core::arch::asm;
