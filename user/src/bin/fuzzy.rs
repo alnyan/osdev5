@@ -1,4 +1,3 @@
-#![feature(asm)]
 #![no_std]
 #![no_main]
 
@@ -9,6 +8,7 @@
 extern crate libusr;
 
 use libusr::sys::{abi::SystemCall, stat::Stat};
+use core::arch::asm;
 
 static mut STATE: u64 = 0;
 

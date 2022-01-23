@@ -6,6 +6,7 @@ use crate::mem::{
     phys::{self, PageUsage},
 };
 use core::mem::size_of;
+use core::arch::global_asm;
 
 struct Stack {
     bp: usize,

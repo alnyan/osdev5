@@ -1,9 +1,10 @@
-#![feature(asm)]
 #![no_std]
 #![no_main]
 
 #[macro_use]
 extern crate libusr;
+
+use core::arch::asm;
 
 use libusr::sys::{stat::MountOptions, sys_execve, sys_fork, sys_mount, sys_waitpid};
 

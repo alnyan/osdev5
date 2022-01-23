@@ -1,7 +1,6 @@
 #![feature(
     const_fn_trait_bound,
     const_mut_refs,
-    maybe_uninit_extra,
     maybe_uninit_uninit_array
 )]
 #![no_std]

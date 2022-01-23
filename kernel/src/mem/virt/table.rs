@@ -6,6 +6,7 @@ use crate::mem::{
 };
 use core::ops::{Index, IndexMut};
 use libsys::{error::Errno, mem::memset};
+use core::arch::asm;
 
 /// Transparent wrapper structure representing a single
 /// translation table entry

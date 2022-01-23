@@ -4,6 +4,7 @@ use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use libsys::proc::Tid;
 use alloc::{collections::VecDeque, rc::Rc};
+use core::arch::asm;
 
 struct SchedulerInner {
     queue: VecDeque<Tid>,

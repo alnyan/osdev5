@@ -2,6 +2,7 @@
 
 use cortex_a::registers::DAIF;
 use tock_registers::interfaces::{Readable, Writeable};
+use core::arch::asm;
 
 pub mod boot;
 pub mod context;

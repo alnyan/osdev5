@@ -4,6 +4,7 @@ use crate::arch::{
     aarch64::reg::{CNTKCTL_EL1, CPACR_EL1},
     machine,
 };
+use core::arch::global_asm;
 use crate::config::{ConfigKey, CONFIG};
 use crate::dev::{
     fdt::{find_prop, DeviceTree},
@@ -120,6 +121,4 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
     }
 }
 
-global_asm!(include_str!("macros.S"));
 global_asm!(include_str!("uboot.S"));
-global_asm!(include_str!("upper.S"));

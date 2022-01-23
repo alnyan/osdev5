@@ -1,4 +1,5 @@
 use crate::abi::SystemCall;
+use core::arch::asm;
 use crate::{
     debug::TraceLevel,
     error::Errno,

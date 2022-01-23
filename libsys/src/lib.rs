@@ -1,4 +1,3 @@
-#![feature(asm, const_panic)]
 #![no_std]
 
 #[macro_use]

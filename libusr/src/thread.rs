@@ -8,6 +8,7 @@ use libsys::{
     calls::{sys_ex_clone, sys_ex_gettid, sys_ex_signal, sys_ex_thread_exit, sys_ex_thread_wait},
     proc::{ExitCode, Tid},
 };
+use core::arch::asm;
 
 struct NativeData<F, T>
 where

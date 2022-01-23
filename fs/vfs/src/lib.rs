@@ -1,6 +1,6 @@
 //! Virtual filesystem API and facilities
 #![warn(missing_docs)]
-#![feature(destructuring_assignment, const_fn_trait_bound)]
+#![feature(const_fn_trait_bound)]
 #![no_std]
 
 #[cfg(test)]

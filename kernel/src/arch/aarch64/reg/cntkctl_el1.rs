@@ -1,6 +1,8 @@
 //! CNTKCTL_EL1 register
 #![allow(missing_docs)]
 
+use core::arch::asm;
+
 use tock_registers::{
     interfaces::{Readable, Writeable},
     register_bitfields,

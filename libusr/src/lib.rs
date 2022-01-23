@@ -1,4 +1,4 @@
-#![feature(asm, alloc_error_handler)]
+#![feature(alloc_error_handler)]
 #![no_std]
 
 #[macro_use]

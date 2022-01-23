@@ -18,6 +18,7 @@ use libsys::{
     signal::Signal,
     ProgramArgs,
 };
+use core::arch::asm;
 
 /// Wrapper type for a process struct reference
 pub type ProcessRef = Rc<Process>;

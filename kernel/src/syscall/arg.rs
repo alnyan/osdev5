@@ -4,6 +4,7 @@ use crate::mem;
 use core::alloc::Layout;
 use libsys::error::Errno;
 use crate::proc::Process;
+use core::arch::asm;
 
 // TODO _mut() versions checking whether pages are actually writable
 

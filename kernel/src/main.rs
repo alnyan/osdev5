@@ -1,19 +1,15 @@
 //! osdve5 crate (lol)
 #![feature(
-    asm,
-    global_asm,
     const_for,
     const_mut_refs,
-    const_raw_ptr_deref,
     const_fn_fn_ptr_basics,
     const_fn_trait_bound,
     const_trait_impl,
-    const_panic,
     panic_info_message,
     alloc_error_handler,
     linked_list_cursors,
     const_btree_new,
-    const_generics_defaults,
+    asm_const,
 )]
 #![no_std]
 #![no_main]
@@ -40,6 +36,8 @@ pub mod proc;
 pub mod sync;
 pub mod syscall;
 pub mod util;
+
+use core::arch::asm;
 
 #[panic_handler]
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {
