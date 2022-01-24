@@ -1,7 +1,7 @@
 //! Process file descriptors and I/O context
 use alloc::collections::BTreeMap;
 use libsys::{error::Errno, stat::{FileDescriptor, UserId, GroupId}};
-use vfs::{FileRef, Ioctx, VnodeRef, VnodeKind};
+use vfs::{FileRef, Ioctx, VnodeRef, VnodeData};
 
 /// Process I/O context. Contains file tables, root/cwd info etc.
 pub struct ProcessIo {
@@ -24,7 +24,7 @@ impl ProcessIo {
 
     /// Sets controlling terminal for the process
     pub fn set_ctty(&mut self, node: VnodeRef) {
-        assert_eq!(node.kind(), VnodeKind::Char);
+        // assert_eq!(node.kind(), VnodeKind::Char);
         self.ctty = Some(node);
     }
 

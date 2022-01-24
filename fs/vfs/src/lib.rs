@@ -1,6 +1,6 @@
 //! Virtual filesystem API and facilities
 #![warn(missing_docs)]
-#![feature(const_fn_trait_bound)]
+#![feature(const_fn_trait_bound, const_discriminant)]
 #![no_std]
 
 #[cfg(test)]
@@ -20,10 +20,10 @@ pub use block::BlockDevice;
 mod fs;
 pub use fs::Filesystem;
 mod node;
-pub use node::{Vnode, VnodeImpl, VnodeKind, VnodeRef};
+pub use node::{Vnode, VnodeData, VnodeRef, VnodeCreateKind, VnodeCommon, VnodeFile, VnodeDirectory};
 mod ioctx;
 pub use ioctx::Ioctx;
 mod file;
 pub use file::{File, FileRef};
 mod char;
-pub use crate::char::{CharDevice, CharDeviceWrapper};
+pub use crate::char::CharDevice;

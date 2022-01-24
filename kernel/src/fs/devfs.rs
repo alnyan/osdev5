@@ -3,7 +3,8 @@ use crate::util::InitOnce;
 use alloc::boxed::Box;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use libsys::{stat::FileMode, error::Errno};
-use vfs::{CharDevice, CharDeviceWrapper, Vnode, VnodeKind, VnodeRef};
+use vfs::{CharDevice, Vnode, VnodeData, VnodeRef};
+use core::cell::RefCell;
 
 /// Possible character device kinds
 #[derive(Debug)]
@@ -16,7 +17,8 @@ static DEVFS_ROOT: InitOnce<VnodeRef> = InitOnce::new();
 
 /// Initializes devfs
 pub fn init() {
-    let node = Vnode::new("", VnodeKind::Directory, Vnode::CACHE_READDIR | Vnode::CACHE_STAT);
+    let node = Vnode::new("", VnodeData::Directory(RefCell::new(None)), Vnode::CACHE_READDIR | Vnode::CACHE_STAT);
+    // let node = Vnode::new("", VnodeKind::Directory, Vnode::CACHE_READDIR | Vnode::CACHE_STAT);
     node.props_mut().mode = FileMode::default_dir();
     DEVFS_ROOT.init(node);
 }
@@ -29,9 +31,10 @@ pub fn root() -> &'static VnodeRef {
 pub fn add_named_char_device(dev: &'static dyn CharDevice, name: &str) -> Result<(), Errno> {
     infoln!("Add char device: {}", name);
 
-    let node = Vnode::new(name, VnodeKind::Char, Vnode::CACHE_STAT);
-    node.props_mut().mode = FileMode::from_bits(0o600).unwrap() | FileMode::S_IFCHR;
-    node.set_data(Box::new(CharDeviceWrapper::new(dev)));
+    let node = Vnode::new(name, VnodeData::Char(dev), Vnode::CACHE_STAT);
+    // let node = Vnode::new(name, VnodeKind::Char, Vnode::CACHE_STAT);
+    // node.set_data(Box::new(CharDeviceWrapper::new(dev)));
+     node.props_mut().mode = FileMode::from_bits(0o600).unwrap() | FileMode::S_IFCHR;
 
     DEVFS_ROOT.get().attach(node);
 

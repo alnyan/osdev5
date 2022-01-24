@@ -29,8 +29,9 @@ impl<T> InitOnce<T> {
     /// Returns the initialized value. Will panic if the value has not
     /// yet been initialized.
     #[allow(clippy::mut_from_ref)]
+    #[track_caller]
     pub fn get(&self) -> &mut T {
-        assert!(self.is_initialized(), "Access to uninitialized InitOnce<T>");
+        assert!(self.is_initialized(), "Access to uninitialized InitOnce<T>: {:?}", core::panic::Location::caller());
         unsafe { (*self.inner.get()).assume_init_mut() }
     }
 

@@ -1,5 +1,5 @@
 use libsys::{error::Errno, stat::FileMode};
-use vfs::VnodeKind;
+use vfs::{VnodeData, VnodeCreateKind};
 
 #[repr(packed)]
 #[allow(dead_code)]
@@ -73,18 +73,18 @@ impl Tar {
         core::str::from_utf8(&self.name[..zero_index]).map_err(|_| Errno::InvalidArgument)
     }
 
-    pub fn node_kind(&self) -> VnodeKind {
+    pub fn node_create_kind(&self) -> VnodeCreateKind {
         match self.type_ {
-            0 | b'0' => VnodeKind::Regular,
-            b'5' => VnodeKind::Directory,
+            0 | b'0' => VnodeCreateKind::File,
+            b'5' => VnodeCreateKind::Directory,
             p => panic!("Unrecognized tar entry type: '{}'", p as char),
         }
     }
 
     pub fn mode(&self) -> FileMode {
-        let t = match self.node_kind() {
-            VnodeKind::Regular => FileMode::S_IFREG,
-            VnodeKind::Directory => FileMode::S_IFDIR,
+        let t = match self.node_create_kind() {
+            VnodeCreateKind::File => FileMode::S_IFREG,
+            VnodeCreateKind::Directory => FileMode::S_IFDIR,
             _ => todo!()
         };
         FileMode::from_bits(from_octal(&self.mode) as u32).unwrap() | t

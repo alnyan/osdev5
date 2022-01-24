@@ -1,27 +1,26 @@
+use crate::debug::{self, Level};
 use crate::util::InitOnce;
 use alloc::boxed::Box;
+use core::cell::RefCell;
+use core::fmt::{self, Write};
+use core::str::FromStr;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use fs_macros::auto_inode;
 use libsys::{
     error::Errno,
     stat::{FileMode, OpenFlags, Stat},
+    ioctl::IoctlCmd,
 };
-use vfs::{CharDevice, CharDeviceWrapper, Vnode, VnodeImpl, VnodeKind, VnodeRef};
-use core::fmt::{self, Write};
-use core::str::FromStr;
-use crate::debug::{self, Level};
+use vfs::{CharDevice, Vnode, VnodeCommon, VnodeData, VnodeFile, VnodeRef};
 
-struct NodeData<
-    R: Fn(&mut [u8]) -> Result<usize, Errno>,
-    W: Fn(&[u8]) -> Result<usize, Errno>,
-> {
+struct NodeData<R: Fn(&mut [u8]) -> Result<usize, Errno>, W: Fn(&[u8]) -> Result<usize, Errno>> {
     read_func: R,
     write_func: W,
 }
 
 struct BufferWriter<'a> {
     dst: &'a mut [u8],
-    pos: usize
+    pos: usize,
 }
 
 impl<'a> fmt::Write for BufferWriter<'a> {
@@ -47,11 +46,8 @@ impl<'a> BufferWriter<'a> {
     }
 }
 
-#[auto_inode]
-impl<
-        R: Fn(&mut [u8]) -> Result<usize, Errno>,
-        W: Fn(&[u8]) -> Result<usize, Errno>,
-    > VnodeImpl for NodeData<R, W>
+impl<R: Fn(&mut [u8]) -> Result<usize, Errno>, W: Fn(&[u8]) -> Result<usize, Errno>> VnodeCommon
+    for NodeData<R, W>
 {
     fn open(&mut self, _node: VnodeRef, _mode: OpenFlags) -> Result<usize, Errno> {
         Ok(0)
@@ -60,7 +56,35 @@ impl<
     fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
         Ok(())
     }
+    /// Performs filetype-specific request
+    fn ioctl(
+        &mut self,
+        node: VnodeRef,
+        cmd: IoctlCmd,
+        ptr: usize,
+        len: usize,
+    ) -> Result<usize, Errno> {
+        todo!()
+    }
 
+    /// Retrieves file status
+    fn stat(&mut self, node: VnodeRef) -> Result<Stat, Errno> {
+        todo!()
+    }
+
+    /// Reports the size of this filesystem object in bytes
+    fn size(&mut self, node: VnodeRef) -> Result<usize, Errno> {
+        todo!()
+    }
+
+    /// Returns `true` if node is ready for an operation
+    fn is_ready(&mut self, node: VnodeRef, write: bool) -> Result<bool, Errno> {
+        todo!()
+    }
+}
+
+impl<R: Fn(&mut [u8]) -> Result<usize, Errno>, W: Fn(&[u8]) -> Result<usize, Errno>> VnodeFile
+    for NodeData<R, W> {
     fn read(&mut self, _node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno> {
         if pos != 0 {
             // TODO handle this
@@ -76,12 +100,13 @@ impl<
         }
         (self.write_func)(data)
     }
-}
 
-impl<
-        R: Fn(&mut [u8]) -> Result<usize, Errno>,
-        W: Fn(&[u8]) -> Result<usize, Errno>,
-    > NodeData<R, W>
+    fn truncate(&mut self, node: VnodeRef, size: usize) -> Result<(), Errno> {
+        todo!()
+    }
+    }
+impl<R: Fn(&mut [u8]) -> Result<usize, Errno>, W: Fn(&[u8]) -> Result<usize, Errno>>
+    NodeData<R, W>
 {
     pub const fn new(read_func: R, write_func: W) -> Self {
         Self {
@@ -100,9 +125,12 @@ where
     R: Fn(&mut [u8]) -> Result<usize, Errno> + 'static,
     W: Fn(&[u8]) -> Result<usize, Errno> + 'static,
 {
-    let node = Vnode::new(name, VnodeKind::Regular, Vnode::CACHE_STAT);
+    let node = Vnode::new(
+        name,
+        VnodeData::File(RefCell::new(Some(Box::new(NodeData::new(read, write))))),
+        Vnode::CACHE_STAT,
+    );
     node.props_mut().mode = mode | FileMode::S_IFREG;
-    node.set_data(Box::new(NodeData::new(read, write)));
 
     if let Some(parent) = parent {
         parent.attach(node);
@@ -116,15 +144,30 @@ where
     R: Fn(&mut [u8]) -> Result<usize, Errno> + 'static,
     W: Fn(&[u8]) -> Result<usize, Errno> + 'static,
 {
-    add_generic_node(parent, name, FileMode::from_bits(0o600).unwrap(), read, write)
+    add_generic_node(
+        parent,
+        name,
+        FileMode::from_bits(0o600).unwrap(),
+        read,
+        write,
+    )
 }
 
-pub fn add_read_node<R>(parent: Option<VnodeRef>, name: &str, read: R) where R: Fn(&mut [u8]) -> Result<usize, Errno> + 'static {
-    add_generic_node(parent, name, FileMode::from_bits(0o400).unwrap(), read, |_| Err(Errno::ReadOnly))
+pub fn add_read_node<R>(parent: Option<VnodeRef>, name: &str, read: R)
+where
+    R: Fn(&mut [u8]) -> Result<usize, Errno> + 'static,
+{
+    add_generic_node(
+        parent,
+        name,
+        FileMode::from_bits(0o400).unwrap(),
+        read,
+        |_| Err(Errno::ReadOnly),
+    )
 }
 
 pub fn add_directory(parent: Option<VnodeRef>, name: &str) -> Result<VnodeRef, Errno> {
-    let node = Vnode::new(name, VnodeKind::Directory, Vnode::CACHE_READDIR | Vnode::CACHE_STAT);
+    let node = Vnode::new(name, VnodeData::Directory(RefCell::new(None)), Vnode::CACHE_READDIR | Vnode::CACHE_STAT);
     node.props_mut().mode = FileMode::from_bits(0o500).unwrap() | FileMode::S_IFDIR;
 
     if let Some(parent) = parent {
@@ -141,7 +184,7 @@ pub fn root() -> &'static VnodeRef {
 }
 
 pub fn init() {
-    let node = Vnode::new("", VnodeKind::Directory, Vnode::CACHE_READDIR | Vnode::CACHE_STAT);
+    let node = Vnode::new("", VnodeData::Directory(RefCell::new(None)), Vnode::CACHE_READDIR | Vnode::CACHE_STAT);
     node.props_mut().mode = FileMode::default_dir();
     SYSFS_ROOT.init(node);
 

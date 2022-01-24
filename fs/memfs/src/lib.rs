@@ -1,8 +1,4 @@
-#![feature(
-    const_fn_trait_bound,
-    const_mut_refs,
-    maybe_uninit_uninit_array
-)]
+#![feature(const_fn_trait_bound, const_mut_refs, maybe_uninit_uninit_array)]
 #![no_std]
 
 extern crate alloc;
@@ -21,14 +17,14 @@ use libsys::{
     path::{path_component_left, path_component_right},
     stat::FileMode,
 };
-use vfs::{BlockDevice, Filesystem, Vnode, VnodeKind, VnodeRef};
+use vfs::{BlockDevice, Filesystem, Vnode, VnodeCreateKind, VnodeData, VnodeRef};
 
 mod block;
 pub use block::{BlockAllocator, BlockRef};
 mod bvec;
 use bvec::Bvec;
 mod tar;
-use tar::{TarIterator, Tar};
+use tar::{Tar, TarIterator};
 mod file;
 use file::FileInode;
 mod dir;
@@ -67,16 +63,17 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
     }
 
     fn create_node_initial(self: Rc<Self>, name: &str, tar: &Tar) -> VnodeRef {
-        let kind = tar.node_kind();
-        let node = Vnode::new(name, kind, Vnode::SEEKABLE | Vnode::CACHE_READDIR);
+        let kind = tar.node_create_kind();
+        let data = match kind {
+            VnodeCreateKind::Directory => {
+                VnodeData::Directory(RefCell::new(Some(Box::new(DirInode::new(self.alloc)))))
+            }
+            VnodeCreateKind::File => VnodeData::File(RefCell::new(None)),
+            _ => todo!(),
+        };
+        let node = Vnode::new(name, data, Vnode::SEEKABLE | Vnode::CACHE_READDIR);
         node.props_mut().mode = tar.mode();
         node.set_fs(self.clone());
-        match kind {
-            VnodeKind::Directory => node.set_data(Box::new(DirInode::new(self.alloc))),
-            VnodeKind::Regular => {}
-            VnodeKind::Char => todo!(),
-            VnodeKind::Block => todo!(),
-        };
         node
     }
 
@@ -100,7 +97,8 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
                     return Err(Errno::DoesNotExist);
                 }
                 // TODO file modes
-                at.create(element, FileMode::default_dir(), VnodeKind::Directory)?
+                at.create(element, FileMode::default_dir(), VnodeCreateKind::Directory)?
+                // todo!();
             }
         };
 
@@ -112,9 +110,10 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
     }
 
     unsafe fn load_tar(self: Rc<Self>, base: *const u8, size: usize) -> Result<VnodeRef, Errno> {
-        let root = Vnode::new("", VnodeKind::Directory, Vnode::SEEKABLE | Vnode::CACHE_READDIR);
+        let root_data =
+            VnodeData::Directory(RefCell::new(Some(Box::new(DirInode::new(self.alloc)))));
+        let root = Vnode::new("", root_data, Vnode::SEEKABLE | Vnode::CACHE_READDIR);
         root.set_fs(self.clone());
-        root.set_data(Box::new(DirInode::new(self.alloc)));
         root.props_mut().mode = FileMode::default_dir();
 
         // 1. Create all the paths in TAR
@@ -122,10 +121,7 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
             let (dirname, basename) = path_component_right(block.path()?);
 
             let parent = self.clone().make_path(root.clone(), dirname, true)?;
-            let node = self
-                .clone()
-                .create_node_initial(basename, block);
-            assert_eq!(node.kind(), block.node_kind());
+            let node = self.clone().create_node_initial(basename, block);
             parent.attach(node);
         }
 
@@ -134,16 +130,17 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
             if block.is_file() {
                 // Will not create any dirs
                 let node = self.clone().make_path(root.clone(), block.path()?, false)?;
-                assert_eq!(node.kind(), block.node_kind());
 
                 #[cfg(feature = "cow")]
                 {
                     let data = block.data();
-                    node.set_data(Box::new(FileInode::new(Bvec::new_copy_on_write(
-                        self.alloc,
-                        data.as_ptr(),
-                        data.len(),
-                    ))));
+                    node.as_file()
+                        .unwrap()
+                        .replace(Some(Box::new(FileInode::new(Bvec::new_copy_on_write(
+                            self.alloc,
+                            data.as_ptr(),
+                            data.len(),
+                        )))));
                 }
                 #[cfg(not(feature = "cow"))]
                 {
@@ -166,7 +163,7 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
 mod tests {
     use super::*;
     use alloc::boxed::Box;
-    use libcommon::Read;
+    use libsys::{traits::Read, stat::{UserId, GroupId, OpenFlags}};
     use vfs::Ioctx;
 
     #[test]
@@ -188,15 +185,15 @@ mod tests {
         let fs = unsafe { Ramfs::open(data.as_ptr(), data.bytes().len(), A {}).unwrap() };
 
         let root = fs.root().unwrap();
-        let ioctx = Ioctx::new(root.clone());
+        let ioctx = Ioctx::new(root.clone(), UserId::root(), GroupId::root());
 
         assert!(Rc::ptr_eq(&ioctx.find(None, "/", true).unwrap(), &root));
 
         let node = ioctx.find(None, "/test1.txt", true).unwrap();
-        let mut file = node.open().unwrap();
+        let mut file = node.open(OpenFlags::O_RDONLY).unwrap();
         let mut buf = [0u8; 1024];
 
-        assert_eq!(file.read(&mut buf).unwrap(), 20);
+        assert_eq!(file.borrow_mut().read(&mut buf).unwrap(), 20);
         let s = core::str::from_utf8(&buf[..20]).unwrap();
         assert_eq!(s, "This is a test file\n");
     }
