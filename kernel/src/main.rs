@@ -42,7 +42,7 @@ use core::arch::asm;
 #[panic_handler]
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {
     unsafe {
-        asm!("msr daifset, #2");
+        arch::intrin::irq_disable();
     }
 
     errorln!("Panic: {:?}", pi);

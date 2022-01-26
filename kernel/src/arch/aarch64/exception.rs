@@ -1,6 +1,6 @@
 //! AArch64 exception handling
 
-use crate::arch::machine;
+use crate::arch::{machine, intrin};
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
 use crate::mem;
@@ -98,7 +98,9 @@ extern "C" fn __aa64_exc_sync_handler(exc: &mut ExceptionFrame) {
 
                 let res = proc.manipulate_space(|space| {
                     space.try_cow_copy(far)?;
-                    Process::invalidate_asid(asid);
+                    unsafe {
+                        intrin::flush_tlb_asid(asid);
+                    }
                     Result::<(), Errno>::Ok(())
                 });
 

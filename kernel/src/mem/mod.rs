@@ -26,3 +26,18 @@ pub fn kernel_end_phys() -> usize {
     }
     unsafe { &__kernel_end as *const _ as usize - KERNEL_OFFSET }
 }
+
+// TODO cross-platform variant
+#[inline(always)]
+pub fn is_el0_accessible(virt: usize, write: bool) -> bool {
+    use core::arch::asm;
+    let mut res: usize;
+    unsafe {
+        if write {
+            asm!("at s1e0w, {}; mrs {}, par_el1", in(reg) virt, out(reg) res);
+        } else {
+            asm!("at s1e0r, {}; mrs {}, par_el1", in(reg) virt, out(reg) res);
+        }
+    }
+    res & 1 == 0
+}

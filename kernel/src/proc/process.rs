@@ -1,15 +1,16 @@
 //! Process data and control
-use crate::arch::aarch64::exception::ExceptionFrame;
+use crate::arch::{aarch64::exception::ExceptionFrame, intrin};
 use crate::mem::{
     self,
     phys::{self, PageUsage},
     virt::{MapAttributes, Space},
 };
 use crate::proc::{
-    wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, PROCESSES, SCHED, Tid,
+    wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, Tid, PROCESSES, SCHED,
 };
-use crate::sync::{IrqSafeSpinLock};
+use crate::sync::IrqSafeSpinLock;
 use alloc::{rc::Rc, vec::Vec};
+use core::arch::asm;
 use core::sync::atomic::{AtomicU32, Ordering};
 use libsys::{
     error::Errno,
@@ -18,7 +19,6 @@ use libsys::{
     signal::Signal,
     ProgramArgs,
 };
-use core::arch::asm;
 
 /// Wrapper type for a process struct reference
 pub type ProcessRef = Rc<Process>;
@@ -166,7 +166,8 @@ impl Process {
         loop {
             let state = self.signal_state.load(Ordering::Acquire);
             if let Some(signal) = Self::find1(state).map(|e| Signal::try_from(e as u32).unwrap()) {
-                self.signal_state.fetch_and(!(1 << (signal as u32)), Ordering::Release);
+                self.signal_state
+                    .fetch_and(!(1 << (signal as u32)), Ordering::Release);
                 main_thread.clone().enter_signal(signal, ttbr0);
             } else {
                 break;
@@ -190,7 +191,8 @@ impl Process {
                 main_thread.enter_signal(signal, ttbr0);
             }
             ThreadState::Waiting => {
-                self.signal_state.fetch_or(1 << (signal as u32), Ordering::Release);
+                self.signal_state
+                    .fetch_or(1 << (signal as u32), Ordering::Release);
                 main_thread.interrupt_wait(true);
             }
             ThreadState::Ready => {
@@ -289,7 +291,7 @@ impl Process {
         if let Some(space) = lock.space.take() {
             unsafe {
                 Space::release(space);
-                Process::invalidate_asid((lock.id.asid() as usize) << 48);
+                intrin::flush_tlb_asid((lock.id.asid() as usize) << 48);
             }
         }
 
@@ -466,13 +468,8 @@ impl Process {
     }
 
     pub fn invalidate_tlb(&self) {
-        Process::invalidate_asid(self.asid());
-    }
-
-    #[inline]
-    pub fn invalidate_asid(asid: usize) {
         unsafe {
-            asm!("tlbi aside1, {}", in(reg) asid);
+            intrin::flush_tlb_asid(self.asid());
         }
     }
 
@@ -483,7 +480,7 @@ impl Process {
     ) -> Result<(), Errno> {
         unsafe {
             // Run with interrupts disabled
-            asm!("msr daifset, #2");
+            intrin::irq_disable();
         }
 
         let proc = Process::current();
@@ -540,7 +537,7 @@ impl Process {
             // TODO drop old context
             let ctx = thread.ctx.get();
             let asid = (process_lock.id.asid() as usize) << 48;
-            Process::invalidate_asid(asid);
+            intrin::flush_tlb_asid(asid);
 
             ctx.write(Context::user(
                 entry,

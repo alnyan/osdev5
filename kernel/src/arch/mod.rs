@@ -15,6 +15,8 @@ cfg_if! {
 
         pub use aarch64 as platform;
         pub use aarch64::machine;
+
+        pub use aarch64::intrin;
     }
 }
 

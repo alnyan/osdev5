@@ -1,5 +1,6 @@
 use crate::dev::Device;
 use crate::mem::virt::DeviceMemoryIo;
+use crate::arch::intrin;
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use libsys::error::Errno;
@@ -72,7 +73,7 @@ impl RWdog {
         regs.CTRL.write(CTRL::KEY::Value + CTRL::RESTART::SET);
 
         loop {
-            asm!("wfe");
+            intrin::hang();
         }
     }
 

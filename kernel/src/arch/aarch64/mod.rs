@@ -1,12 +1,13 @@
 //! aarch64 architecture implementation
 
+use core::arch::asm;
 use cortex_a::registers::DAIF;
 use tock_registers::interfaces::{Readable, Writeable};
-use core::arch::asm;
 
 pub mod boot;
 pub mod context;
 pub mod exception;
+pub mod intrin;
 pub mod irq;
 pub mod reg;
 pub mod timer;
@@ -35,7 +36,7 @@ cfg_if! {
 #[inline(always)]
 pub unsafe fn irq_mask_save() -> u64 {
     let state = DAIF.get();
-    asm!("msr daifset, {bits}", bits = const 2, options(nomem, nostack, preserves_flags));
+    intrin::irq_disable();
     state
 }
 

@@ -1,6 +1,7 @@
 //! System call argument ABI helpers
 
 use crate::mem;
+use crate::arch::intrin;
 use core::alloc::Layout;
 use libsys::error::Errno;
 use crate::proc::Process;
@@ -22,19 +23,6 @@ macro_rules! invalid_memory {
         }
         return Err(Errno::InvalidArgument);
     }
-}
-
-#[inline(always)]
-fn is_el0_accessible(virt: usize, write: bool) -> bool {
-    let mut res: usize;
-    unsafe {
-        if write {
-            asm!("at s1e0w, {}; mrs {}, par_el1", in(reg) virt, out(reg) res);
-        } else {
-            asm!("at s1e0r, {}; mrs {}, par_el1", in(reg) virt, out(reg) res);
-        }
-    }
-    res & 1 == 0
 }
 
 /// Checks given argument and interprets it as a `T` reference
@@ -126,13 +114,15 @@ pub fn validate_ptr(base: usize, len: usize, write: bool) -> Result<(), Errno> {
     let asid = process.asid();
 
     for i in (base / mem::PAGE_SIZE)..((base + len + mem::PAGE_SIZE - 1) / mem::PAGE_SIZE) {
-        if !is_el0_accessible(i * mem::PAGE_SIZE, write) {
+        if !mem::is_el0_accessible(i * mem::PAGE_SIZE, write) {
             // It's possible a CoW page hasn't yet been cloned when trying
             // a write access
             let res = if write {
                 process.manipulate_space(|space| {
                     space.try_cow_copy(i * mem::PAGE_SIZE)?;
-                    Process::invalidate_asid(asid);
+                    unsafe {
+                        intrin::flush_tlb_asid(asid);
+                    }
                     Ok(())
                 })
             } else {
