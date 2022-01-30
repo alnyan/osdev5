@@ -45,6 +45,7 @@ endif
 ifeq ($(MACH),rpi3)
 QEMU_OPTS+=-kernel $(O)/kernel.bin \
 		   -initrd $(O)/initrd.img \
+		   -dtb etc/bcm2837-rpi-3-b-plus.dtb \
 		   -M raspi3b \
 		   -serial mon:stdio \
 		   -display none \

@@ -4,6 +4,7 @@ use crate::dev::{
     serial::{pl011::Pl011, SerialDevice},
     Device,
 };
+use crate::fs::devfs::{self, CharDeviceType};
 use crate::mem::phys;
 use libsys::error::Errno;
 
@@ -37,6 +38,7 @@ pub fn init_board() -> Result<(), Errno> {
     unsafe {
         IRQCHIP.enable()?;
         UART.init_irqs()?;
+        devfs::add_char_device(&UART, CharDeviceType::TtySerial)?;
 
         EMMC.enable()?;
     }

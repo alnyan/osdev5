@@ -71,6 +71,6 @@ macro_rules! block {
     }};
 
     ($cond:expr, $timeout:expr) => {
-        crate::block!($cond, $timeout, return Err(error::Errno::TimedOut))
+        crate::block!($cond, $timeout, return Err(libsys::error::Errno::TimedOut))
     };
 }
