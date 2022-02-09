@@ -16,6 +16,7 @@ use libsys::{debug::TraceLevel, error::Errno};
 use core::convert::TryFrom;
 use core::fmt;
 
+/// Currently active print level
 pub static LEVEL: Level = Level::Debug;
 
 /// Kernel logging levels

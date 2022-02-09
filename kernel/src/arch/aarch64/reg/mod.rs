@@ -8,12 +8,14 @@ use tock_registers::{
 
 macro_rules! wrap_msr {
     ($struct_name:ident, $name:ident, $reg:literal, $fields:tt) => {
+        #[allow(missing_docs)]
+        pub struct $struct_name;
+
         register_bitfields! {
             u64,
+            #[allow(missing_docs)]
             pub $name $fields
         }
-
-        pub struct $struct_name;
 
         impl Readable for $struct_name {
             type T = u64;
@@ -41,11 +43,11 @@ macro_rules! wrap_msr {
             }
         }
 
+        #[allow(missing_docs)]
         pub const $name: $struct_name = $struct_name;
     };
 }
 
-/// EL1 Architectural Feature Access Control Register
 wrap_msr!(CpacrEl1, CPACR_EL1, "cpacr_el1", [
     /// Enable EL0 and EL1 SIMD/FP accesses to EL1
     FPEN OFFSET(20) NUMBITS(2) [

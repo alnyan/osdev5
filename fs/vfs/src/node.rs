@@ -13,6 +13,7 @@ use libsys::{
 pub type VnodeRef = Rc<Vnode>;
 pub type VnodeKind = Discriminant<VnodeData>;
 
+/// Trait implemented by both regular files and directories
 pub trait VnodeCommon {
     /// Performs filetype-specific request
     fn ioctl(
@@ -30,7 +31,7 @@ pub trait VnodeCommon {
     fn size(&mut self, node: VnodeRef) -> Result<usize, Errno>;
 
     /// Returns `true` if node is ready for an operation
-    fn is_ready(&mut self, node: VnodeRef, write: bool) -> Result<bool, Errno>;
+    fn ready(&mut self, node: VnodeRef, write: bool) -> Result<bool, Errno>;
 
     /// Opens a vnode for access. Returns initial file position.
     fn open(&mut self, node: VnodeRef, opts: OpenFlags) -> Result<usize, Errno>;
@@ -38,6 +39,7 @@ pub trait VnodeCommon {
     fn close(&mut self, node: VnodeRef) -> Result<(), Errno>;
 }
 
+/// Regular file access interface
 pub trait VnodeFile: VnodeCommon {
     /// Changes file's underlying storage size
     fn truncate(&mut self, node: VnodeRef, size: usize) -> Result<(), Errno>;
@@ -48,14 +50,18 @@ pub trait VnodeFile: VnodeCommon {
     fn write(&mut self, node: VnodeRef, pos: usize, data: &[u8]) -> Result<usize, Errno>;
 }
 
+/// Directory access interface
 pub trait VnodeDirectory: VnodeCommon {
+    /// Creates entry `name` of type `kind` in directory `at`
     fn create(
         &mut self,
         at: VnodeRef,
         name: &str,
         kind: VnodeCreateKind,
     ) -> Result<VnodeRef, Errno>;
+    /// Removes entry `name` for directory `at`
     fn remove(&mut self, at: VnodeRef, name: &str) -> Result<(), Errno>;
+    /// Loads an entry `name` in directory `at` from filesystem
     fn lookup(&mut self, at: VnodeRef, name: &str) -> Result<VnodeRef, Errno>;
 
     /// Read directory entries into target buffer
@@ -91,15 +97,22 @@ pub struct VnodeProps {
     pub mode: FileMode,
 }
 
+/// Specific node implementation data
 pub enum VnodeData {
+    /// Directory node
     Directory(RefCell<Option<Box<dyn VnodeDirectory>>>),
+    /// Regular file node
     File(RefCell<Option<Box<dyn VnodeFile>>>),
+    /// Character device node
     Char(&'static dyn CharDevice)
 }
 
+/// Node types for create() calls
 #[derive(Debug, Clone, Copy)]
 pub enum VnodeCreateKind {
+    /// Directory node
     Directory,
+    /// Regular file node
     File,
 }
 
@@ -173,6 +186,7 @@ impl Vnode {
         *self.fs.borrow_mut() = Some(fs);
     }
 
+    /// Returns node's directory implementation data
     pub fn as_directory(&self) -> Result<&RefCell<Option<Box<dyn VnodeDirectory>>>, Errno> {
         match &self.data {
             VnodeData::Directory(data) => Ok(data),
@@ -180,6 +194,7 @@ impl Vnode {
         }
     }
 
+    /// Returns node's regular file implementation data
     pub fn as_file(&self) -> Result<&RefCell<Option<Box<dyn VnodeFile>>>, Errno> {
         match &self.data {
             VnodeData::File(data) => Ok(data),

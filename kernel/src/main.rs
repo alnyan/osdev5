@@ -37,8 +37,6 @@ pub mod sync;
 pub mod syscall;
 pub mod util;
 
-use core::arch::asm;
-
 #[panic_handler]
 fn panic_handler(pi: &core::panic::PanicInfo) -> ! {
     unsafe {

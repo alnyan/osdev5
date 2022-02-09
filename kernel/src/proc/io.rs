@@ -1,7 +1,10 @@
 //! Process file descriptors and I/O context
 use alloc::collections::BTreeMap;
-use libsys::{error::Errno, stat::{FileDescriptor, UserId, GroupId}};
-use vfs::{FileRef, Ioctx, VnodeRef, VnodeData};
+use libsys::{
+    error::Errno,
+    stat::{FileDescriptor, GroupId, UserId},
+};
+use vfs::{FileRef, Ioctx, VnodeRef};
 
 /// Process I/O context. Contains file tables, root/cwd info etc.
 pub struct ProcessIo {
@@ -74,7 +77,11 @@ impl ProcessIo {
     }
 
     /// Clones a file descriptor into an available slot or, if specified, requested one
-    pub fn duplicate_file(&mut self, src: FileDescriptor, dst: Option<FileDescriptor>) -> Result<FileDescriptor, Errno> {
+    pub fn duplicate_file(
+        &mut self,
+        src: FileDescriptor,
+        dst: Option<FileDescriptor>,
+    ) -> Result<FileDescriptor, Errno> {
         let file_ref = self.file(src)?;
         if let Some(dst) = dst {
             let idx = u32::from(dst);
@@ -91,7 +98,10 @@ impl ProcessIo {
 
     /// Returns [File] struct referred to by file descriptor `idx`
     pub fn file(&mut self, fd: FileDescriptor) -> Result<FileRef, Errno> {
-        self.files.get(&u32::from(fd)).cloned().ok_or(Errno::InvalidFile)
+        self.files
+            .get(&u32::from(fd))
+            .cloned()
+            .ok_or(Errno::InvalidFile)
     }
 
     /// Returns [Ioctx] structure reference of this I/O context

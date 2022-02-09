@@ -128,13 +128,10 @@ impl Ioctx {
 
     /// Changes current working directory of the process
     pub fn chdir(&mut self, path: &str) -> Result<(), Errno> {
-        todo!()
-        // let node = self.find(None, path, true)?;
-        // if !node.is_directory() {
-        //     return Err(Errno::NotADirectory);
-        // }
-        // self.cwd = node;
-        // Ok(())
+        let node = self.find(None, path, true)?;
+        let _dir = node.as_directory()?;
+        self.cwd = node;
+        Ok(())
     }
 }
 

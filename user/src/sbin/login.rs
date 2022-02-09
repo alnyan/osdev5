@@ -15,7 +15,6 @@ use libsys::{
     termios::{Termios, TermiosLflag},
 };
 use libusr::{env::{self, UserInfo, UserShadow}, io};
-use core::str::FromStr;
 
 struct HiddenInput {
     fd: FileDescriptor,
@@ -158,6 +157,6 @@ fn main() -> i32 {
             }
         }
 
-        login_as(username);
+        login_as(username).ok();
     }
 }

@@ -1,9 +1,11 @@
-use crate::io::{Read, read_line};
-use core::str::FromStr;
-use core::fmt;
-use crate::trace_debug;
 use crate::file::File;
-use libsys::{FixedStr, stat::{UserId, GroupId}};
+use crate::io::{self, read_line};
+use core::str::FromStr;
+use libsys::{
+    stat::{GroupId, UserId},
+    error::Errno,
+    FixedStr,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct UserInfo {
@@ -35,11 +37,11 @@ impl UserInfo {
         self.gid
     }
 
-    pub fn find<F: Fn(&Self) -> bool>(pred: F) -> Result<Self, ()> {
-        let mut file = File::open("/etc/passwd").map_err(|_| ())?;
+    pub fn find<F: Fn(&Self) -> bool>(pred: F) -> Result<Self, io::Error> {
+        let mut file = File::open("/etc/passwd")?;
         let mut buf = [0; 128];
         loop {
-            let line = read_line(&mut file, &mut buf).map_err(|_| ())?;
+            let line = read_line(&mut file, &mut buf)?;
             if let Some(line) = line {
                 let ent = UserInfo::from_str(line)?;
                 if pred(&ent) {
@@ -49,37 +51,37 @@ impl UserInfo {
                 break;
             }
         }
-        Err(())
+        Err(io::Error::from(Errno::InvalidArgument))
     }
 
-    pub fn by_name(name: &str) -> Result<Self, ()> {
+    pub fn by_name(name: &str) -> Result<Self, io::Error> {
         Self::find(|ent| ent.name() == name)
     }
 }
 
 impl FromStr for UserInfo {
-    type Err = ();
+    type Err = io::Error;
 
-    fn from_str(s: &str) -> Result<Self, ()> {
-        let mut iter = s.split(":");
+    fn from_str(s: &str) -> Result<Self, io::Error> {
+        let mut iter = s.split(':');
 
-        let name = iter.next().ok_or(())?;
+        let name = iter.next().ok_or_else(|| io::Error::from(Errno::InvalidArgument))?;
         let uid = iter
             .next()
-            .ok_or(())
-            .and_then(|e| u32::from_str(e).map_err(|_| ()))
+            .ok_or_else(|| io::Error::from(Errno::InvalidArgument))
+            .and_then(|e| u32::from_str(e).map_err(|_| io::Error::from(Errno::InvalidArgument)))
             .map(UserId::from)?;
         let gid = iter
             .next()
-            .ok_or(())
-            .and_then(|e| u32::from_str(e).map_err(|_| ()))
+            .ok_or_else(|| io::Error::from(Errno::InvalidArgument))
+            .and_then(|e| u32::from_str(e).map_err(|_| io::Error::from(Errno::InvalidArgument)))
             .map(GroupId::from)?;
-        let comment = iter.next().ok_or(())?;
-        let home = iter.next().ok_or(())?;
-        let shell = iter.next().ok_or(())?;
+        let _comment = iter.next().ok_or_else(|| io::Error::from(Errno::InvalidArgument))?;
+        let home = iter.next().ok_or_else(|| io::Error::from(Errno::InvalidArgument))?;
+        let shell = iter.next().ok_or_else(|| io::Error::from(Errno::InvalidArgument))?;
 
         if iter.next().is_some() {
-            return Err(());
+            return Err(io::Error::from(Errno::InvalidArgument));
         }
 
         let mut res = Self {
@@ -90,9 +92,9 @@ impl FromStr for UserInfo {
             shell: FixedStr::empty(),
         };
 
-        res.name.copy_from_str(&name);
-        res.home.copy_from_str(&home);
-        res.shell.copy_from_str(&shell);
+        res.name.copy_from_str(name);
+        res.home.copy_from_str(home);
+        res.shell.copy_from_str(shell);
 
         Ok(res)
     }

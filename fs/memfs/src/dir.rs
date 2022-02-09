@@ -18,7 +18,6 @@ impl<A: BlockAllocator + Copy + 'static> VnodeDirectory for DirInode<A> {
         let data = match kind {
             VnodeCreateKind::Directory => VnodeData::Directory(RefCell::new(Some(Box::new(DirInode { alloc: self.alloc })))),
             VnodeCreateKind::File => VnodeData::File(RefCell::new(Some(Box::new(FileInode::new(Bvec::new(self.alloc)))))),
-            _ => todo!()
         };
         Ok(Vnode::new(name, data, Vnode::SEEKABLE | Vnode::CACHE_READDIR))
         // match kind {
@@ -38,9 +37,9 @@ impl<A: BlockAllocator + Copy + 'static> VnodeDirectory for DirInode<A> {
     /// Read directory entries into target buffer
     fn readdir(
         &mut self,
-        node: VnodeRef,
-        pos: usize,
-        data: &mut [DirectoryEntry],
+        _node: VnodeRef,
+        _pos: usize,
+        _data: &mut [DirectoryEntry],
     ) -> Result<usize, Errno> {
         todo!()
     }
@@ -59,21 +58,21 @@ impl<A: BlockAllocator + Copy + 'static> VnodeCommon for DirInode<A> {
     /// Performs filetype-specific request
     fn ioctl(
         &mut self,
-        node: VnodeRef,
-        cmd: IoctlCmd,
-        ptr: usize,
-        len: usize,
+        _node: VnodeRef,
+        _cmd: IoctlCmd,
+        _ptr: usize,
+        _len: usize,
     ) -> Result<usize, Errno> {
         todo!()
     }
 
     /// Reports the size of this filesystem object in bytes
-    fn size(&mut self, node: VnodeRef) -> Result<usize, Errno> {
+    fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
         todo!()
     }
 
     /// Returns `true` if node is ready for an operation
-    fn is_ready(&mut self, node: VnodeRef, write: bool) -> Result<bool, Errno> {
+    fn ready(&mut self, _node: VnodeRef, _write: bool) -> Result<bool, Errno> {
         todo!()
     }
 

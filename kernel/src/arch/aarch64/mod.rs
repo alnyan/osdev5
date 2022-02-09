@@ -1,6 +1,5 @@
 //! aarch64 architecture implementation
 
-use core::arch::asm;
 use cortex_a::registers::DAIF;
 use tock_registers::interfaces::{Readable, Writeable};
 

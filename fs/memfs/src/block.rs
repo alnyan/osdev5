@@ -11,6 +11,9 @@ pub struct BlockRef<'a, A: BlockAllocator + Copy> {
     alloc: MaybeUninit<A>,
 }
 
+/// # Safety
+///
+/// This trait is unsafe to implement due to its direct memory management
 pub unsafe trait BlockAllocator {
     fn alloc(&self) -> *mut u8;
     /// # Safety

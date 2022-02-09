@@ -35,16 +35,16 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeCommon for FileInode<'a, A> {
     /// Performs filetype-specific request
     fn ioctl(
         &mut self,
-        node: VnodeRef,
-        cmd: IoctlCmd,
-        ptr: usize,
-        len: usize,
+        _node: VnodeRef,
+        _cmd: IoctlCmd,
+        _ptr: usize,
+        _len: usize,
     ) -> Result<usize, Errno> {
         todo!()
     }
 
     /// Returns `true` if node is ready for an operation
-    fn is_ready(&mut self, node: VnodeRef, write: bool) -> Result<bool, Errno> {
+    fn ready(&mut self, _node: VnodeRef, _write: bool) -> Result<bool, Errno> {
         todo!()
     }
 }

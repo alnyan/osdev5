@@ -10,7 +10,6 @@ use crate::proc::{
 };
 use crate::sync::IrqSafeSpinLock;
 use alloc::{rc::Rc, vec::Vec};
-use core::arch::asm;
 use core::sync::atomic::{AtomicU32, Ordering};
 use libsys::{
     error::Errno,
@@ -463,10 +462,12 @@ impl Process {
         Ok(base + offset)
     }
 
+    /// Returns the process's address space ID
     pub fn asid(&self) -> usize {
         (self.id().asid() as usize) << 48
     }
 
+    /// Flushes TLB cache for the process address space
     pub fn invalidate_tlb(&self) {
         unsafe {
             intrin::flush_tlb_asid(self.asid());

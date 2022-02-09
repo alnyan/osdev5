@@ -4,7 +4,7 @@ use crate::arch::{machine, intrin};
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
 use crate::mem;
-use crate::proc::{sched, Process, Thread};
+use crate::proc::{sched, Thread};
 use crate::syscall;
 use cortex_a::registers::{ESR_EL1, FAR_EL1};
 use libsys::{abi::SystemCall, signal::Signal, error::Errno};

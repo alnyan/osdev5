@@ -44,14 +44,14 @@ pub fn stat(pathname: &str) -> Result<Stat, Error> {
 }
 
 // TODO use BufRead instead once it's implemented
-pub(crate) fn read_line<'a, F: Read>(f: &mut F, buf: &'a mut [u8]) -> Result<Option<&'a str>, ()> {
+pub(crate) fn read_line<'a, F: Read>(f: &mut F, buf: &'a mut [u8]) -> Result<Option<&'a str>, Error> {
     let mut pos = 0;
     loop {
         if pos == buf.len() {
-            return Err(());
+            return Err(Error::from(Errno::OutOfMemory));
         }
 
-        let count = f.read(&mut buf[pos..=pos]).map_err(|_| ())?;
+        let count = f.read(&mut buf[pos..=pos])?;
         if count == 0 {
             if pos == 0 {
                 return Ok(None);
@@ -64,5 +64,5 @@ pub(crate) fn read_line<'a, F: Read>(f: &mut F, buf: &'a mut [u8]) -> Result<Opt
 
         pos += 1;
     }
-    core::str::from_utf8(&buf[..pos]).map_err(|_| ()).map(Some)
+    core::str::from_utf8(&buf[..pos]).map_err(|_| Error::from(Errno::InvalidArgument)).map(Some)
 }

@@ -1,7 +1,9 @@
+#[cfg(feature = "verbose")]
 use crate::trace;
 use alloc::vec::Vec;
+#[cfg(feature = "verbose")]
+use libsys::debug::TraceLevel;
 use libsys::{
-    debug::TraceLevel,
     ProgramArgs,
 };
 

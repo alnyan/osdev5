@@ -6,9 +6,6 @@ extern crate alloc;
 #[macro_use]
 extern crate std;
 
-#[macro_use]
-extern crate fs_macros;
-
 use alloc::{boxed::Box, rc::Rc};
 use core::any::Any;
 use core::cell::{Ref, RefCell};
@@ -69,11 +66,10 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
                 VnodeData::Directory(RefCell::new(Some(Box::new(DirInode::new(self.alloc)))))
             }
             VnodeCreateKind::File => VnodeData::File(RefCell::new(None)),
-            _ => todo!(),
         };
         let node = Vnode::new(name, data, Vnode::SEEKABLE | Vnode::CACHE_READDIR);
         node.props_mut().mode = tar.mode();
-        node.set_fs(self.clone());
+        node.set_fs(self);
         node
     }
 

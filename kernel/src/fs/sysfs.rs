@@ -1,17 +1,16 @@
+//! System control/info virtual filesystem
 use crate::debug::{self, Level};
 use crate::util::InitOnce;
 use alloc::boxed::Box;
 use core::cell::RefCell;
 use core::fmt::{self, Write};
 use core::str::FromStr;
-use core::sync::atomic::{AtomicUsize, Ordering};
-use fs_macros::auto_inode;
 use libsys::{
     error::Errno,
-    stat::{FileMode, OpenFlags, Stat},
     ioctl::IoctlCmd,
+    stat::{FileMode, OpenFlags, Stat},
 };
-use vfs::{CharDevice, Vnode, VnodeCommon, VnodeData, VnodeFile, VnodeRef};
+use vfs::{Vnode, VnodeCommon, VnodeData, VnodeFile, VnodeRef};
 
 struct NodeData<R: Fn(&mut [u8]) -> Result<usize, Errno>, W: Fn(&[u8]) -> Result<usize, Errno>> {
     read_func: R,
@@ -59,32 +58,33 @@ impl<R: Fn(&mut [u8]) -> Result<usize, Errno>, W: Fn(&[u8]) -> Result<usize, Err
     /// Performs filetype-specific request
     fn ioctl(
         &mut self,
-        node: VnodeRef,
-        cmd: IoctlCmd,
-        ptr: usize,
-        len: usize,
+        _node: VnodeRef,
+        _cmd: IoctlCmd,
+        _ptr: usize,
+        _len: usize,
     ) -> Result<usize, Errno> {
         todo!()
     }
 
     /// Retrieves file status
-    fn stat(&mut self, node: VnodeRef) -> Result<Stat, Errno> {
+    fn stat(&mut self, _node: VnodeRef) -> Result<Stat, Errno> {
         todo!()
     }
 
     /// Reports the size of this filesystem object in bytes
-    fn size(&mut self, node: VnodeRef) -> Result<usize, Errno> {
+    fn size(&mut self, _node: VnodeRef) -> Result<usize, Errno> {
         todo!()
     }
 
     /// Returns `true` if node is ready for an operation
-    fn is_ready(&mut self, node: VnodeRef, write: bool) -> Result<bool, Errno> {
+    fn ready(&mut self, _node: VnodeRef, _write: bool) -> Result<bool, Errno> {
         todo!()
     }
 }
 
 impl<R: Fn(&mut [u8]) -> Result<usize, Errno>, W: Fn(&[u8]) -> Result<usize, Errno>> VnodeFile
-    for NodeData<R, W> {
+    for NodeData<R, W>
+{
     fn read(&mut self, _node: VnodeRef, pos: usize, data: &mut [u8]) -> Result<usize, Errno> {
         if pos != 0 {
             // TODO handle this
@@ -101,10 +101,10 @@ impl<R: Fn(&mut [u8]) -> Result<usize, Errno>, W: Fn(&[u8]) -> Result<usize, Err
         (self.write_func)(data)
     }
 
-    fn truncate(&mut self, node: VnodeRef, size: usize) -> Result<(), Errno> {
+    fn truncate(&mut self, _node: VnodeRef, _size: usize) -> Result<(), Errno> {
         todo!()
     }
-    }
+}
 impl<R: Fn(&mut [u8]) -> Result<usize, Errno>, W: Fn(&[u8]) -> Result<usize, Errno>>
     NodeData<R, W>
 {
@@ -117,7 +117,6 @@ impl<R: Fn(&mut [u8]) -> Result<usize, Errno>, W: Fn(&[u8]) -> Result<usize, Err
 }
 
 static SYSFS_ROOT: InitOnce<VnodeRef> = InitOnce::new();
-static TEST_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 // TODO subdirs
 fn add_generic_node<R, W>(parent: Option<VnodeRef>, name: &str, mode: FileMode, read: R, write: W)
@@ -139,6 +138,7 @@ where
     }
 }
 
+/// Adds a node with and `read` and `write` operations
 pub fn add_read_write_node<R, W>(parent: Option<VnodeRef>, name: &str, read: R, write: W)
 where
     R: Fn(&mut [u8]) -> Result<usize, Errno> + 'static,
@@ -153,6 +153,7 @@ where
     )
 }
 
+/// Adds `read`-only node
 pub fn add_read_node<R>(parent: Option<VnodeRef>, name: &str, read: R)
 where
     R: Fn(&mut [u8]) -> Result<usize, Errno> + 'static,
@@ -166,8 +167,13 @@ where
     )
 }
 
+/// Creates a directory in sysfs structure
 pub fn add_directory(parent: Option<VnodeRef>, name: &str) -> Result<VnodeRef, Errno> {
-    let node = Vnode::new(name, VnodeData::Directory(RefCell::new(None)), Vnode::CACHE_READDIR | Vnode::CACHE_STAT);
+    let node = Vnode::new(
+        name,
+        VnodeData::Directory(RefCell::new(None)),
+        Vnode::CACHE_READDIR | Vnode::CACHE_STAT,
+    );
     node.props_mut().mode = FileMode::from_bits(0o500).unwrap() | FileMode::S_IFDIR;
 
     if let Some(parent) = parent {
@@ -179,26 +185,39 @@ pub fn add_directory(parent: Option<VnodeRef>, name: &str) -> Result<VnodeRef, E
     Ok(node)
 }
 
+/// Returns sysfs root node reference
 pub fn root() -> &'static VnodeRef {
     SYSFS_ROOT.get()
 }
 
+/// Sets up the sysfs tree
 pub fn init() {
-    let node = Vnode::new("", VnodeData::Directory(RefCell::new(None)), Vnode::CACHE_READDIR | Vnode::CACHE_STAT);
+    let node = Vnode::new(
+        "",
+        VnodeData::Directory(RefCell::new(None)),
+        Vnode::CACHE_READDIR | Vnode::CACHE_STAT,
+    );
     node.props_mut().mode = FileMode::default_dir();
     SYSFS_ROOT.init(node);
 
     let debug_dir = add_directory(None, "debug").unwrap();
 
-    add_read_write_node(Some(debug_dir.clone()), "level", |buf| {
-        let mut writer = BufferWriter::new(buf);
-        write!(&mut writer, "{}\n", debug::LEVEL as u32).map_err(|_| Errno::InvalidArgument)?;
-        Ok(writer.count())
-    }, |buf| {
-        let s = core::str::from_utf8(buf).map_err(|_| Errno::InvalidArgument)?;
-        let value = u32::from_str(s).map_err(|_| Errno::InvalidArgument).and_then(Level::try_from)?;
-        todo!()
-    });
+    add_read_write_node(
+        Some(debug_dir),
+        "level",
+        |buf| {
+            let mut writer = BufferWriter::new(buf);
+            writeln!(&mut writer, "{}", debug::LEVEL as u32).map_err(|_| Errno::InvalidArgument)?;
+            Ok(writer.count())
+        },
+        |buf| {
+            let s = core::str::from_utf8(buf).map_err(|_| Errno::InvalidArgument)?;
+            let _value = u32::from_str(s)
+                .map_err(|_| Errno::InvalidArgument)
+                .and_then(Level::try_from)?;
+            todo!()
+        },
+    );
 
     add_read_node(None, "uptime", |buf| {
         use crate::arch::machine;
@@ -206,7 +225,8 @@ pub fn init() {
 
         let mut writer = BufferWriter::new(buf);
         let time = machine::local_timer().timestamp()?;
-        write!(&mut writer, "{} {}\n", time.as_secs(), time.subsec_nanos()).map_err(|_| Errno::InvalidArgument)?;
+        writeln!(&mut writer, "{} {}", time.as_secs(), time.subsec_nanos())
+            .map_err(|_| Errno::InvalidArgument)?;
         Ok(writer.count())
     });
 }

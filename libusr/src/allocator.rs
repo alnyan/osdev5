@@ -198,9 +198,9 @@ unsafe impl GlobalAlloc for Allocator {
         }
     }
 
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
         #[cfg(feature = "verbose")]
-        trace_debug!("free({:p}, {:?})", ptr, layout);
+        trace_debug!("free({:p}, {:?})", ptr, _layout);
         assert!(!ptr.is_null());
         let mut block = ptr.sub(size_of::<Block>()) as *mut Block;
         let mut block_ref = &mut *block;

@@ -4,6 +4,9 @@ use crate::sync::IrqSafeSpinLock;
 use core::mem;
 use libsys::{error::Errno, mem::memcpy};
 
+/// # Safety
+///
+/// Unsafe to implement because of direct memory manipulation
 pub unsafe trait Manager {
     fn alloc_page(&mut self, pu: PageUsage) -> Result<usize, Errno>;
     fn alloc_contiguous_pages(&mut self, pu: PageUsage, count: usize) -> Result<usize, Errno>;

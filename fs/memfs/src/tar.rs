@@ -1,5 +1,5 @@
 use libsys::{error::Errno, stat::FileMode};
-use vfs::{VnodeData, VnodeCreateKind};
+use vfs::VnodeCreateKind;
 
 #[repr(packed)]
 #[allow(dead_code)]
@@ -85,7 +85,6 @@ impl Tar {
         let t = match self.node_create_kind() {
             VnodeCreateKind::File => FileMode::S_IFREG,
             VnodeCreateKind::Directory => FileMode::S_IFDIR,
-            _ => todo!()
         };
         FileMode::from_bits(from_octal(&self.mode) as u32).unwrap() | t
     }
