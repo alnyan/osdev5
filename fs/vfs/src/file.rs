@@ -1,4 +1,4 @@
-use crate::{Vnode, VnodeData, VnodeRef};
+use crate::{Vnode, VnodeRef};
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use core::cmp::min;

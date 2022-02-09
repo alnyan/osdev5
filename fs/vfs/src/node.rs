@@ -1,6 +1,5 @@
-use crate::{File, FileRef, Filesystem, Ioctx, CharDevice, BlockDevice};
+use crate::{File, FileRef, Filesystem, Ioctx, CharDevice};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
-use core::borrow::BorrowMut;
 use core::cell::{Ref, RefCell, RefMut};
 use core::fmt;
 use core::mem::Discriminant;
@@ -241,8 +240,8 @@ impl Vnode {
 
     /// Attaches some filesystem's root directory node at another directory
     pub fn mount(self: &VnodeRef, root: VnodeRef) -> Result<(), Errno> {
-        let dir = self.as_directory()?;
-        let root_dir = root.as_directory()?;
+        let _dir = self.as_directory()?;
+        let _root_dir = root.as_directory()?;
 
         if self.target.borrow().is_some() {
             return Err(Errno::Busy);
@@ -387,7 +386,7 @@ impl Vnode {
         }
 
         match &self.data {
-            VnodeData::Directory(dir) => {
+            VnodeData::Directory(_) => {
                 if !flags.contains(OpenFlags::O_DIRECTORY) {
                     return Err(Errno::NotADirectory);
                 }
@@ -410,20 +409,13 @@ impl Vnode {
                     Err(Errno::NotImplemented)
                 }
             },
-            VnodeData::Char(chr) => {
+            VnodeData::Char(_) => {
                 if flags.contains(OpenFlags::O_DIRECTORY) {
                     return Err(Errno::IsADirectory);
                 }
 
                 Ok(File::normal(self.clone(), 0, open_flags))
-                // if let Some(ref mut chr) = *chr.borrow_mut() {
-                //     let pos = file.open(self.clone(), flags)?;
-                //     Ok(File::normal(self.clone(), pos, open_flags))
-                // } else {
-                //     Err(Errno::NotImplemented)
-                // }
             }
-            _ => todo!()
         }
 
         // if flags.contains(OpenFlags::O_DIRECTORY) {
@@ -496,7 +488,7 @@ impl Vnode {
     }
 
     /// Resizes the vnode data
-    pub fn truncate(self: &VnodeRef, size: usize) -> Result<(), Errno> {
+    pub fn truncate(self: &VnodeRef, _size: usize) -> Result<(), Errno> {
         todo!()
         // if self.kind != VnodeKind::Regular {
         //     Err(Errno::IsADirectory)
@@ -543,10 +535,6 @@ impl Vnode {
     /// Performs node-specific requests
     pub fn ioctl(self: &VnodeRef, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
         match &self.data {
-            VnodeData::File(file) => {
-                todo!()
-                // file.borrow_mut().as_mut().ok_or(Errno::NotADirectory)?.size(self.clone())
-            },
             VnodeData::Char(chr) => {
                 chr.ioctl(cmd, ptr, len)
             },
@@ -560,7 +548,7 @@ impl Vnode {
     }
 
     /// Returns `true` if the node is ready for operation
-    pub fn is_ready(self: &VnodeRef, write: bool) -> Result<bool, Errno> {
+    pub fn is_ready(self: &VnodeRef, _write: bool) -> Result<bool, Errno> {
         todo!()
         // if let Some(ref mut data) = *self.data() {
         //     data.is_ready(self.clone(), write)

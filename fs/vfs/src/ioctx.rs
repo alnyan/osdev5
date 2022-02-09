@@ -1,4 +1,4 @@
-use crate::{FileRef, VnodeData, VnodeRef, VnodeCreateKind};
+use crate::{FileRef, VnodeRef, VnodeCreateKind};
 use libsys::{
     error::Errno,
     path::{path_component_left, path_component_right},
@@ -98,13 +98,12 @@ impl Ioctx {
         path: &str,
         mode: FileMode,
     ) -> Result<VnodeRef, Errno> {
-        todo!()
-        // let (parent, name) = path_component_right(path);
-        // self.find(at, parent, true)?.create(
-        //     name.trim_start_matches('/'),
-        //     mode,
-        //     VnodeKind::Directory,
-        // )
+        let (parent, name) = path_component_right(path);
+        self.find(at, parent, true)?.create(
+            name.trim_start_matches('/'),
+            mode,
+            VnodeCreateKind::Directory
+        )
     }
 
     /// Opens (and possibly creates) a filesystem path for access

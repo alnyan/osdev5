@@ -23,6 +23,7 @@ pub enum SystemCall {
     Seek = 17,
     MapMemory = 18,
     UnmapMemory = 19,
+    CreateDirectory = 20,
 
     // Process manipulation
     Fork = 32,

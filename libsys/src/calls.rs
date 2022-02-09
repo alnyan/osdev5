@@ -1,5 +1,4 @@
 use crate::abi::SystemCall;
-use core::arch::asm;
 use crate::{
     debug::TraceLevel,
     error::Errno,
@@ -11,6 +10,7 @@ use crate::{
         OpenFlags, Stat, UserId,
     },
 };
+use core::arch::asm;
 use core::time::Duration;
 
 // TODO document the syscall ABI
@@ -263,7 +263,8 @@ pub fn sys_ex_kill(pid: SignalDestination, signum: Signal) -> Result<(), Errno> 
 pub fn sys_ex_clone(entry: usize, stack: usize, arg: usize) -> Result<Tid, Errno> {
     Errno::from_syscall(unsafe {
         syscall!(SystemCall::Clone, argn!(entry), argn!(stack), argn!(arg))
-    }).map(|e| Tid::from(e as u32))
+    })
+    .map(|e| Tid::from(e as u32))
 }
 
 #[inline(always)]
@@ -445,11 +446,24 @@ pub fn sys_mmap(
     })
 }
 
-
 /// # Safety
 ///
 /// System call
 #[inline(always)]
 pub unsafe fn sys_munmap(addr: usize, len: usize) -> Result<(), Errno> {
     Errno::from_syscall_unit(syscall!(SystemCall::UnmapMemory, argn!(addr), argn!(len)))
+}
+
+#[inline(always)]
+pub fn sys_mkdirat(fd: Option<FileDescriptor>, path: &str, mode: FileMode, flags: u32) -> Result<(), Errno> {
+    Errno::from_syscall_unit(unsafe {
+        syscall!(
+            SystemCall::CreateDirectory,
+            argn!(FileDescriptor::into_i32(fd)),
+            argp!(path.as_ptr()),
+            argn!(path.len()),
+            argn!(mode.bits()),
+            argn!(flags)
+        )
+    })
 }

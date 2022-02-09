@@ -104,6 +104,7 @@ initrd:
 	cp target/$(ARCH)-osdev5/$(PROFILE)/ls $(O)/rootfs/bin
 	cp target/$(ARCH)-osdev5/$(PROFILE)/cat $(O)/rootfs/bin
 	cp target/$(ARCH)-osdev5/$(PROFILE)/hexd $(O)/rootfs/bin
+	cp target/$(ARCH)-osdev5/$(PROFILE)/mkdir $(O)/rootfs/bin
 	cp target/$(ARCH)-osdev5/$(PROFILE)/login $(O)/rootfs/sbin
 	cd $(O)/rootfs && tar cf ../initrd.img `find -type f -printf "%P\n"`
 ifeq ($(MACH),orangepi3)

@@ -247,6 +247,25 @@ fn _syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             proc.manipulate_space(move |space| space.free(addr, len / 4096))?;
             Ok(0)
         }
+        SystemCall::CreateDirectory => {
+            let at_fd = FileDescriptor::from_i32(args[0] as i32)?;
+            let path = arg::str_ref(args[1], args[2])?;
+            let mode = FileMode::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
+            let flags = args[4] as u32;
+
+            let proc = Process::current();
+            let mut io = proc.io.lock();
+
+            let at = if let Some(fd) = at_fd {
+                io.file(fd)?.borrow().node()
+            } else {
+                None
+            };
+
+            io.ioctx().mkdir(at, path, mode)?;
+
+            Ok(0)
+        }
 
         // Process
         SystemCall::Clone => {
