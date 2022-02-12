@@ -129,9 +129,9 @@ impl File {
     }
 
     /// Returns `true` if the file is ready for an operation
-    pub fn is_ready(&self, write: bool) -> Result<bool, Errno> {
+    pub fn ready(&self, write: bool) -> Result<bool, Errno> {
         match &self.inner {
-            FileInner::Normal(inner) => inner.vnode.is_ready(write),
+            FileInner::Normal(inner) => inner.vnode.ready(write),
             _ => todo!(),
         }
     }

@@ -98,7 +98,7 @@ pub fn select(
         if let Some(read) = &read {
             for fd in read.iter() {
                 let file = io.file(fd)?;
-                if file.borrow().is_ready(false)? {
+                if file.borrow().ready(false)? {
                     rfds.as_mut().unwrap().set(fd);
                     return Ok(1);
                 }
@@ -107,7 +107,7 @@ pub fn select(
         if let Some(write) = &write {
             for fd in write.iter() {
                 let file = io.file(fd)?;
-                if file.borrow().is_ready(true)? {
+                if file.borrow().ready(true)? {
                     wfds.as_mut().unwrap().set(fd);
                     return Ok(1);
                 }
