@@ -1,8 +1,12 @@
 use crate::{BlockAllocator, Bvec, FileInode};
 use alloc::boxed::Box;
-use libsys::{error::Errno, stat::{Stat, DirectoryEntry, OpenFlags}, ioctl::IoctlCmd};
-use vfs::{Vnode, VnodeCommon, VnodeDirectory, VnodeRef, VnodeCreateKind, VnodeData};
 use core::cell::RefCell;
+use libsys::{
+    error::Errno,
+    ioctl::IoctlCmd,
+    stat::{DirectoryEntry, OpenFlags, Stat},
+};
+use vfs::{Vnode, VnodeCommon, VnodeCreateKind, VnodeData, VnodeDirectory, VnodeRef};
 
 pub struct DirInode<A: BlockAllocator + Copy + 'static> {
     alloc: A,
@@ -16,10 +20,18 @@ impl<A: BlockAllocator + Copy + 'static> VnodeDirectory for DirInode<A> {
         kind: VnodeCreateKind,
     ) -> Result<VnodeRef, Errno> {
         let data = match kind {
-            VnodeCreateKind::Directory => VnodeData::Directory(RefCell::new(Some(Box::new(DirInode { alloc: self.alloc })))),
-            VnodeCreateKind::File => VnodeData::File(RefCell::new(Some(Box::new(FileInode::new(Bvec::new(self.alloc)))))),
+            VnodeCreateKind::Directory => {
+                VnodeData::Directory(RefCell::new(Some(Box::new(DirInode { alloc: self.alloc }))))
+            }
+            VnodeCreateKind::File => VnodeData::File(RefCell::new(Some(Box::new(FileInode::new(
+                Bvec::new(self.alloc),
+            ))))),
         };
-        Ok(Vnode::new(name, data, Vnode::SEEKABLE | Vnode::CACHE_READDIR))
+        Ok(Vnode::new(
+            name,
+            data,
+            Vnode::SEEKABLE | Vnode::CACHE_READDIR,
+        ))
         // match kind {
         //     _ => todo!(),
         // }

@@ -1,6 +1,7 @@
 use crate::signal;
 use alloc::{boxed::Box, sync::Arc, vec};
 use core::any::Any;
+use core::arch::asm;
 use core::cell::UnsafeCell;
 use core::fmt;
 use core::mem::MaybeUninit;
@@ -8,7 +9,6 @@ use libsys::{
     calls::{sys_ex_clone, sys_ex_gettid, sys_ex_signal, sys_ex_thread_exit, sys_ex_thread_wait},
     proc::{ExitCode, Tid},
 };
-use core::arch::asm;
 
 struct NativeData<F, T>
 where
@@ -87,7 +87,9 @@ pub fn current() -> Thread {
     unsafe {
         asm!("mrs {:x}, tpidr_el0", out(reg) id);
     }
-    Thread { id: Tid::from(id as u32) }
+    Thread {
+        id: Tid::from(id as u32),
+    }
 }
 
 pub fn spawn<F, T>(f: F) -> JoinHandle<T>

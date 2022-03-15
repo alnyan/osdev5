@@ -3,9 +3,7 @@ use crate::trace;
 use alloc::vec::Vec;
 #[cfg(feature = "verbose")]
 use libsys::debug::TraceLevel;
-use libsys::{
-    ProgramArgs,
-};
+use libsys::ProgramArgs;
 
 mod passwd;
 pub use passwd::UserInfo;

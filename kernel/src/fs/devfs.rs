@@ -1,9 +1,9 @@
 //! Device list pseudo-filesystem
 use crate::util::InitOnce;
 use core::cell::RefCell;
-use vfs::CharDevice;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use libsys::{error::Errno, stat::FileMode};
+use vfs::CharDevice;
 use vfs::{Vnode, VnodeData, VnodeRef};
 
 /// Possible character device kinds

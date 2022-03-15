@@ -4,8 +4,8 @@
 #[macro_use]
 extern crate libusr;
 
-use libusr::io::{self, Read};
 use libusr::file::File;
+use libusr::io::{self, Read};
 
 fn line_print(off: usize, line: &[u8]) {
     print!("{:08x}: ", off);

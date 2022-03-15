@@ -9,7 +9,7 @@
     alloc_error_handler,
     linked_list_cursors,
     const_btree_new,
-    asm_const,
+    asm_const
 )]
 #![no_std]
 #![no_main]

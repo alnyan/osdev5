@@ -1,4 +1,4 @@
-use crate::{FileRef, VnodeRef, VnodeCreateKind};
+use crate::{FileRef, VnodeCreateKind, VnodeRef};
 use libsys::{
     error::Errno,
     path::{path_component_left, path_component_right},
@@ -102,7 +102,7 @@ impl Ioctx {
         self.find(at, parent, true)?.create(
             name.trim_start_matches('/'),
             mode,
-            VnodeCreateKind::Directory
+            VnodeCreateKind::Directory,
         )
     }
 

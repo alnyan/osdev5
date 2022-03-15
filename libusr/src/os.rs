@@ -1,12 +1,11 @@
-use libsys::debug::TraceLevel;
 use crate::sys;
 use core::fmt;
+use libsys::debug::TraceLevel;
 
 #[macro_export]
 macro_rules! trace {
     ($level:expr, $($args:tt)+) => ($crate::os::_trace($level, format_args!($($args)+)))
 }
-
 
 #[macro_export]
 macro_rules! trace_debug {

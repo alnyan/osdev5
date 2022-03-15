@@ -6,15 +6,18 @@ extern crate libusr;
 
 use libsys::{
     calls::{
-        sys_close, sys_dup, sys_fork, sys_getgid, sys_getpgid, sys_getuid, sys_ioctl, sys_openat,
-        sys_read, sys_setgid, sys_setpgid, sys_setsid, sys_setuid, sys_waitpid, sys_execve
+        sys_close, sys_dup, sys_execve, sys_fork, sys_getgid, sys_getpgid, sys_getuid, sys_ioctl,
+        sys_openat, sys_read, sys_setgid, sys_setpgid, sys_setsid, sys_setuid, sys_waitpid,
     },
     error::Errno,
     ioctl::IoctlCmd,
     stat::{FileDescriptor, FileMode, GroupId, OpenFlags, UserId},
     termios::{Termios, TermiosLflag},
 };
-use libusr::{env::{self, UserInfo, UserShadow}, io};
+use libusr::{
+    env::{self, UserInfo, UserShadow},
+    io,
+};
 
 struct HiddenInput {
     fd: FileDescriptor,
@@ -140,7 +143,7 @@ fn main() -> i32 {
 
         let shadow = match UserShadow::by_name(username) {
             Ok(e) => e,
-            Err(_) => continue
+            Err(_) => continue,
         };
 
         if !shadow.password().is_empty() {

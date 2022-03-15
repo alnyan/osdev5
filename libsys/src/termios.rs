@@ -43,7 +43,7 @@ pub struct Termios {
     pub iflag: TermiosIflag,
     pub oflag: TermiosOflag,
     pub lflag: TermiosLflag,
-    pub chars: TermiosChars
+    pub chars: TermiosChars,
 }
 
 impl TermiosChars {
@@ -70,7 +70,7 @@ impl Termios {
                     (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5),
                 )
             },
-            chars: TermiosChars::new()
+            chars: TermiosChars::new(),
         }
     }
 

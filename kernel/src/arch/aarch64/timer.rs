@@ -1,13 +1,13 @@
 //! ARM generic timer implementation
 
 use crate::arch::machine::{self, IrqNumber};
-use crate::proc;
 use crate::dev::{
-    pseudo,
     irq::{IntController, IntSource},
+    pseudo,
     timer::TimestampSource,
     Device,
 };
+use crate::proc;
 use core::time::Duration;
 use cortex_a::registers::{CNTFRQ_EL0, CNTPCT_EL0, CNTP_CTL_EL0, CNTP_TVAL_EL0};
 use libsys::error::Errno;

@@ -1,10 +1,10 @@
 //!
+use crate::arch::intrin;
 use crate::proc::{Thread, ThreadRef, THREADS};
 use crate::sync::IrqSafeSpinLock;
-use crate::arch::intrin;
 use crate::util::InitOnce;
-use libsys::proc::Tid;
 use alloc::{collections::VecDeque, rc::Rc};
+use libsys::proc::Tid;
 
 struct SchedulerInner {
     queue: VecDeque<Tid>,

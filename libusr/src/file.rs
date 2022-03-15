@@ -1,6 +1,6 @@
 use crate::io::{AsRawFd, Error, Read};
 use libsys::{
-    calls::{sys_openat, sys_read, sys_close},
+    calls::{sys_close, sys_openat, sys_read},
     stat::{FileDescriptor, FileMode, OpenFlags},
 };
 

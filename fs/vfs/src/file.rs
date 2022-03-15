@@ -189,7 +189,7 @@ impl File {
                 } else {
                     todo!();
                 }
-            },
+            }
             _ => todo!(),
         }
     }
@@ -209,9 +209,9 @@ impl Drop for File {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::node::{VnodeCommon, VnodeFile};
     use alloc::boxed::Box;
     use alloc::rc::Rc;
-    use crate::node::{VnodeCommon, VnodeFile};
     use libsys::{ioctl::IoctlCmd, stat::OpenFlags, stat::Stat};
 
     struct DummyInode;
@@ -250,7 +250,6 @@ mod tests {
         fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
             Ok(())
         }
-
     }
 
     impl VnodeFile for DummyInode {

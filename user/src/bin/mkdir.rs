@@ -4,7 +4,7 @@
 #[macro_use]
 extern crate libusr;
 
-use libsys::{sys_mkdirat, stat::FileMode};
+use libsys::{stat::FileMode, sys_mkdirat};
 
 #[no_mangle]
 fn main() -> i32 {

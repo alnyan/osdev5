@@ -20,7 +20,7 @@ pub struct ProgramArgs {
     pub argv: usize,
     pub argc: usize,
     pub storage: usize,
-    pub size: usize
+    pub size: usize,
 }
 
 // TODO utils
@@ -36,7 +36,7 @@ impl<const N: usize> FixedStr<N> {
     pub const fn empty() -> Self {
         Self {
             len: 0,
-            data: [0; N]
+            data: [0; N],
         }
     }
 
@@ -49,9 +49,7 @@ impl<const N: usize> FixedStr<N> {
     }
 
     pub fn as_str(&self) -> &str {
-        unsafe {
-            core::str::from_utf8_unchecked(&self.data[..self.len])
-        }
+        unsafe { core::str::from_utf8_unchecked(&self.data[..self.len]) }
     }
 }
 

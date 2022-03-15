@@ -1,7 +1,7 @@
 use crate::trace;
 use libsys::{
-    debug::TraceLevel,
     calls::{sys_ex_sigreturn, sys_exit},
+    debug::TraceLevel,
     proc::ExitCode,
     signal::Signal,
 };

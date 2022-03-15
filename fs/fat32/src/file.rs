@@ -1,8 +1,8 @@
 use crate::Bpb;
 use libsys::{
-    stat::{Stat, OpenFlags},
+    error::Errno,
     ioctl::IoctlCmd,
-    error::Errno
+    stat::{OpenFlags, Stat},
 };
 use vfs::{VnodeImpl, VnodeKind, VnodeRef};
 

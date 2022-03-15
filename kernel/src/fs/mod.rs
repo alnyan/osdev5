@@ -4,8 +4,8 @@ use crate::mem::{
     phys::{self, PageUsage},
 };
 use libsys::{error::Errno, stat::MountOptions};
-use vfs::VnodeRef;
 use memfs::BlockAllocator;
+use vfs::VnodeRef;
 
 pub mod devfs;
 pub mod sysfs;
@@ -36,6 +36,6 @@ pub fn create_filesystem(options: &MountOptions) -> Result<VnodeRef, Errno> {
     match fs_name {
         "devfs" => Ok(devfs::root().clone()),
         "sysfs" => Ok(sysfs::root().clone()),
-        _ => todo!()
+        _ => todo!(),
     }
 }

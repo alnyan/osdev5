@@ -13,7 +13,7 @@ use libsys::{error::Errno, proc::Tid, stat::FdSet};
 pub struct Wait {
     queue: IrqSafeSpinLock<LinkedList<Tid>>,
     #[allow(dead_code)]
-    name: &'static str
+    name: &'static str,
 }
 
 /// Status of a (possibly) pending wait
@@ -128,7 +128,7 @@ impl Wait {
     pub const fn new(name: &'static str) -> Self {
         Self {
             queue: IrqSafeSpinLock::new(LinkedList::new()),
-            name
+            name,
         }
     }
 

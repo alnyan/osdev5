@@ -455,7 +455,12 @@ pub unsafe fn sys_munmap(addr: usize, len: usize) -> Result<(), Errno> {
 }
 
 #[inline(always)]
-pub fn sys_mkdirat(fd: Option<FileDescriptor>, path: &str, mode: FileMode, flags: u32) -> Result<(), Errno> {
+pub fn sys_mkdirat(
+    fd: Option<FileDescriptor>,
+    path: &str,
+    mode: FileMode,
+    flags: u32,
+) -> Result<(), Errno> {
     Errno::from_syscall_unit(unsafe {
         syscall!(
             SystemCall::CreateDirectory,

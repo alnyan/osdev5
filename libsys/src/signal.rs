@@ -1,5 +1,5 @@
 use crate::error::Errno;
-use crate::proc::{Pid, Pgid};
+use crate::proc::{Pgid, Pid};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 #[repr(u32)]
@@ -9,7 +9,7 @@ pub enum Signal {
     FloatError = 8,
     Kill = 9,
     SegmentationFault = 11,
-    InvalidSystemCall = 31
+    InvalidSystemCall = 31,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -17,7 +17,7 @@ pub enum SignalDestination {
     Group(Pgid),
     Process(Pid),
     All,
-    This
+    This,
 }
 
 impl From<isize> for SignalDestination {
@@ -40,7 +40,7 @@ impl From<SignalDestination> for isize {
             SignalDestination::Process(pid) => u32::from(pid) as isize,
             SignalDestination::Group(pgid) => -(u32::from(pgid) as isize),
             SignalDestination::This => 0,
-            SignalDestination::All => -1
+            SignalDestination::All => -1,
         }
     }
 }
@@ -57,7 +57,7 @@ impl TryFrom<u32> for Signal {
             9 => Ok(Self::Kill),
             11 => Ok(Self::SegmentationFault),
             31 => Ok(Self::InvalidSystemCall),
-            _ => Err(Errno::InvalidArgument)
+            _ => Err(Errno::InvalidArgument),
         }
     }
 }

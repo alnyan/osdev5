@@ -5,8 +5,8 @@ use crate::mem::{
     self,
     phys::{self, PageUsage},
 };
-use core::mem::size_of;
 use core::arch::global_asm;
+use core::mem::size_of;
 
 struct Stack {
     bp: usize,
@@ -68,7 +68,7 @@ impl Context {
         stack.push(frame.sp_el0 as usize);
 
         // Setup common
-        stack.push(0);          // tpidr_el0
+        stack.push(0); // tpidr_el0
         stack.push(ttbr0);
         stack.push(__aa64_ctx_enter_from_fork as usize); // x30/lr
         stack.push(frame.x[29]); // x29
@@ -116,7 +116,7 @@ impl Context {
         Self {
             k_sp: stack.sp,
             stack_base: stack.bp,
-            stack_page_count: 8
+            stack_page_count: 8,
         }
     }
 
@@ -125,7 +125,13 @@ impl Context {
     /// # Safety
     ///
     /// Unsafe: may clobber an already active context
-    pub unsafe fn setup_signal_entry(&mut self, entry: usize, arg: usize, ttbr0: usize, ustack: usize) {
+    pub unsafe fn setup_signal_entry(
+        &mut self,
+        entry: usize,
+        arg: usize,
+        ttbr0: usize,
+        ustack: usize,
+    ) {
         let mut stack = Stack::from_base_size(self.stack_base, self.stack_page_count);
 
         stack.push(entry);
@@ -172,25 +178,25 @@ impl Stack {
     pub unsafe fn from_base_size(bp: usize, page_count: usize) -> Stack {
         Stack {
             bp,
-            sp: bp + page_count * mem::PAGE_SIZE
+            sp: bp + page_count * mem::PAGE_SIZE,
         }
     }
 
     pub fn setup_common(&mut self, entry: usize, ttbr: usize) {
-        self.push(0);       // tpidr_el0
+        self.push(0); // tpidr_el0
         self.push(ttbr);
-        self.push(entry);   // x30/lr
-        self.push(0);       // x29
-        self.push(0);       // x28
-        self.push(0);       // x27
-        self.push(0);       // x26
-        self.push(0);       // x25
-        self.push(0);       // x24
-        self.push(0);       // x23
-        self.push(0);       // x22
-        self.push(0);       // x21
-        self.push(0);       // x20
-        self.push(0);       // x19
+        self.push(entry); // x30/lr
+        self.push(0); // x29
+        self.push(0); // x28
+        self.push(0); // x27
+        self.push(0); // x26
+        self.push(0); // x25
+        self.push(0); // x24
+        self.push(0); // x23
+        self.push(0); // x22
+        self.push(0); // x21
+        self.push(0); // x20
+        self.push(0); // x19
     }
 
     pub fn push(&mut self, value: usize) {

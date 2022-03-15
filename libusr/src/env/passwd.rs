@@ -2,8 +2,8 @@ use crate::file::File;
 use crate::io::{self, read_line};
 use core::str::FromStr;
 use libsys::{
-    stat::{GroupId, UserId},
     error::Errno,
+    stat::{GroupId, UserId},
     FixedStr,
 };
 
@@ -65,7 +65,9 @@ impl FromStr for UserInfo {
     fn from_str(s: &str) -> Result<Self, io::Error> {
         let mut iter = s.split(':');
 
-        let name = iter.next().ok_or_else(|| io::Error::from(Errno::InvalidArgument))?;
+        let name = iter
+            .next()
+            .ok_or_else(|| io::Error::from(Errno::InvalidArgument))?;
         let uid = iter
             .next()
             .ok_or_else(|| io::Error::from(Errno::InvalidArgument))
@@ -76,9 +78,15 @@ impl FromStr for UserInfo {
             .ok_or_else(|| io::Error::from(Errno::InvalidArgument))
             .and_then(|e| u32::from_str(e).map_err(|_| io::Error::from(Errno::InvalidArgument)))
             .map(GroupId::from)?;
-        let _comment = iter.next().ok_or_else(|| io::Error::from(Errno::InvalidArgument))?;
-        let home = iter.next().ok_or_else(|| io::Error::from(Errno::InvalidArgument))?;
-        let shell = iter.next().ok_or_else(|| io::Error::from(Errno::InvalidArgument))?;
+        let _comment = iter
+            .next()
+            .ok_or_else(|| io::Error::from(Errno::InvalidArgument))?;
+        let home = iter
+            .next()
+            .ok_or_else(|| io::Error::from(Errno::InvalidArgument))?;
+        let shell = iter
+            .next()
+            .ok_or_else(|| io::Error::from(Errno::InvalidArgument))?;
 
         if iter.next().is_some() {
             return Err(io::Error::from(Errno::InvalidArgument));

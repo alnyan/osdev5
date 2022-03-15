@@ -29,8 +29,6 @@ impl Error {
 
 impl From<Errno> for Error {
     fn from(e: Errno) -> Self {
-        Self {
-            repr: Repr::Os(e)
-        }
+        Self { repr: Repr::Os(e) }
     }
 }

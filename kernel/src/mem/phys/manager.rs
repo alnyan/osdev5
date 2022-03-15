@@ -1,4 +1,4 @@
-use super::{PageInfo, PageUsage, PageStatistics};
+use super::{PageInfo, PageStatistics, PageUsage};
 use crate::mem::{virtualize, PAGE_SIZE};
 use crate::sync::IrqSafeSpinLock;
 use core::mem;
@@ -45,7 +45,7 @@ impl SimpleManager {
                 kernel_heap: 0,
                 paging: 0,
                 user_private: 0,
-                filesystem: 0
+                filesystem: 0,
             },
             pages,
         }
@@ -111,7 +111,8 @@ impl SimpleManager {
 }
 unsafe impl Manager for SimpleManager {
     fn alloc_page(&mut self, pu: PageUsage) -> Result<usize, Errno> {
-        let res = self.alloc_single_index(pu)
+        let res = self
+            .alloc_single_index(pu)
             .map(|r| (self.base_index + r) * PAGE_SIZE);
         if res.is_ok() {
             self.update_stats_alloc(pu, 1);

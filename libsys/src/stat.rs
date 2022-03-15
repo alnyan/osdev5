@@ -1,7 +1,7 @@
 // TODO split up this file
 use crate::error::Errno;
-use core::str::FromStr;
 use core::fmt;
+use core::str::FromStr;
 
 const AT_FDCWD: i32 = -2;
 pub const AT_EMPTY_PATH: u32 = 1 << 16;
@@ -246,7 +246,11 @@ impl FileMode {
 }
 
 fn choose<T>(q: bool, a: T, b: T) -> T {
-    if q { a } else { b }
+    if q {
+        a
+    } else {
+        b
+    }
 }
 
 impl Default for FileMode {
@@ -265,7 +269,7 @@ impl fmt::Display for FileMode {
                 Self::S_IFCHR => 'c',
                 Self::S_IFDIR => 'd',
                 Self::S_IFREG => '-',
-                _ => '?'
+                _ => '?',
             },
             // User
             choose(self.contains(Self::USER_READ), 'r', '-'),

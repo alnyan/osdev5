@@ -7,11 +7,11 @@ pub mod fdt;
 pub mod gpio;
 pub mod irq;
 pub mod pci;
+pub mod pseudo;
 pub mod rtc;
 pub mod sd;
 pub mod serial;
 pub mod timer;
-pub mod pseudo;
 pub mod tty;
 
 /// Generic device trait

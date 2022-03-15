@@ -1,14 +1,13 @@
 #![no_std]
 #![no_main]
-
 #![allow(unused_macros)]
 #![allow(dead_code)]
 
 #[macro_use]
 extern crate libusr;
 
-use libusr::sys::{abi::SystemCall, stat::Stat};
 use core::arch::asm;
+use libusr::sys::{abi::SystemCall, stat::Stat};
 
 static mut STATE: u64 = 0;
 
@@ -69,7 +68,9 @@ macro_rules! argp {
 }
 
 fn random_set_seed(seed: u64) {
-    unsafe { STATE = seed; }
+    unsafe {
+        STATE = seed;
+    }
 }
 
 fn random_u64() -> u64 {
@@ -130,7 +131,13 @@ fn main() -> i32 {
         let mut stat = Stat::default();
 
         unsafe {
-            syscall!(SystemCall::FileStatus.repr(), (-2i32) as usize, buf.as_mut_ptr() as usize, buf.len(), (&mut stat) as *mut _ as usize);
+            syscall!(
+                SystemCall::FileStatus.repr(),
+                (-2i32) as usize,
+                buf.as_mut_ptr() as usize,
+                buf.len(),
+                (&mut stat) as *mut _ as usize
+            );
         }
     }
     // signal::set_handler(Signal::InvalidSystemCall, old_signal);

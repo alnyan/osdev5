@@ -48,5 +48,5 @@ pub enum SystemCall {
     GetCpuTime = 64,
     Mount = 65,
     // Debugging
-    DebugTrace = 128
+    DebugTrace = 128,
 }

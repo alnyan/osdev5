@@ -1,10 +1,10 @@
+use crate::sys::RawMutex;
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
-use crate::sys::RawMutex;
 
 pub struct Mutex<T> {
     inner: RawMutex,
-    data: UnsafeCell<T>
+    data: UnsafeCell<T>,
 }
 
 pub struct MutexGuard<'a, T> {
@@ -16,7 +16,7 @@ impl<T> Mutex<T> {
     pub fn new(t: T) -> Self {
         Self {
             inner: RawMutex::new(),
-            data: UnsafeCell::new(t)
+            data: UnsafeCell::new(t),
         }
     }
 
@@ -25,7 +25,7 @@ impl<T> Mutex<T> {
             self.inner.lock();
             MutexGuard {
                 data: (&mut *self.data.get()),
-                lock: &self.inner
+                lock: &self.inner,
             }
         }
     }
@@ -33,7 +33,9 @@ impl<T> Mutex<T> {
 
 impl<'a, T> Drop for MutexGuard<'a, T> {
     fn drop(&mut self) {
-        unsafe { self.lock.release(); }
+        unsafe {
+            self.lock.release();
+        }
     }
 }
 

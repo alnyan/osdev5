@@ -7,17 +7,17 @@ extern crate lazy_static;
 extern crate alloc;
 
 use core::panic::PanicInfo;
-use libsys::{debug::TraceLevel, ProgramArgs, proc::ExitCode};
+use libsys::{debug::TraceLevel, proc::ExitCode, ProgramArgs};
 
 mod allocator;
 pub mod env;
 pub mod file;
 pub mod io;
 pub mod os;
-pub mod sys;
-pub mod sync;
-pub mod thread;
 pub mod signal;
+pub mod sync;
+pub mod sys;
+pub mod thread;
 
 #[link_section = ".text._start"]
 #[no_mangle]

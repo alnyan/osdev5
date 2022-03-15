@@ -159,7 +159,10 @@ impl<A: BlockAllocator + Copy + 'static> Ramfs<A> {
 mod tests {
     use super::*;
     use alloc::boxed::Box;
-    use libsys::{traits::Read, stat::{UserId, GroupId, OpenFlags}};
+    use libsys::{
+        stat::{GroupId, OpenFlags, UserId},
+        traits::Read,
+    };
     use vfs::Ioctx;
 
     #[test]

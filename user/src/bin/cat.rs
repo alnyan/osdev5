@@ -4,8 +4,8 @@
 #[macro_use]
 extern crate libusr;
 
-use libusr::io::{self, Read, Write};
 use libusr::file::File;
+use libusr::io::{self, Read, Write};
 
 fn do_cat<F: Read>(mut fd: F) -> Result<(), io::Error> {
     let mut buf = [0; 4096];

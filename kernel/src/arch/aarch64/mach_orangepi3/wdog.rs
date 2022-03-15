@@ -1,6 +1,6 @@
+use crate::arch::intrin;
 use crate::dev::Device;
 use crate::mem::virt::DeviceMemoryIo;
-use crate::arch::intrin;
 use crate::sync::IrqSafeSpinLock;
 use crate::util::InitOnce;
 use libsys::error::Errno;

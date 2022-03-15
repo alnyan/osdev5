@@ -1,5 +1,5 @@
-use core::convert::TryFrom;
 use crate::error::Errno;
+use core::convert::TryFrom;
 
 #[derive(Clone, Copy, Debug)]
 #[repr(u32)]
@@ -19,7 +19,7 @@ impl TryFrom<u32> for IoctlCmd {
             1 => Ok(Self::TtySetAttributes),
             2 => Ok(Self::TtyGetAttributes),
             3 => Ok(Self::TtySetPgrp),
-            _ => Err(Errno::InvalidArgument)
+            _ => Err(Errno::InvalidArgument),
         }
     }
 }

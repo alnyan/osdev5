@@ -17,7 +17,9 @@ pub use block::BlockDevice;
 mod fs;
 pub use fs::Filesystem;
 mod node;
-pub use node::{Vnode, VnodeData, VnodeRef, VnodeCreateKind, VnodeCommon, VnodeFile, VnodeDirectory};
+pub use node::{
+    Vnode, VnodeCommon, VnodeCreateKind, VnodeData, VnodeDirectory, VnodeFile, VnodeRef,
+};
 mod ioctx;
 pub use ioctx::Ioctx;
 mod file;

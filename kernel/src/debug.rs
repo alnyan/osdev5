@@ -12,9 +12,9 @@
 //! * [errorln!]
 
 use crate::dev::serial::SerialDevice;
-use libsys::{debug::TraceLevel, error::Errno};
 use core::convert::TryFrom;
 use core::fmt;
+use libsys::{debug::TraceLevel, error::Errno};
 
 /// Currently active print level
 pub static LEVEL: Level = Level::Debug;
@@ -43,7 +43,7 @@ impl TryFrom<u32> for Level {
             2 => Ok(Level::Info),
             3 => Ok(Level::Warn),
             4 => Ok(Level::Error),
-            _ => Err(Errno::InvalidArgument)
+            _ => Err(Errno::InvalidArgument),
         }
     }
 }

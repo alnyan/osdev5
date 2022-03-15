@@ -4,7 +4,7 @@ use crate::config::{ConfigKey, CONFIG};
 use crate::fs::{devfs, MemfsBlockAlloc};
 use crate::mem;
 use crate::proc::{elf, Process};
-use libsys::stat::{FileDescriptor, OpenFlags, UserId, GroupId};
+use libsys::stat::{FileDescriptor, GroupId, OpenFlags, UserId};
 use memfs::Ramfs;
 use vfs::{Filesystem, Ioctx};
 

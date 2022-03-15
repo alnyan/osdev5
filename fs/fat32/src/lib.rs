@@ -12,10 +12,7 @@ extern crate alloc;
 use alloc::{boxed::Box, rc::Rc};
 use core::any::Any;
 use core::cell::{Ref, RefCell};
-use libsys::{
-    mem::read_le32,
-    error::Errno,
-};
+use libsys::{error::Errno, mem::read_le32};
 use vfs::{BlockDevice, Filesystem, Vnode, VnodeKind, VnodeRef};
 
 pub mod dir;

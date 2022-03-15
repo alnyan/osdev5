@@ -31,4 +31,3 @@ pub unsafe fn flush_tlb_virt(addr: usize) {
 pub unsafe fn flush_tlb_asid(asid: usize) {
     asm!("tlbi aside1, {}", in(reg) asid);
 }
-

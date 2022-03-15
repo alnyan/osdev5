@@ -1,8 +1,8 @@
 use crate::{BlockAllocator, Bvec};
 use libsys::{
     error::Errno,
+    ioctl::IoctlCmd,
     stat::{OpenFlags, Stat},
-    ioctl::IoctlCmd
 };
 use vfs::{VnodeCommon, VnodeFile, VnodeRef};
 
@@ -28,7 +28,7 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeCommon for FileInode<'a, A> {
         Ok(Stat {
             size: self.data.size() as u64,
             blksize: 4096,
-            mode: props.mode
+            mode: props.mode,
         })
     }
 
@@ -61,7 +61,6 @@ impl<'a, A: BlockAllocator + Copy + 'static> VnodeFile for FileInode<'a, A> {
     fn truncate(&mut self, _node: VnodeRef, size: usize) -> Result<(), Errno> {
         self.data.resize((size + 4095) / 4096)
     }
-
 }
 
 impl<'a, A: BlockAllocator + Copy + 'static> FileInode<'a, A> {

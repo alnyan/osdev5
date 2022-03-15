@@ -1,5 +1,5 @@
-use core::fmt;
 use crate::io::Write;
+use core::fmt;
 
 #[macro_export]
 macro_rules! print {

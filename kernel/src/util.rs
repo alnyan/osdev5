@@ -31,7 +31,11 @@ impl<T> InitOnce<T> {
     #[allow(clippy::mut_from_ref)]
     #[track_caller]
     pub fn get(&self) -> &mut T {
-        assert!(self.is_initialized(), "Access to uninitialized InitOnce<T>: {:?}", core::panic::Location::caller());
+        assert!(
+            self.is_initialized(),
+            "Access to uninitialized InitOnce<T>: {:?}",
+            core::panic::Location::caller()
+        );
         unsafe { (*self.inner.get()).assume_init_mut() }
     }
 

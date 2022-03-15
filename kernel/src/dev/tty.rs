@@ -1,16 +1,19 @@
 //! Teletype (TTY) device facilities
 use crate::dev::serial::SerialDevice;
-use crate::proc::{Process, wait::{Wait, WAIT_SELECT}};
+use crate::proc::{
+    wait::{Wait, WAIT_SELECT},
+    Process,
+};
 use crate::sync::IrqSafeSpinLock;
+use crate::syscall::arg;
+use core::mem::size_of;
 use libsys::error::Errno;
 use libsys::{
-    termios::{Termios, TermiosIflag, TermiosLflag, TermiosOflag},
+    ioctl::IoctlCmd,
     proc::Pid,
     signal::Signal,
-    ioctl::IoctlCmd
+    termios::{Termios, TermiosIflag, TermiosLflag, TermiosOflag},
 };
-use core::mem::size_of;
-use crate::syscall::arg;
 
 #[derive(Debug)]
 struct CharRingInner<const N: usize> {
@@ -52,18 +55,18 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
                 let res = arg::struct_mut::<Termios>(ptr)?;
                 *res = self.ring().config.lock().clone();
                 Ok(size_of::<Termios>())
-            },
+            }
             IoctlCmd::TtySetAttributes => {
                 let src = arg::struct_ref::<Termios>(ptr)?;
                 *self.ring().config.lock() = src.clone();
                 Ok(size_of::<Termios>())
-            },
+            }
             IoctlCmd::TtySetPgrp => {
                 let src = arg::struct_ref::<u32>(ptr)?;
                 self.ring().inner.lock().fg_pgid = Some(Pid::try_from(*src)?);
                 Ok(0)
-            },
-            _ => Err(Errno::InvalidArgument)
+            }
+            _ => Err(Errno::InvalidArgument),
         }
     }
 

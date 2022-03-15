@@ -1,4 +1,4 @@
-use crate::{File, FileRef, Filesystem, Ioctx, CharDevice};
+use crate::{CharDevice, File, FileRef, Filesystem, Ioctx};
 use alloc::{borrow::ToOwned, boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::cell::{Ref, RefCell, RefMut};
 use core::fmt;
@@ -104,7 +104,7 @@ pub enum VnodeData {
     /// Regular file node
     File(RefCell<Option<Box<dyn VnodeFile>>>),
     /// Character device node
-    Char(&'static dyn CharDevice)
+    Char(&'static dyn CharDevice),
 }
 
 /// Node types for create() calls
@@ -411,7 +411,7 @@ impl Vnode {
                 } else {
                     todo!()
                 }
-            },
+            }
             VnodeData::File(file) => {
                 if flags.contains(OpenFlags::O_DIRECTORY) {
                     return Err(Errno::IsADirectory);
@@ -423,7 +423,7 @@ impl Vnode {
                 } else {
                     Err(Errno::NotImplemented)
                 }
-            },
+            }
             VnodeData::Char(_) => {
                 if flags.contains(OpenFlags::O_DIRECTORY) {
                     return Err(Errno::IsADirectory);
@@ -441,12 +441,12 @@ impl Vnode {
                 if let Some(ref mut dir) = *dir.borrow_mut() {
                     return dir.close(self.clone());
                 }
-            },
+            }
             VnodeData::File(file) => {
                 if let Some(ref mut file) = *file.borrow_mut() {
                     return file.close(self.clone());
                 }
-            },
+            }
             _ => {}
         }
 
@@ -456,51 +456,55 @@ impl Vnode {
     /// Reads data from offset `pos` into `buf`
     pub fn read(self: &VnodeRef, pos: usize, buf: &mut [u8]) -> Result<usize, Errno> {
         match &self.data {
-            VnodeData::File(file) => {
-                file.borrow_mut().as_mut().ok_or(Errno::NotImplemented)?.read(self.clone(), pos, buf)
-            }
-            VnodeData::Char(chr) => {
-                chr.read(true, buf)
-            }
-            _ => Err(Errno::InvalidOperation)
+            VnodeData::File(file) => file
+                .borrow_mut()
+                .as_mut()
+                .ok_or(Errno::NotImplemented)?
+                .read(self.clone(), pos, buf),
+            VnodeData::Char(chr) => chr.read(true, buf),
+            _ => Err(Errno::InvalidOperation),
         }
     }
 
     /// Writes data from `buf` to offset `pos`
     pub fn write(self: &VnodeRef, pos: usize, buf: &[u8]) -> Result<usize, Errno> {
         match &self.data {
-            VnodeData::File(file) => {
-                file.borrow_mut().as_mut().ok_or(Errno::NotImplemented)?.write(self.clone(), pos, buf)
-            }
-            VnodeData::Char(chr) => {
-                chr.write(true, buf)
-            }
-            _ => Err(Errno::InvalidOperation)
+            VnodeData::File(file) => file
+                .borrow_mut()
+                .as_mut()
+                .ok_or(Errno::NotImplemented)?
+                .write(self.clone(), pos, buf),
+            VnodeData::Char(chr) => chr.write(true, buf),
+            _ => Err(Errno::InvalidOperation),
         }
     }
 
     /// Resizes the vnode data
     pub fn truncate(self: &VnodeRef, size: usize) -> Result<(), Errno> {
         match &self.data {
-            VnodeData::File(file) => {
-                file.borrow_mut().as_mut().ok_or(Errno::NotImplemented)?.truncate(self.clone(), size)
-            }
-            _ => Err(Errno::InvalidOperation)
+            VnodeData::File(file) => file
+                .borrow_mut()
+                .as_mut()
+                .ok_or(Errno::NotImplemented)?
+                .truncate(self.clone(), size),
+            _ => Err(Errno::InvalidOperation),
         }
     }
 
     /// Returns current vnode data size
     pub fn size(self: &VnodeRef) -> Result<usize, Errno> {
         match &self.data {
-            VnodeData::File(file) => {
-                file.borrow_mut().as_mut().ok_or(Errno::NotImplemented)?.size(self.clone())
-            },
-            VnodeData::Directory(dir) => {
-                dir.borrow_mut().as_mut().ok_or(Errno::NotImplemented)?.size(self.clone())
-            }
-            VnodeData::Char(_) => {
-                Ok(0)
-            }
+            VnodeData::File(file) => file
+                .borrow_mut()
+                .as_mut()
+                .ok_or(Errno::NotImplemented)?
+                .size(self.clone()),
+            VnodeData::Directory(dir) => dir
+                .borrow_mut()
+                .as_mut()
+                .ok_or(Errno::NotImplemented)?
+                .size(self.clone()),
+            VnodeData::Char(_) => Ok(0),
         }
     }
 
@@ -515,10 +519,18 @@ impl Vnode {
             })
         } else {
             match &self.data {
-                VnodeData::File(file) => file.borrow_mut().as_mut().ok_or(Errno::NotADirectory)?.stat(self.clone()),
-                VnodeData::Directory(dir) => dir.borrow_mut().as_mut().ok_or(Errno::NotImplemented)?.stat(self.clone()),
+                VnodeData::File(file) => file
+                    .borrow_mut()
+                    .as_mut()
+                    .ok_or(Errno::NotADirectory)?
+                    .stat(self.clone()),
+                VnodeData::Directory(dir) => dir
+                    .borrow_mut()
+                    .as_mut()
+                    .ok_or(Errno::NotImplemented)?
+                    .stat(self.clone()),
                 // TODO stat() for char/blk devs
-                _ => todo!()
+                _ => todo!(),
             }
         }
     }
@@ -526,20 +538,20 @@ impl Vnode {
     /// Performs node-specific requests
     pub fn ioctl(self: &VnodeRef, cmd: IoctlCmd, ptr: usize, len: usize) -> Result<usize, Errno> {
         match &self.data {
-            VnodeData::Char(chr) => {
-                chr.ioctl(cmd, ptr, len)
-            },
-            _ => Err(Errno::InvalidOperation)
+            VnodeData::Char(chr) => chr.ioctl(cmd, ptr, len),
+            _ => Err(Errno::InvalidOperation),
         }
     }
 
     /// Returns `true` if the node is ready for operation
     pub fn ready(self: &VnodeRef, write: bool) -> Result<bool, Errno> {
         match &self.data {
-            VnodeData::File(file) => {
-                file.borrow_mut().as_mut().ok_or(Errno::NotImplemented)?.ready(self.clone(), write)
-            },
-            _ => Err(Errno::InvalidOperation)
+            VnodeData::File(file) => file
+                .borrow_mut()
+                .as_mut()
+                .ok_or(Errno::NotImplemented)?
+                .ready(self.clone(), write),
+            _ => Err(Errno::InvalidOperation),
         }
     }
 
@@ -624,7 +636,6 @@ mod tests {
         fn close(&mut self, _node: VnodeRef) -> Result<(), Errno> {
             Ok(())
         }
-
     }
 
     impl VnodeDirectory for DummyInode {
