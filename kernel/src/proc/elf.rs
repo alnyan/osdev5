@@ -2,7 +2,7 @@
 use crate::mem::{
     self,
     phys::{self, PageUsage},
-    virt::{MapAttributes, Space},
+    virt::table::{Space, MapAttributes},
 };
 use core::mem::{size_of, MaybeUninit};
 use libsys::{
@@ -66,10 +66,10 @@ struct Phdr<E: Elf> {
 }
 
 fn map_flags(elf_flags: usize) -> MapAttributes {
-    let mut dst_flags = MapAttributes::NOT_GLOBAL | MapAttributes::SH_OUTER;
+    let mut dst_flags = MapAttributes::SHARE_OUTER;
 
-    if elf_flags & (1 << 0) /* PF_X */ == 0 {
-        dst_flags |= MapAttributes::UXN | MapAttributes::PXN;
+    if elf_flags & (1 << 0) /* PF_X */ != 0 {
+        dst_flags |= MapAttributes::USER_EXEC;
     }
 
     match (elf_flags & (3 << 1)) >> 1 {
@@ -78,9 +78,9 @@ fn map_flags(elf_flags: usize) -> MapAttributes {
         // Write-only: not sure if such mapping should exist at all
         1 => todo!(),
         // Read-only
-        2 => dst_flags |= MapAttributes::AP_BOTH_READONLY,
+        2 => dst_flags |= MapAttributes::USER_READ,
         // Read+Write
-        3 => dst_flags |= MapAttributes::AP_BOTH_READWRITE,
+        3 => dst_flags |= MapAttributes::USER_WRITE | MapAttributes::USER_READ,
         _ => unreachable!(),
     };
 

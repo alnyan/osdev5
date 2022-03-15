@@ -8,12 +8,7 @@ use libsys::error::Errno;
 use tock_registers::interfaces::Writeable;
 
 pub mod table;
-pub use table::{Entry, MapAttributes, Space, Table};
-pub mod fixed;
-pub use fixed::FixedTableGroup;
-
-#[no_mangle]
-static mut KERNEL_TTBR1: FixedTableGroup = FixedTableGroup::empty();
+use crate::arch::platform::virt as virt_impl;
 
 /// Structure representing a region of memory used for MMIO/device access
 // TODO: this shouldn't be trivially-cloneable and should instead incorporate
@@ -45,7 +40,7 @@ impl DeviceMemory {
     ///
     /// See [FixedTableGroup::map_region]
     pub fn map(name: &'static str, phys: usize, count: usize) -> Result<Self, Errno> {
-        let base = unsafe { KERNEL_TTBR1.map_region(phys, count) }?;
+        let base = virt_impl::map_device_memory(phys, count)?;
         debugln!(
             "Mapping {:#x}..{:#x} -> {:#x} for {:?}",
             base,
@@ -91,7 +86,7 @@ impl<T> Deref for DeviceMemoryIo<T> {
 /// identity-mapped translation
 pub fn enable() -> Result<(), Errno> {
     unsafe {
-        KERNEL_TTBR1.init_device_map();
+        virt_impl::init_device_map();
 
         dsb(barrier::ISH);
         isb(barrier::SY);

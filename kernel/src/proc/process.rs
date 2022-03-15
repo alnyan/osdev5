@@ -3,7 +3,7 @@ use crate::arch::{aarch64::exception::ExceptionFrame, intrin};
 use crate::mem::{
     self,
     phys::{self, PageUsage},
-    virt::{MapAttributes, Space},
+    virt::table::{MapAttributes, Space},
 };
 use crate::proc::{
     wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, Tid, PROCESSES, SCHED,
@@ -383,11 +383,7 @@ impl Process {
             phys
         } else {
             let page = phys::alloc_page(PageUsage::UserPrivate)?;
-            let flags = MapAttributes::SH_OUTER
-                | MapAttributes::NOT_GLOBAL
-                | MapAttributes::UXN
-                | MapAttributes::PXN
-                | MapAttributes::AP_BOTH_READONLY;
+            let flags = MapAttributes::SHARE_OUTER | MapAttributes::USER_READ;
             space.map(page_virt, page, flags)?;
             page
         };
@@ -407,11 +403,7 @@ impl Process {
             phys
         } else {
             let page = phys::alloc_page(PageUsage::UserPrivate)?;
-            let flags = MapAttributes::SH_OUTER
-                | MapAttributes::NOT_GLOBAL
-                | MapAttributes::UXN
-                | MapAttributes::PXN
-                | MapAttributes::AP_BOTH_READONLY;
+            let flags = MapAttributes::SHARE_OUTER | MapAttributes::USER_READ;
             space.map(page_virt, page, flags)?;
             page
         };
@@ -518,11 +510,10 @@ impl Process {
         let ustack_virt_bottom = Self::USTACK_VIRT_TOP - Self::USTACK_PAGES * mem::PAGE_SIZE;
         for i in 0..Self::USTACK_PAGES {
             let page = phys::alloc_page(PageUsage::UserPrivate).unwrap();
-            let flags = MapAttributes::SH_OUTER
-                | MapAttributes::NOT_GLOBAL
-                | MapAttributes::UXN
-                | MapAttributes::PXN
-                | MapAttributes::AP_BOTH_READWRITE;
+            let flags = MapAttributes::SHARE_OUTER
+                | MapAttributes::USER_READ
+                | MapAttributes::USER_WRITE
+                | MapAttributes::KERNEL_WRITE;
             new_space
                 .map(ustack_virt_bottom + i * mem::PAGE_SIZE, page, flags)
                 .unwrap();

@@ -1,21 +1,16 @@
-//! Fixed-size table group for device MMIO mappings
-
-use crate::mem::{
-    self,
-    virt::{Entry, MapAttributes, Table},
-};
+use super::{EntryImpl, TableImpl};
+use crate::mem;
+use crate::mem::virt::table::{Entry, MapAttributes};
 use cortex_a::asm::barrier::{self, dsb, isb};
 use libsys::error::Errno;
-
-const DEVICE_MAP_OFFSET: usize = mem::KERNEL_OFFSET + (256usize << 30);
 
 /// Fixed-layout group of tables describing device MMIO and kernel identity
 /// mappings
 #[repr(C, align(0x1000))]
 pub struct FixedTableGroup {
-    l0: Table,
-    l1: Table,
-    l2: Table,
+    l0: TableImpl,
+    l1: TableImpl,
+    l2: TableImpl,
 
     pages_4k: usize,
     pages_2m: usize,
@@ -27,9 +22,9 @@ impl FixedTableGroup {
     /// entries
     pub const fn empty() -> Self {
         Self {
-            l0: Table::empty(),
-            l1: Table::empty(),
-            l2: Table::empty(),
+            l0: TableImpl::empty(),
+            l1: TableImpl::empty(),
+            l2: TableImpl::empty(),
 
             pages_4k: 0,
             pages_2m: 1,
@@ -44,7 +39,7 @@ impl FixedTableGroup {
     pub fn map_region(&mut self, phys: usize, count: usize) -> Result<usize, Errno> {
         // TODO generalize region allocation
         let phys_page = phys & !0xFFF;
-        let attrs = MapAttributes::SH_OUTER | MapAttributes::DEVICE | MapAttributes::ACCESS;
+        let attrs = MapAttributes::SHARE_OUTER | MapAttributes::DEVICE_MEMORY;
 
         match count {
             262144 => {
@@ -54,7 +49,7 @@ impl FixedTableGroup {
                 }
                 self.pages_1g += 1;
 
-                self.l0[count + 256] = Entry::block(phys_page, attrs);
+                self.l0[count + 256] = EntryImpl::block(phys_page, attrs | MapAttributes::ACCESS);
                 unsafe {
                     dsb(barrier::SY);
                     isb(barrier::SY);
@@ -69,7 +64,7 @@ impl FixedTableGroup {
                 }
                 self.pages_2m += 1;
 
-                self.l1[count] = Entry::block(phys_page, attrs);
+                self.l1[count] = EntryImpl::block(phys_page, attrs | MapAttributes::ACCESS);
                 unsafe {
                     dsb(barrier::SY);
                     isb(barrier::SY);
@@ -84,7 +79,7 @@ impl FixedTableGroup {
                 }
                 self.pages_4k += 1;
 
-                self.l2[count] = Entry::table(phys_page, attrs);
+                self.l2[count] = EntryImpl::normal(phys_page, attrs | MapAttributes::ACCESS);
                 unsafe {
                     dsb(barrier::SY);
                     isb(barrier::SY);
@@ -95,13 +90,28 @@ impl FixedTableGroup {
             _ => unimplemented!(),
         }
     }
+}
 
-    /// Sets up initial mappings for 4K, 2M and 1G device memory page translation
-    pub fn init_device_map(&mut self) {
-        let l1_phys = (&self.l1 as *const _) as usize - mem::KERNEL_OFFSET;
-        let l2_phys = (&self.l2 as *const _) as usize - mem::KERNEL_OFFSET;
+const DEVICE_MAP_OFFSET: usize = mem::KERNEL_OFFSET + (256usize << 30);
 
-        self.l0[256] = Entry::table(l1_phys, MapAttributes::empty());
-        self.l1[0] = Entry::table(l2_phys, MapAttributes::empty());
-    }
+#[no_mangle]
+static mut KERNEL_TTBR1: FixedTableGroup = FixedTableGroup::empty();
+
+/// Allocates a range of virtual memory of requested size and maps
+/// it to specified device memory
+pub fn map_device_memory(phys: usize, count: usize) -> Result<usize, Errno> {
+    unsafe { KERNEL_TTBR1.map_region(phys, count) }
+}
+
+/// Sets up initial mappings for device-memory virtual tables.
+///
+/// # Safety
+///
+/// Only safe to be called once during virtual memory init.
+pub unsafe fn init_device_map() {
+    let l1_phys = (&KERNEL_TTBR1.l1 as *const _) as usize - mem::KERNEL_OFFSET;
+    let l2_phys = (&KERNEL_TTBR1.l2 as *const _) as usize - mem::KERNEL_OFFSET;
+
+    KERNEL_TTBR1.l0[256] = Entry::normal(l1_phys, MapAttributes::empty());
+    KERNEL_TTBR1.l1[0] = Entry::normal(l2_phys, MapAttributes::empty());
 }

@@ -17,8 +17,8 @@ pub unsafe fn irq_disable() {
 ///
 /// Unsafe: requires EL0
 #[inline(always)]
-pub unsafe fn flush_tlb_virt(_addr: usize) {
-    todo!()
+pub unsafe fn flush_tlb_virt(addr: usize) {
+    asm!("tlbi vaae1, {}", in(reg) addr);
 }
 
 /// Discards all entries related to `asid` from TLB cache

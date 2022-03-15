@@ -4,7 +4,7 @@ use crate::arch::{machine, platform::exception::ExceptionFrame};
 use crate::debug::Level;
 use crate::dev::timer::TimestampSource;
 use crate::fs::create_filesystem;
-use crate::mem::{phys::PageUsage, virt::MapAttributes};
+use crate::mem::{phys::PageUsage, virt::table::MapAttributes};
 use crate::proc::{self, elf, wait, Process, ProcessIo, Thread};
 use core::mem::size_of;
 use core::ops::DerefMut;
@@ -210,7 +210,7 @@ fn _syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let _flags = MemoryAccess::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
 
             let mut attrs =
-                MapAttributes::NOT_GLOBAL | MapAttributes::SH_OUTER | MapAttributes::PXN;
+                MapAttributes::SHARE_OUTER;
             if !acc.contains(MemoryAccess::READ) {
                 return Err(Errno::NotImplemented);
             }
@@ -218,12 +218,12 @@ fn _syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
                 if acc.contains(MemoryAccess::EXEC) {
                     return Err(Errno::PermissionDenied);
                 }
-                attrs |= MapAttributes::AP_BOTH_READWRITE;
+                attrs |= MapAttributes::USER_WRITE | MapAttributes::USER_READ;
             } else {
-                attrs |= MapAttributes::AP_BOTH_READONLY;
+                attrs |= MapAttributes::USER_READ;
             }
-            if !acc.contains(MemoryAccess::EXEC) {
-                attrs |= MapAttributes::UXN;
+            if acc.contains(MemoryAccess::EXEC) {
+                attrs |= MapAttributes::USER_EXEC;
             }
 
             // TODO don't ignore flags

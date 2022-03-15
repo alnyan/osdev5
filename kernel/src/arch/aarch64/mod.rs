@@ -10,6 +10,7 @@ pub mod intrin;
 pub mod irq;
 pub mod reg;
 pub mod timer;
+pub mod virt;
 
 cfg_if! {
     if #[cfg(feature = "mach_qemu")] {
