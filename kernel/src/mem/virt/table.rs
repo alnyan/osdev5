@@ -5,8 +5,9 @@ use crate::mem::{
     self,
     phys::{self, PageUsage},
 };
+use core::ffi::c_void;
 use libsys::error::Errno;
-pub use virt_impl::{EntryImpl, TableImpl};
+pub use virt_impl::{EntryImpl, SpaceImpl};
 
 bitflags! {
     /// Virtual space entry attributes
@@ -70,18 +71,31 @@ pub trait Entry: Clone + Copy {
     fn is_user_writable(self) -> bool;
 }
 
-// TODO maybe make this `Space` instead of `Table`?
-/// Interface for a single level of virtual memory mapping hierarchy
-pub trait Table {
-    /// Table element type
+/// Interface for virtual address space manipulation
+pub trait Space {
+    /// Single table entry data type
     type Entry: Entry;
 
-    /// Writes an [Entry] to last-level table specifying `virt` address.
+    /// Creates an empty address space
+    fn alloc_empty() -> Result<&'static mut Self, Errno>;
+
+    /// Removes all non-kernel entries from the space.
     ///
     /// # Safety
     ///
-    /// Unsafe: allows virtual address space manipulations. Must not affect
-    ///         pages currently in use.
+    /// Only safe to call on spaces not currently in use, otherwise will
+    /// trigger undefined behavior and/or page fault.
+    unsafe fn release(space: &'static mut Self);
+
+    /// Forks a process virtual memory space
+    fn fork(&mut self) -> Result<&'static mut Self, Errno>;
+
+    /// Writes an entry corresponding to `virt` address
+    /// to last-level table of this address space.
+    ///
+    /// # Safety
+    ///
+    /// Unsafe: arbitrary memory space manipulation.
     unsafe fn write_last_level(
         &mut self,
         virt: usize,
@@ -89,63 +103,17 @@ pub trait Table {
         create_intermediate: bool,
         overwrite: bool,
     ) -> Result<(), Errno>;
-
-    /// Reads an [Entry] from last-level table specifying `virt` address
+    /// Reads an entry corresponding to `virt` address
     fn read_last_level(&self, virt: usize) -> Result<Self::Entry, Errno>;
-}
-
-/// Wrapper for top-most level of address translation tables
-#[repr(transparent)]
-pub struct Space(pub TableImpl);
-
-impl Space {
-    /// Creates a new address space with only kernel entries mapped
-    pub fn alloc_empty() -> Result<&'static mut Self, Errno> {
-        virt_impl::alloc_empty_space()
-    }
-
-    /// Releases the intermediate paging structures and data pages
-    /// used by the memory space.
-    ///
-    /// # Safety
-    ///
-    /// Only safe to call on spaces not currently in use, otherwise will
-    /// trigger undefined behavior and/or page fault.
-    pub unsafe fn release(&mut self) {
-        virt_impl::release_space(self)
-    }
-
-    /// Performs process address space forking
-    pub fn fork(&mut self) -> Result<&'static mut Self, Errno> {
-        virt_impl::fork_space(self)
-    }
 
     /// Returns physical address of this table
-    pub fn address_phys(&mut self) -> usize {
-        self as *mut _ as usize - mem::KERNEL_OFFSET
-    }
-
-    /// Creates a new virtual -> physical memory mapping. Will fail if one is
-    /// already associated with given virtual address.
-    pub fn map(&mut self, virt: usize, phys: usize, attrs: MapAttributes) -> Result<(), Errno> {
-        unsafe {
-            self.0.write_last_level(
-                virt,
-                Entry::normal(phys, attrs | MapAttributes::ACCESS),
-                true,
-                false,
-            )
-        }
-    }
-
-    /// Returns a virtual address physical mapping destination
-    pub fn translate(&mut self, virt: usize) -> Result<usize, Errno> {
-        self.0.read_last_level(virt).map(Entry::address)
+    fn address_phys(&mut self) -> usize {
+        self as *mut _ as *mut c_void as usize - mem::KERNEL_OFFSET
     }
 
     /// Performs Copy-on-Write cloning on page fault
-    pub fn try_cow_copy(&mut self, virt: usize) -> Result<(), Errno> {
-        let entry = self.0.read_last_level(virt)?;
+    fn try_cow_copy(&mut self, virt: usize) -> Result<(), Errno> {
+        let entry = self.read_last_level(virt)?;
         let src_phys = entry.address();
 
         if !entry.is_cow() {
@@ -160,15 +128,32 @@ impl Space {
         let dst_phys = unsafe { phys::copy_cow_page(src_phys)? };
 
         unsafe {
-            self.0
-                .write_last_level(virt, entry.copy_from_cow(dst_phys), false, true)?;
+            self.write_last_level(virt, entry.copy_from_cow(dst_phys), false, true)?;
         }
         Ok(())
     }
 
+    /// Creates a new virtual -> physical memory mapping. Will fail if one is
+    /// already associated with given virtual address.
+    fn map(&mut self, virt: usize, phys: usize, attrs: MapAttributes) -> Result<(), Errno> {
+        unsafe {
+            self.write_last_level(
+                virt,
+                Entry::normal(phys, attrs | MapAttributes::ACCESS),
+                true,
+                false,
+            )
+        }
+    }
+
+    /// Returns a virtual address physical mapping destination
+    fn translate(&mut self, virt: usize) -> Result<usize, Errno> {
+        self.read_last_level(virt).map(Entry::address)
+    }
+
     /// Allocates a contiguous region from the address space and maps
     /// physical pages to it
-    pub fn allocate(
+    fn allocate(
         &mut self,
         start: usize,
         end: usize,
@@ -193,11 +178,10 @@ impl Space {
     }
 
     /// Releases memory from virtual address range `start`..`start + len * 0x1000`
-    pub fn free(&mut self, start: usize, len: usize) -> Result<(), Errno> {
+    fn free(&mut self, start: usize, len: usize) -> Result<(), Errno> {
         for i in 0..len {
             unsafe {
-                self.0
-                    .write_last_level(start + i * 0x1000, EntryImpl::EMPTY, false, true)?;
+                self.write_last_level(start + i * 0x1000, Self::Entry::EMPTY, false, true)?;
             }
         }
         Ok(())

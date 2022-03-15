@@ -1,4 +1,4 @@
-use super::{EntryImpl, TableImpl};
+use super::{table::TableImpl, EntryImpl};
 use crate::mem;
 use crate::mem::virt::table::{Entry, MapAttributes};
 use cortex_a::asm::barrier::{self, dsb, isb};

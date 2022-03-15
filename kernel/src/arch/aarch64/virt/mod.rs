@@ -6,7 +6,7 @@ mod fixed;
 mod table;
 
 pub use fixed::{init_device_map, map_device_memory};
-pub use table::{alloc_empty_space, fork_space, release_space, EntryImpl, TableImpl};
+pub use table::{EntryImpl, SpaceImpl};
 
 bitflags! {
     /// Raw attributes for AArch64 [Entry] implementation

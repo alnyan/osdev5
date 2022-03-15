@@ -2,7 +2,7 @@ use crate::arch::aarch64::intrin::flush_tlb_virt;
 use crate::mem::{
     self,
     phys::{self, PageUsage},
-    virt::table::{Entry, MapAttributes, Space, Table},
+    virt::table::{Entry, MapAttributes, Space},
 };
 use core::ops::{Index, IndexMut};
 use libsys::{error::Errno, mem::memset};
@@ -20,6 +20,10 @@ pub struct EntryImpl(u64);
 pub struct TableImpl {
     entries: [EntryImpl; 512],
 }
+
+/// Top-level translation table wrapper
+#[repr(transparent)]
+pub struct SpaceImpl(TableImpl);
 
 impl EntryImpl {
     const PRESENT: u64 = 1 << 0;
@@ -91,8 +95,86 @@ impl Entry for EntryImpl {
     }
 }
 
-impl Table for TableImpl {
+impl Space for SpaceImpl {
     type Entry = EntryImpl;
+
+    fn alloc_empty() -> Result<&'static mut Self, Errno> {
+        let phys = phys::alloc_page(PageUsage::Paging)?;
+        let res = unsafe { &mut *(mem::virtualize(phys) as *mut Self) };
+        res.0.entries.fill(EntryImpl::EMPTY);
+        Ok(res)
+    }
+
+    unsafe fn release(space: &'static mut Self) {
+        for l0i in 0..512 {
+            let l0_entry = space.0[l0i];
+            if !l0_entry.is_present() {
+                continue;
+            }
+
+            assert!(l0_entry.is_normal());
+            let l1_table = &mut *(mem::virtualize(l0_entry.address()) as *mut TableImpl);
+
+            for l1i in 0..512 {
+                let l1_entry = l1_table[l1i];
+                if !l1_entry.is_present() {
+                    continue;
+                }
+                assert!(l1_entry.is_normal());
+                let l2_table = &mut *(mem::virtualize(l1_entry.address()) as *mut TableImpl);
+
+                for l2i in 0..512 {
+                    let entry = l2_table[l2i];
+                    if !entry.is_present() {
+                        continue;
+                    }
+
+                    assert!(entry.is_normal());
+                    phys::free_page(entry.address()).unwrap();
+                }
+                phys::free_page(l1_entry.address()).unwrap();
+            }
+            phys::free_page(l0_entry.address()).unwrap();
+        }
+        memset(space as *mut Self as *mut u8, 0, 4096);
+    }
+
+    fn fork(&mut self) -> Result<&'static mut Self, Errno> {
+        let res = Self::alloc_empty()?;
+        for l0i in 0..512 {
+            if let Some(l1_table) = self.0.next_level_table_mut(l0i) {
+                for l1i in 0..512 {
+                    if let Some(l2_table) = l1_table.next_level_table_mut(l1i) {
+                        for l2i in 0..512 {
+                            let entry = &mut l2_table[l2i];
+                            if !entry.is_present() {
+                                continue;
+                            }
+
+                            assert!(entry.is_normal());
+                            let src_phys = entry.address();
+                            let virt_addr = (l0i << 30) | (l1i << 21) | (l2i << 12);
+                            let dst_phys = unsafe { phys::fork_page(src_phys)? };
+
+                            let new_entry = if dst_phys != src_phys {
+                                todo!()
+                            } else if entry.is_user_writable() {
+                                entry.fork_with_cow()
+                            } else {
+                                *entry
+                            };
+
+                            unsafe {
+                                flush_tlb_virt(virt_addr);
+                                res.write_last_level(virt_addr, new_entry, true, false)?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(res)
+    }
 
     unsafe fn write_last_level(
         &mut self,
@@ -105,7 +187,7 @@ impl Table for TableImpl {
         let l1i = (virt >> 21) & 0x1FF;
         let l2i = (virt >> 12) & 0x1FF;
 
-        let l1_table = self.next_level_table_or_alloc(l0i)?;
+        let l1_table = self.0.next_level_table_or_alloc(l0i)?;
         let l2_table = l1_table.next_level_table_or_alloc(l1i)?;
 
         if l2_table[l2i].is_present() && !overwrite {
@@ -130,7 +212,7 @@ impl Table for TableImpl {
         let l1i = (virt >> 21) & 0x1FF;
         let l2i = (virt >> 12) & 0x1FF;
 
-        let l1_table = self.next_level_table(l0i).ok_or(Errno::DoesNotExist)?;
+        let l1_table = self.0.next_level_table(l0i).ok_or(Errno::DoesNotExist)?;
         let l2_table = l1_table.next_level_table(l1i).ok_or(Errno::DoesNotExist)?;
 
         let entry = l2_table[l2i];
@@ -215,91 +297,4 @@ impl IndexMut<usize> for TableImpl {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.entries[index]
     }
-}
-
-/// Allocates a page and constructs an empty space from it
-pub fn alloc_empty_space() -> Result<&'static mut Space, Errno> {
-    let phys = phys::alloc_page(PageUsage::Paging)?;
-    let res = unsafe { &mut *(mem::virtualize(phys) as *mut Space) };
-    res.0.entries.fill(EntryImpl::EMPTY);
-    Ok(res)
-}
-
-/// Forks a memory space
-pub fn fork_space(src: &mut Space) -> Result<&'static mut Space, Errno> {
-    let res = alloc_empty_space()?;
-    for l0i in 0..512 {
-        if let Some(l1_table) = src.0.next_level_table_mut(l0i) {
-            for l1i in 0..512 {
-                if let Some(l2_table) = l1_table.next_level_table_mut(l1i) {
-                    for l2i in 0..512 {
-                        let entry = &mut l2_table[l2i];
-                        if !entry.is_present() {
-                            continue;
-                        }
-
-                        assert!(entry.is_normal());
-                        let src_phys = entry.address();
-                        let virt_addr = (l0i << 30) | (l1i << 21) | (l2i << 12);
-                        let dst_phys = unsafe { phys::fork_page(src_phys)? };
-
-                        let new_entry = if dst_phys != src_phys {
-                            todo!()
-                        } else if entry.is_user_writable() {
-                            entry.fork_with_cow()
-                        } else {
-                            *entry
-                        };
-
-                        unsafe {
-                            flush_tlb_virt(virt_addr);
-                            res.0.write_last_level(virt_addr, new_entry, true, false)?;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Ok(res)
-}
-
-/// Releases the intermediate paging structures and data pages
-/// used by the memory space.
-///
-/// # Safety
-///
-/// Only safe to call on spaces not currently in use, otherwise will
-/// trigger undefined behavior and/or page fault.
-pub unsafe fn release_space(space: &mut Space) {
-    for l0i in 0..512 {
-        let l0_entry = space.0[l0i];
-        if !l0_entry.is_present() {
-            continue;
-        }
-
-        assert!(l0_entry.is_normal());
-        let l1_table = &mut *(mem::virtualize(l0_entry.address()) as *mut TableImpl);
-
-        for l1i in 0..512 {
-            let l1_entry = l1_table[l1i];
-            if !l1_entry.is_present() {
-                continue;
-            }
-            assert!(l1_entry.is_normal());
-            let l2_table = &mut *(mem::virtualize(l1_entry.address()) as *mut TableImpl);
-
-            for l2i in 0..512 {
-                let entry = l2_table[l2i];
-                if !entry.is_present() {
-                    continue;
-                }
-
-                assert!(entry.is_normal());
-                phys::free_page(entry.address()).unwrap();
-            }
-            phys::free_page(l1_entry.address()).unwrap();
-        }
-        phys::free_page(l0_entry.address()).unwrap();
-    }
-    memset(space as *mut Space as *mut u8, 0, 4096);
 }

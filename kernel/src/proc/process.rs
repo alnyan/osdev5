@@ -3,7 +3,7 @@ use crate::arch::{aarch64::exception::ExceptionFrame, intrin};
 use crate::mem::{
     self,
     phys::{self, PageUsage},
-    virt::table::{MapAttributes, Space},
+    virt::table::{MapAttributes, Space, SpaceImpl},
 };
 use crate::proc::{
     wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, Tid, PROCESSES, SCHED,
@@ -32,7 +32,7 @@ pub enum ProcessState {
 }
 
 struct ProcessInner {
-    space: Option<&'static mut Space>,
+    space: Option<&'static mut SpaceImpl>,
     state: ProcessState,
     id: Pid,
     pgid: Pid,
@@ -100,7 +100,7 @@ impl Process {
     #[inline]
     pub fn manipulate_space<R, F>(&self, f: F) -> R
     where
-        F: FnOnce(&mut Space) -> R,
+        F: FnOnce(&mut SpaceImpl) -> R,
     {
         f(self.inner.lock().space.as_mut().unwrap())
     }
@@ -289,7 +289,7 @@ impl Process {
 
         if let Some(space) = lock.space.take() {
             unsafe {
-                Space::release(space);
+                SpaceImpl::release(space);
                 intrin::flush_tlb_asid((lock.id.asid() as usize) << 48);
             }
         }
@@ -372,7 +372,7 @@ impl Process {
         }
     }
 
-    fn write_paged<T>(space: &mut Space, dst: usize, src: T) -> Result<(), Errno> {
+    fn write_paged<T>(space: &mut SpaceImpl, dst: usize, src: T) -> Result<(), Errno> {
         let size = core::mem::size_of::<T>();
         if (size + (dst % 4096)) > 4096 {
             todo!("Object crossed page boundary");
@@ -394,7 +394,7 @@ impl Process {
         Ok(())
     }
 
-    fn write_paged_bytes(space: &mut Space, dst: usize, src: &[u8]) -> Result<(), Errno> {
+    fn write_paged_bytes(space: &mut SpaceImpl, dst: usize, src: &[u8]) -> Result<(), Errno> {
         if (src.len() + (dst % 4096)) > 4096 {
             todo!("Object crossed page boundary");
         }
@@ -418,7 +418,7 @@ impl Process {
         Ok(())
     }
 
-    fn store_arguments(space: &mut Space, argv: &[&str]) -> Result<usize, Errno> {
+    fn store_arguments(space: &mut SpaceImpl, argv: &[&str]) -> Result<usize, Errno> {
         let mut offset = 0usize;
         // TODO vmalloc?
         let base = 0x60000000;
@@ -467,7 +467,7 @@ impl Process {
     }
 
     /// Loads a new program into current process address space
-    pub fn execve<F: FnOnce(&mut Space) -> Result<usize, Errno>>(
+    pub fn execve<F: FnOnce(&mut SpaceImpl) -> Result<usize, Errno>>(
         loader: F,
         argv: &[&str],
     ) -> Result<(), Errno> {
@@ -504,7 +504,7 @@ impl Process {
 
         proc.io.lock().handle_cloexec();
 
-        let new_space = Space::alloc_empty()?;
+        let new_space = SpaceImpl::alloc_empty()?;
         let new_space_phys = (new_space as *mut _ as usize) - mem::KERNEL_OFFSET;
 
         let ustack_virt_bottom = Self::USTACK_VIRT_TOP - Self::USTACK_PAGES * mem::PAGE_SIZE;

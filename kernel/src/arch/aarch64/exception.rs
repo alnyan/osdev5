@@ -1,15 +1,15 @@
 //! AArch64 exception handling
 
-use crate::arch::{machine, intrin};
+use crate::arch::{intrin, machine};
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
-use crate::mem;
+use crate::mem::{self, virt::table::Space};
 use crate::proc::{sched, Thread};
 use crate::syscall;
-use cortex_a::registers::{ESR_EL1, FAR_EL1};
-use libsys::{abi::SystemCall, signal::Signal, error::Errno};
-use tock_registers::interfaces::Readable;
 use core::arch::global_asm;
+use cortex_a::registers::{ESR_EL1, FAR_EL1};
+use libsys::{abi::SystemCall, error::Errno, signal::Signal};
+use tock_registers::interfaces::Readable;
 
 /// Trapped SIMD/FP functionality
 pub const EC_FP_TRAP: u64 = 0b000111;

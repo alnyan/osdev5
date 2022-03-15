@@ -4,7 +4,10 @@ use crate::arch::{machine, platform::exception::ExceptionFrame};
 use crate::debug::Level;
 use crate::dev::timer::TimestampSource;
 use crate::fs::create_filesystem;
-use crate::mem::{phys::PageUsage, virt::table::MapAttributes};
+use crate::mem::{
+    phys::PageUsage,
+    virt::table::{MapAttributes, Space},
+};
 use crate::proc::{self, elf, wait, Process, ProcessIo, Thread};
 use core::mem::size_of;
 use core::ops::DerefMut;
@@ -209,8 +212,7 @@ fn _syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             let acc = MemoryAccess::from_bits(args[2] as u32).ok_or(Errno::InvalidArgument)?;
             let _flags = MemoryAccess::from_bits(args[3] as u32).ok_or(Errno::InvalidArgument)?;
 
-            let mut attrs =
-                MapAttributes::SHARE_OUTER;
+            let mut attrs = MapAttributes::SHARE_OUTER;
             if !acc.contains(MemoryAccess::READ) {
                 return Err(Errno::NotImplemented);
             }

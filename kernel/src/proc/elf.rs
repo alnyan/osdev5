@@ -2,12 +2,12 @@
 use crate::mem::{
     self,
     phys::{self, PageUsage},
-    virt::table::{Space, MapAttributes},
+    virt::table::{MapAttributes, Space, SpaceImpl},
 };
 use core::mem::{size_of, MaybeUninit};
 use libsys::{
     error::Errno,
-    traits::{Read, Seek, SeekDir}
+    traits::{Read, Seek, SeekDir},
 };
 use vfs::FileRef;
 
@@ -88,7 +88,7 @@ fn map_flags(elf_flags: usize) -> MapAttributes {
 }
 
 unsafe fn load_bytes<F>(
-    space: &mut Space,
+    space: &mut SpaceImpl,
     dst_virt: usize,
     mut read: F,
     size: usize,
@@ -146,7 +146,7 @@ unsafe fn read_struct<T>(src: &FileRef, pos: usize) -> Result<T, Errno> {
 }
 
 /// Loads an ELF program from `source` into target `space`
-pub fn load_elf(space: &mut Space, source: FileRef) -> Result<usize, Errno> {
+pub fn load_elf(space: &mut SpaceImpl, source: FileRef) -> Result<usize, Errno> {
     let ehdr: Ehdr<Elf64> = unsafe { read_struct(&source, 0).unwrap() };
 
     if &ehdr.ident[0..4] != b"\x7FELF" {
