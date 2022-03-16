@@ -4,11 +4,14 @@ use core::marker::PhantomData;
 use core::ops::Deref;
 use cortex_a::asm::barrier::{self, dsb, isb};
 use cortex_a::registers::TTBR0_EL1;
-use libsys::error::Errno;
+use libsys::{mem::memcpy, error::Errno};
 use tock_registers::interfaces::Writeable;
+use crate::mem::{self, phys::{self, PageUsage}};
 
 pub mod table;
 use crate::arch::platform::virt as virt_impl;
+
+use table::{Space, SpaceImpl, MapAttributes};
 
 /// Structure representing a region of memory used for MMIO/device access
 // TODO: this shouldn't be trivially-cloneable and should instead incorporate
@@ -96,5 +99,41 @@ pub fn enable() -> Result<(), Errno> {
     TTBR0_EL1.set(0);
     //TCR_EL1.modify(TCR_EL1::EPD0::SET);
 
+    Ok(())
+}
+
+/// Writes a [Copy]able object to `dst` address in `space`. Will allocate any affected pages.
+///
+/// # Safety
+///
+/// Unsafe: arbitrary memory write.
+pub unsafe fn write_paged<T: Clone + Copy>(space: &mut SpaceImpl, dst: usize, src: T) -> Result<(), Errno> {
+    write_paged_bytes(space, dst, core::slice::from_raw_parts(&src as *const _ as *const u8, core::mem::size_of::<T>()))
+}
+
+/// Writes a byte slice to `dst` address in `space`. Will allocate any affected pages.
+///
+/// # Safety
+///
+/// Unsafe: arbitrary memory write.
+pub unsafe fn write_paged_bytes(space: &mut SpaceImpl, dst: usize, src: &[u8]) -> Result<(), Errno> {
+    if (src.len() + (dst % 4096)) > 4096 {
+        todo!("Object crossed page boundary");
+    }
+    let page_virt = dst & !4095;
+    let page_phys = if let Ok(phys) = space.translate(dst) {
+        phys
+    } else {
+        let page = phys::alloc_page(PageUsage::UserPrivate)?;
+        let flags = MapAttributes::SHARE_OUTER | MapAttributes::USER_READ;
+        space.map(page_virt, page, flags)?;
+        page
+    };
+
+    memcpy(
+        (mem::virtualize(page_phys) + (dst % 4096)) as *mut u8,
+        src.as_ptr(),
+        src.len(),
+    );
     Ok(())
 }

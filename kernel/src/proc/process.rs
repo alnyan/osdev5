@@ -3,7 +3,7 @@ use crate::arch::{aarch64::exception::ExceptionFrame, intrin};
 use crate::mem::{
     self,
     phys::{self, PageUsage},
-    virt::table::{MapAttributes, Space, SpaceImpl},
+    virt::{write_paged, write_paged_bytes, table::{MapAttributes, Space, SpaceImpl}},
 };
 use crate::proc::{
     wait::Wait, Context, ProcessIo, Thread, ThreadRef, ThreadState, Tid, PROCESSES, SCHED,
@@ -13,7 +13,6 @@ use alloc::{rc::Rc, vec::Vec};
 use core::sync::atomic::{AtomicU32, Ordering};
 use libsys::{
     error::Errno,
-    mem::memcpy,
     proc::{ExitCode, Pid},
     signal::Signal,
     ProgramArgs,
@@ -372,52 +371,6 @@ impl Process {
         }
     }
 
-    fn write_paged<T>(space: &mut SpaceImpl, dst: usize, src: T) -> Result<(), Errno> {
-        let size = core::mem::size_of::<T>();
-        if (size + (dst % 4096)) > 4096 {
-            todo!("Object crossed page boundary");
-        }
-
-        let page_virt = dst & !4095;
-        let page_phys = if let Ok(phys) = space.translate(dst) {
-            phys
-        } else {
-            let page = phys::alloc_page(PageUsage::UserPrivate)?;
-            let flags = MapAttributes::SHARE_OUTER | MapAttributes::USER_READ;
-            space.map(page_virt, page, flags)?;
-            page
-        };
-
-        unsafe {
-            core::ptr::write((mem::virtualize(page_phys) + (dst % 4096)) as *mut T, src);
-        }
-        Ok(())
-    }
-
-    fn write_paged_bytes(space: &mut SpaceImpl, dst: usize, src: &[u8]) -> Result<(), Errno> {
-        if (src.len() + (dst % 4096)) > 4096 {
-            todo!("Object crossed page boundary");
-        }
-        let page_virt = dst & !4095;
-        let page_phys = if let Ok(phys) = space.translate(dst) {
-            phys
-        } else {
-            let page = phys::alloc_page(PageUsage::UserPrivate)?;
-            let flags = MapAttributes::SHARE_OUTER | MapAttributes::USER_READ;
-            space.map(page_virt, page, flags)?;
-            page
-        };
-
-        unsafe {
-            memcpy(
-                (mem::virtualize(page_phys) + (dst % 4096)) as *mut u8,
-                src.as_ptr(),
-                src.len(),
-            );
-        }
-        Ok(())
-    }
-
     fn store_arguments(space: &mut SpaceImpl, argv: &[&str]) -> Result<usize, Errno> {
         let mut offset = 0usize;
         // TODO vmalloc?
@@ -425,7 +378,9 @@ impl Process {
 
         // 1. Store program argument string bytes
         for arg in argv.iter() {
-            Self::write_paged_bytes(space, base + offset, arg.as_bytes())?;
+            unsafe {
+                write_paged_bytes(space, base + offset, arg.as_bytes())?;
+            }
             offset += arg.len();
         }
         // Align
@@ -436,8 +391,10 @@ impl Process {
         let mut data_offset = 0usize;
         for arg in argv.iter() {
             // XXX this is really unsafe and I am not really sure ABI will stay like this XXX
-            Self::write_paged(space, base + offset, base + data_offset)?;
-            Self::write_paged(space, base + offset + 8, arg.len())?;
+            unsafe {
+                write_paged(space, base + offset, base + data_offset)?;
+                write_paged(space, base + offset + 8, arg.len())?;
+            }
             offset += 16;
             data_offset += arg.len();
         }
@@ -449,7 +406,9 @@ impl Process {
             storage: base,
             size: offset + core::mem::size_of::<ProgramArgs>(),
         };
-        Self::write_paged(space, base + offset, data)?;
+        unsafe {
+            write_paged(space, base + offset, data)?;
+        }
 
         Ok(base + offset)
     }

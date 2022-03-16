@@ -15,7 +15,7 @@ pub mod stat;
 pub mod termios;
 pub mod traits;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ProgramArgs {
     pub argv: usize,
     pub argc: usize,
