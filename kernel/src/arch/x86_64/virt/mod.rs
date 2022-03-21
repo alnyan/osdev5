@@ -14,6 +14,7 @@ bitflags! {
         const USER = 1 << 2;
         const BLOCK = 1 << 7;
         const GLOBAL = 1 << 8;
+        const EX_COW = 1 << 62;
     }
 }
 

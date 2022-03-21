@@ -2,6 +2,7 @@ use crate::mem::{
     self,
     phys::{self, PageUsage},
 };
+use crate::arch::platform::ForkFrame;
 use core::mem::size_of;
 use core::arch::global_asm;
 
@@ -76,6 +77,41 @@ impl Context {
     /// Unsafe: may clobber an already active context
     pub unsafe fn setup_signal_entry(&mut self, entry: usize, arg: usize, cr3: usize, ustack: usize) {
         todo!()
+    }
+
+    /// Clones a process context from given `frame`
+    pub fn fork(frame: &ForkFrame, cr3: usize) -> Self {
+        let mut stack = Stack::new(8);
+        let stack_top = stack.sp;
+
+        stack.push(frame.saved_rip);
+        stack.push(frame.saved_rsp);
+
+        stack.push(frame.x[6]);     // rax
+        stack.push(frame.x[5]);     // r9
+        stack.push(frame.x[4]);     // r8
+        stack.push(frame.x[3]);     // r10
+        stack.push(frame.x[2]);     // rdx
+        stack.push(frame.x[1]);     // rsi
+        stack.push(frame.x[0]);     // rdi
+
+        // Setup common
+        stack.push(__x86_64_ctx_enter_from_fork as usize);   // return address
+        stack.push(stack_top);       // gs_base
+        stack.push(cr3);
+        stack.push(frame.x[9]);       // r15
+        stack.push(frame.x[10]);      // r14
+        stack.push(frame.x[11]);      // r13
+        stack.push(frame.x[12]);      // r12
+        stack.push(frame.x[7]);       // rbx
+        stack.push(frame.x[8]);       // rbp
+
+        Self {
+            k_sp: stack.sp,
+
+            stack_base: stack.bp,
+            stack_page_count: 8,
+        }
     }
 
     /// Performs initial thread entry

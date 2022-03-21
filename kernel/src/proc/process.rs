@@ -162,7 +162,41 @@ impl Process {
     /// Creates a "fork" of the process, cloning its address space and
     /// resources
     pub fn fork(&self, frame: &mut ForkFrame) -> Result<Pid, Errno> {
-        todo!();
+        let src_io = self.io.lock();
+        let mut src_inner = self.inner.lock();
+
+        let dst_id = new_user_pid();
+        let dst_space = src_inner.space.as_mut().unwrap().fork()?;
+
+        let dst_space_phys = (dst_space as *mut _ as usize) - mem::KERNEL_OFFSET;
+        // let dst_ttbr0 = dst_space_phys | ((dst_id.asid() as usize) << 48);
+
+        let mut threads = Vec::new();
+        let tid = Thread::fork(Some(dst_id), frame, dst_space_phys)?.id();
+        threads.push(tid);
+
+        let dst = Rc::new(Self {
+            exit_wait: Wait::new("process_exit"),
+            io: IrqSafeSpinLock::new(src_io.fork()?),
+            signal_state: AtomicU32::new(0),
+            inner: IrqSafeSpinLock::new(ProcessInner {
+                threads,
+                exit: None,
+                space: Some(dst_space),
+                state: ProcessState::Active,
+                id: dst_id,
+                pgid: src_inner.pgid,
+                ppid: Some(src_inner.id),
+                sid: src_inner.sid,
+            }),
+        });
+
+        debugln!("Process {:?} forked into {:?}", src_inner.id, dst_id);
+        assert!(PROCESSES.lock().insert(dst_id, dst).is_none());
+
+        SCHED.enqueue(tid);
+
+        Ok(dst_id)
     }
 
     /// Terminates a process.
@@ -319,7 +353,7 @@ impl Process {
                 entry,
                 arg,
                 new_space_phys | asid,
-                Self::USTACK_VIRT_TOP,
+                Self::USTACK_VIRT_TOP - 8,
             ));
 
             drop(process_lock);

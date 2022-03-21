@@ -6,11 +6,11 @@ use crate::syscall;
 
 #[derive(Clone, Debug)]
 pub struct SyscallFrame {
-    x: [usize; 13],
+    pub x: [usize; 13],
 
-    saved_rsp: usize,
-    saved_rflags: usize,
-    saved_rip: usize,
+    pub saved_rsp: usize,
+    pub saved_rflags: usize,
+    pub saved_rip: usize,
 }
 
 pub(super) fn init() {

@@ -69,7 +69,9 @@ impl Entry for EntryImpl {
 
     #[inline]
     fn fork_with_cow(&mut self) -> Self {
-        todo!()
+        self.0 &= !(RawAttributesImpl::USER | RawAttributesImpl::WRITE).bits();
+        self.0 |= RawAttributesImpl::EX_COW.bits();
+        *self
     }
 
     #[inline]
@@ -84,7 +86,8 @@ impl Entry for EntryImpl {
 
     #[inline]
     fn is_user_writable(self) -> bool {
-        todo!()
+        let bits = RawAttributesImpl::USER | RawAttributesImpl::WRITE;
+        self.0 & bits.bits() != bits.bits()
     }
 }
 
@@ -128,8 +131,37 @@ impl Space for SpaceImpl {
                             }
 
                             assert!(entry.is_normal());
+                            let src_phys = entry.address();
+                            let virt_addr = (pdpti << 30) | (pdi << 21) | (pti << 12);
 
-                            todo!();
+                            // TODO check exact page usage
+                            let dst_phys = unsafe { phys::alloc_page(PageUsage::UserPrivate)? };
+                            let new_entry = EntryImpl::normal(dst_phys, MapAttributes::USER_WRITE | MapAttributes::USER_READ);
+
+                            unsafe {
+                                libsys::mem::memcpy(
+                                    mem::virtualize(dst_phys) as *mut u8,
+                                    mem::virtualize(src_phys) as *const u8,
+                                    0x1000
+                                );
+                                res.write_last_level(virt_addr, new_entry, true, false)?;
+                            }
+
+                            // let dst_phys = unsafe { phys::fork_page(src_phys)? };
+
+                            // let new_entry = if dst_phys != src_phys {
+                            //     todo!()
+                            // } else if entry.is_user_writable() {
+                            //     entry.fork_with_cow()
+                            // } else {
+                            //     *entry
+                            // };
+
+                            // unsafe {
+                            //     use core::arch::asm;
+                            //     asm!("invlpg ({})", in(reg) virt_addr, options(att_syntax));
+                            //     res.write_last_level(virt_addr, new_entry, true, false)?;
+                            // }
                         }
                     }
                 }

@@ -1,6 +1,7 @@
 //! Facilities for controlling threads - smallest units of
 //! execution in the operating system
 // use crate::arch::aarch64::exception::ExceptionFrame;
+use crate::arch::platform::ForkFrame;
 use crate::proc::{
     wait::{Wait, WaitStatus},
     Process, ProcessRef, SCHED, THREADS,
@@ -143,34 +144,34 @@ impl Thread {
         Ok(res)
     }
 
-    // /// Creates a fork thread cloning `frame` context
-    // pub fn fork(
-    //     owner: Option<Pid>,
-    //     frame: &ExceptionFrame,
-    //     ttbr0: usize,
-    // ) -> Result<ThreadRef, Errno> {
-    //     let id = new_tid();
+    /// Creates a fork thread cloning `frame` context
+    pub fn fork(
+        owner: Option<Pid>,
+        frame: &ForkFrame,
+        space_phys: usize,
+    ) -> Result<ThreadRef, Errno> {
+        let id = new_tid();
 
-    //     let res = Rc::new(Self {
-    //         ctx: UnsafeCell::new(Context::fork(frame, ttbr0)),
-    //         signal_ctx: UnsafeCell::new(Context::empty()),
-    //         signal_pending: AtomicU32::new(0),
-    //         exit_wait: Wait::new("thread_exit"),
-    //         exit_status: InitOnce::new(),
-    //         inner: IrqSafeSpinLock::new(ThreadInner {
-    //             signal_entry: 0,
-    //             signal_stack: 0,
-    //             id,
-    //             owner,
-    //             pending_wait: None,
-    //             wait_status: WaitStatus::Done,
-    //             state: State::Ready,
-    //         }),
-    //     });
-    //     debugln!("Forked new user thread: {:?}", id);
-    //     assert!(THREADS.lock().insert(id, res.clone()).is_none());
-    //     Ok(res)
-    // }
+        let res = Rc::new(Self {
+            ctx: UnsafeCell::new(Context::fork(frame, space_phys)),
+            signal_ctx: UnsafeCell::new(Context::empty()),
+            signal_pending: AtomicU32::new(0),
+            exit_wait: Wait::new("thread_exit"),
+            exit_status: InitOnce::new(),
+            inner: IrqSafeSpinLock::new(ThreadInner {
+                signal_entry: 0,
+                signal_stack: 0,
+                id,
+                owner,
+                pending_wait: None,
+                wait_status: WaitStatus::Done,
+                state: State::Ready,
+            }),
+        });
+        debugln!("Forked new user thread: {:?}", id);
+        assert!(THREADS.lock().insert(id, res.clone()).is_none());
+        Ok(res)
+    }
 
     /// Returns the thread ID
     #[inline]

@@ -68,6 +68,9 @@ endif
 ifeq ($(QEMU_PAUSE),1)
 QEMU_OPTS+=-S
 endif
+ifeq ($(QEMU_KVM),1)
+QEMU_OPTS+=-enable-kvm -cpu host
+endif
 
 .PHONY: address error etc kernel src
 

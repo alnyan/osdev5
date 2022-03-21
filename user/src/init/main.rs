@@ -30,9 +30,11 @@ fn main() -> i32 {
     )
     .expect("Failed to mount sysfs");
 
-    let pid = unsafe { sys_fork().unwrap() };
-
-    trace_debug!("fork returned {:?}", pid);
+    if let Some(pid) = unsafe { sys_fork().unwrap() } {
+        trace_debug!("Parent: forked into {:?}", pid);
+    } else {
+        trace_debug!("Child!");
+    }
 
     loop {}
 
