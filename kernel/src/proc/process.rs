@@ -152,13 +152,13 @@ impl Process {
         }
     }
 
-    // /// Immediately delivers a signal to requested thread
-    // pub fn enter_fault_signal(&self, thread: ThreadRef, signal: Signal) {
-    //     let mut lock = self.inner.lock();
-    //     let table = Self::space_phys(&lock);
-    //     drop(lock);
-    //     thread.enter_signal(signal, table);
-    // }
+    /// Immediately delivers a signal to requested thread
+    pub fn enter_fault_signal(&self, thread: ThreadRef, signal: Signal) {
+        let mut lock = self.inner.lock();
+        let table = Self::space_phys(&mut lock);
+        drop(lock);
+        thread.enter_signal(signal, table);
+    }
 
     /// Crates a new thread in the process
     pub fn new_user_thread(&self, entry: usize, stack: usize, arg: usize) -> Result<Tid, Errno> {

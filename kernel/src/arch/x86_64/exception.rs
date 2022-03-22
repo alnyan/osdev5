@@ -2,6 +2,9 @@ use crate::arch::x86_64;
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
 use core::arch::{asm, global_asm};
+use libsys::{error::Errno, signal::Signal};
+use crate::mem::{self, virt::table::Space};
+use crate::proc::{Thread, sched};
 
 #[derive(Debug)]
 struct ExceptionFrame {
@@ -48,7 +51,7 @@ fn pfault_access_type(code: u64) -> &'static str {
     }
 }
 
-fn pfault_dump(level: Level, frame: &ExceptionFrame, cr2: u64) {
+fn pfault_dump(level: Level, frame: &ExceptionFrame, cr2: usize) {
     println!(level, "\x1B[41;1mPage fault:");
     println!(
         level,
@@ -61,8 +64,30 @@ fn pfault_dump(level: Level, frame: &ExceptionFrame, cr2: u64) {
 #[no_mangle]
 extern "C" fn __x86_64_exception_handler(frame: &mut ExceptionFrame) {
     if frame.err_no == 14 {
-        // TODO userspace page faults
-        let cr2 = pfault_read_cr2();
+        let cr2 = pfault_read_cr2() as usize;
+
+        if cr2 < mem::KERNEL_OFFSET && sched::is_ready() {
+            let thread = Thread::current();
+            let proc = thread.owner().unwrap();
+
+            let res = proc.manipulate_space(|space| {
+                space.try_cow_copy(cr2)?;
+                // unsafe {
+                //     intrin::flush_tlb_asid(asid);
+                // }
+                Result::<(), Errno>::Ok(())
+            });
+
+            if res.is_err() {
+                errorln!("Page fault at {:#x} in user {:?}", frame.rip, thread.owner_id());
+                pfault_dump(Level::Error, frame, cr2);
+                proc.enter_fault_signal(thread, Signal::SegmentationFault);
+            }
+
+            return;
+        }
+
+        errorln!("Unresolved page fault:");
         pfault_dump(Level::Error, frame, cr2);
     }
 
