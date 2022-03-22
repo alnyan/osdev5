@@ -94,7 +94,9 @@ extern "C" fn __x86_64_bsp_main(mb_checksum: u32, mb_info_ptr: u32) -> ! {
         virt_base: virt,
     });
     unsafe {
-        x86_64::COM1.init_irqs();
+        x86_64::COM1.init_irqs().unwrap();
+        x86_64::local_timer().init_irqs().unwrap();
+        x86_64::local_timer().enable().unwrap();
     }
     font::init();
     debug::set_display(&x86_64::DISPLAY);

@@ -314,13 +314,14 @@ fn _syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
         SystemCall::GetPid => Ok(u32::from(Process::current().id()) as usize),
         SystemCall::GetTid => Ok(u32::from(Thread::current().id()) as usize),
         SystemCall::Sleep => {
-            let rem_buf = arg::option_buf_ref(args[1], size_of::<u64>() * 2)?;
+            let rem_buf = arg::option_struct_buf_mut::<u64>(args[1], size_of::<u64>() * 2)?;
             let mut rem = Duration::new(0, 0);
             let res = wait::sleep(Duration::from_nanos(args[0] as u64), &mut rem);
             if res == Err(Errno::Interrupt) {
                 warnln!("Sleep interrupted, {:?} remaining", rem);
-                if rem_buf.is_some() {
-                    todo!()
+                if let Some(rem_buf) = rem_buf {
+                    rem_buf[0] = rem.as_secs();
+                    rem_buf[1] = rem.subsec_nanos() as u64;
                 }
             }
             res.map(|_| 0)

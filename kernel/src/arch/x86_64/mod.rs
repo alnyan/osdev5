@@ -6,6 +6,8 @@ use uart::Uart;
 mod intc;
 use intc::I8259;
 pub use intc::IrqNumber;
+mod timer;
+use timer::Timer;
 
 mod io;
 pub(self) use io::PortIo;
@@ -55,6 +57,11 @@ pub fn console() -> &'static impl SerialDevice {
     &COM1
 }
 
+pub fn local_timer() -> &'static Timer {
+    &TIMER
+}
+
 static COM1: Uart = unsafe { Uart::new(0x3F8, IrqNumber::new(4)) };
 pub(self) static INTC: I8259 = I8259::new();
 pub(self) static DISPLAY: StaticFramebuffer = StaticFramebuffer::uninit();
+pub(self) static TIMER: Timer = Timer::new(IrqNumber::new(0));

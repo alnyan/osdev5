@@ -39,12 +39,35 @@ pub static WAIT_SELECT: Wait = Wait::new("select");
 
 /// Checks for any timed out wait channels and interrupts them
 pub fn tick() {
-    todo!();
+    let time = machine::local_timer().timestamp().unwrap();
+    let mut list = TICK_LIST.lock();
+    let mut cursor = list.cursor_front_mut();
+
+    while let Some(item) = cursor.current() {
+        if time > item.deadline {
+            let tid = item.tid;
+            cursor.remove_current();
+            SCHED.enqueue(tid);
+        } else {
+            cursor.move_next();
+        }
+    }
 }
 
 /// Suspends current process for given duration
 pub fn sleep(timeout: Duration, remaining: &mut Duration) -> Result<(), Errno> {
-    todo!()
+    // Dummy wait descriptor which will never receive notifications
+    static SLEEP_NOTIFY: Wait = Wait::new("sleep");
+    let deadline = machine::local_timer().timestamp()? + timeout;
+    match SLEEP_NOTIFY.wait(Some(deadline)) {
+        Err(Errno::Interrupt) => {
+            *remaining = deadline - machine::local_timer().timestamp()?;
+            Err(Errno::Interrupt)
+        }
+        Err(Errno::TimedOut) => Ok(()),
+        Ok(_) => panic!("Impossible result"),
+        res => res,
+    }
 }
 
 /// Suspends current process until some file descriptor
@@ -146,12 +169,12 @@ impl Wait {
         queue_lock.push_back(thread.id());
         thread.setup_wait(self);
 
-        // if let Some(deadline) = deadline {
-        //     TICK_LIST.lock().push_back(Timeout {
-        //         tid: thread.id(),
-        //         deadline,
-        //     });
-        // }
+        if let Some(deadline) = deadline {
+            TICK_LIST.lock().push_back(Timeout {
+                tid: thread.id(),
+                deadline,
+            });
+        }
 
         loop {
             match thread.wait_status() {
@@ -168,22 +191,22 @@ impl Wait {
             thread.enter_wait();
             queue_lock = self.queue.lock();
 
-            // if let Some(deadline) = deadline {
-            //     if machine::local_timer().timestamp()? > deadline {
-            //         let mut cursor = queue_lock.cursor_front_mut();
+            if let Some(deadline) = deadline {
+                if machine::local_timer().timestamp()? > deadline {
+                    let mut cursor = queue_lock.cursor_front_mut();
 
-            //         while let Some(&mut item) = cursor.current() {
-            //             if thread.id() == item {
-            //                 cursor.remove_current();
-            //                 break;
-            //             } else {
-            //                 cursor.move_next();
-            //             }
-            //         }
+                    while let Some(&mut item) = cursor.current() {
+                        if thread.id() == item {
+                            cursor.remove_current();
+                            break;
+                        } else {
+                            cursor.move_next();
+                        }
+                    }
 
-            //         return Err(Errno::TimedOut);
-            //     }
-            // }
+                    return Err(Errno::TimedOut);
+                }
+            }
         }
     }
 }

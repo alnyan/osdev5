@@ -9,8 +9,8 @@ use alloc::{borrow::ToOwned, vec::Vec};
 use libusr::io::{self, Read};
 use libusr::signal::{self, SignalHandler};
 use libusr::sys::{
-    sys_chdir, sys_execve, sys_exit, sys_faccessat, sys_fork, sys_getpgid, sys_setpgid,
-    sys_waitpid, AccessMode, Errno, ExitCode, FileDescriptor, Signal,
+    sys_chdir, sys_ex_nanosleep, sys_execve, sys_exit, sys_faccessat, sys_fork, sys_getpgid,
+    sys_setpgid, sys_waitpid, AccessMode, Errno, ExitCode, FileDescriptor, Signal,
 };
 
 struct Builtin {
@@ -30,10 +30,39 @@ fn cmd_cd(args: &[&str]) -> ExitCode {
     }
 }
 
-static BUILTINS: [Builtin; 1] = [Builtin {
-    name: "cd",
-    func: cmd_cd,
-}];
+fn cmd_sleep(args: &[&str]) -> ExitCode {
+    if args.len() == 2 {
+        match args[1].parse::<u32>() {
+            Err(e) => {
+                eprintln!("{}: {:?}", args[1], e);
+                ExitCode::from(-1)
+            }
+            Ok(count) => {
+                let mut rem = [0; 2];
+                if let Err(err) = sys_ex_nanosleep((count as u64) * 1000000000, &mut rem) {
+                    eprintln!("Sleep failed (rem. {:?}): {:?}", rem, err);
+                    ExitCode::from(-1)
+                } else {
+                    ExitCode::from(0)
+                }
+            }
+        }
+    } else {
+        eprintln!("Usage: sleep SECS");
+        ExitCode::from(-1)
+    }
+}
+
+static BUILTINS: [Builtin; 2] = [
+    Builtin {
+        name: "cd",
+        func: cmd_cd,
+    },
+    Builtin {
+        name: "sleep",
+        func: cmd_sleep,
+    },
+];
 
 fn readline<'a, F: Read>(f: &mut F, bytes: &'a mut [u8]) -> Result<Option<&'a str>, io::Error> {
     let size = f.read(bytes)?;

@@ -1,10 +1,10 @@
+use crate::arch::platform::ForkFrame;
 use crate::mem::{
     self,
     phys::{self, PageUsage},
 };
-use crate::arch::platform::ForkFrame;
-use core::mem::size_of;
 use core::arch::global_asm;
+use core::mem::size_of;
 
 struct Stack {
     bp: usize,
@@ -66,7 +66,7 @@ impl Context {
         Self {
             k_sp: stack.sp,
             stack_base: stack.bp,
-            stack_page_count: 8
+            stack_page_count: 8,
         }
     }
 
@@ -75,7 +75,13 @@ impl Context {
     /// # Safety
     ///
     /// Unsafe: may clobber an already active context
-    pub unsafe fn setup_signal_entry(&mut self, entry: usize, arg: usize, cr3: usize, ustack: usize) {
+    pub unsafe fn setup_signal_entry(
+        &mut self,
+        entry: usize,
+        arg: usize,
+        cr3: usize,
+        ustack: usize,
+    ) {
         let cr3 = cr3 & 0xFFFFFFFF;
         let mut stack = Stack::from_base_size(self.stack_base, self.stack_page_count);
         let stack_top = stack.sp;
@@ -98,24 +104,24 @@ impl Context {
         stack.push(frame.saved_rip);
         stack.push(frame.saved_rsp);
 
-        stack.push(frame.x[6]);     // rax
-        stack.push(frame.x[5]);     // r9
-        stack.push(frame.x[4]);     // r8
-        stack.push(frame.x[3]);     // r10
-        stack.push(frame.x[2]);     // rdx
-        stack.push(frame.x[1]);     // rsi
-        stack.push(frame.x[0]);     // rdi
+        stack.push(frame.x[6]); // rax
+        stack.push(frame.x[5]); // r9
+        stack.push(frame.x[4]); // r8
+        stack.push(frame.x[3]); // r10
+        stack.push(frame.x[2]); // rdx
+        stack.push(frame.x[1]); // rsi
+        stack.push(frame.x[0]); // rdi
 
         // Setup common
-        stack.push(__x86_64_ctx_enter_from_fork as usize);   // return address
-        stack.push(stack_top);       // gs_base
+        stack.push(__x86_64_ctx_enter_from_fork as usize); // return address
+        stack.push(stack_top); // gs_base
         stack.push(cr3);
-        stack.push(frame.x[9]);       // r15
-        stack.push(frame.x[10]);      // r14
-        stack.push(frame.x[11]);      // r13
-        stack.push(frame.x[12]);      // r12
-        stack.push(frame.x[7]);       // rbx
-        stack.push(frame.x[8]);       // rbp
+        stack.push(frame.x[9]); // r15
+        stack.push(frame.x[10]); // r14
+        stack.push(frame.x[11]); // r13
+        stack.push(frame.x[12]); // r12
+        stack.push(frame.x[7]); // rbx
+        stack.push(frame.x[8]); // rbp
 
         Self {
             k_sp: stack.sp,
@@ -159,20 +165,20 @@ impl Stack {
     pub unsafe fn from_base_size(bp: usize, page_count: usize) -> Stack {
         Stack {
             bp,
-            sp: bp + page_count * mem::PAGE_SIZE
+            sp: bp + page_count * mem::PAGE_SIZE,
         }
     }
 
     pub fn setup_common(&mut self, entry: usize, cr3: usize, tss_rsp0: usize) {
-        self.push(entry);   // return address
-        self.push(tss_rsp0);       // gs_base
+        self.push(entry); // return address
+        self.push(tss_rsp0); // gs_base
         self.push(cr3);
-        self.push(0);       // r15
-        self.push(0);       // r14
-        self.push(0);       // r13
-        self.push(0);       // r12
-        self.push(0);       // rbx
-        self.push(0);       // rbp
+        self.push(0); // r15
+        self.push(0); // r14
+        self.push(0); // r13
+        self.push(0); // r12
+        self.push(0); // rbx
+        self.push(0); // rbp
     }
 
     pub fn push(&mut self, value: usize) {

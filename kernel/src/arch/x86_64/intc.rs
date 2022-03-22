@@ -70,11 +70,7 @@ impl IntController for I8259 {
         irq: Self::IrqNumber,
         handler: &'static (dyn IntSource + Sync),
     ) -> Result<(), Errno> {
-        if irq.0 == 0 {
-            return Err(Errno::InvalidArgument);
-        }
-
-        let index = (irq.0 - 1) as usize;
+        let index = irq.0 as usize;
         let mut lock = self.table.lock();
         if lock[index].is_some() {
             return Err(Errno::AlreadyExists);
@@ -98,7 +94,6 @@ impl IntController for I8259 {
 
     fn handle_pending_irqs<'irq_context>(&'irq_context self, ic: &IrqContext<'irq_context>) {
         let irq_number = ic.token();
-        assert!(irq_number > 0);
 
         // Clear irq
         if irq_number > 8 {
@@ -108,7 +103,7 @@ impl IntController for I8259 {
 
         {
             let table = self.table.lock();
-            match table[irq_number - 1] {
+            match table[irq_number] {
                 None => panic!("No handler registered for irq{}", irq_number),
                 Some(handler) => {
                     drop(table);

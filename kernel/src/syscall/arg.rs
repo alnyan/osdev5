@@ -122,6 +122,15 @@ pub fn option_struct_mut<'a, T>(base: usize) -> Result<Option<&'a mut T>, Errno>
     }
 }
 
+/// Checks given argument and interprets it as a `Option<&'a mut [T]>`
+pub fn option_struct_buf_mut<'a, T>(base: usize, count: usize) -> Result<Option<&'a mut [T]>, Errno> {
+    if base == 0 {
+        Ok(None)
+    } else {
+        struct_buf_mut(base, count).map(Some)
+    }
+}
+
 /// Validates that the argument pointer is accessible for requested operation
 /// for current process
 pub fn validate_ptr(base: usize, len: usize, write: bool) -> Result<(), Errno> {
