@@ -130,7 +130,7 @@ pub trait TtyDevice<const N: usize>: SerialDevice {
                 let proc = Process::get(pgid);
                 if let Some(proc) = proc {
                     // TODO
-                    // proc.set_signal(Signal::Interrupt);
+                    proc.set_signal(Signal::Interrupt);
                 }
             }
             return;

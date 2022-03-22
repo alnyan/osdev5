@@ -76,7 +76,18 @@ impl Context {
     ///
     /// Unsafe: may clobber an already active context
     pub unsafe fn setup_signal_entry(&mut self, entry: usize, arg: usize, cr3: usize, ustack: usize) {
-        todo!()
+        let cr3 = cr3 & 0xFFFFFFFF;
+        let mut stack = Stack::from_base_size(self.stack_base, self.stack_page_count);
+        let stack_top = stack.sp;
+
+        stack.push(entry);
+        stack.push(arg);
+        stack.push(0);
+        stack.push(ustack);
+
+        stack.setup_common(__x86_64_ctx_enter_user as usize, cr3, stack_top);
+
+        self.k_sp = stack.sp;
     }
 
     /// Clones a process context from given `frame`

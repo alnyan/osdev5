@@ -105,6 +105,61 @@ impl Process {
         f(self.inner.lock().space.as_mut().unwrap())
     }
 
+    /// Handles all pending signals (when returning from aborted syscall)
+    pub fn handle_pending_signals(&self) {
+        let mut lock = self.inner.lock();
+        let table = Self::space_phys(&mut lock);
+        let main_thread = Thread::get(lock.threads[0]).unwrap();
+        drop(lock);
+
+        loop {
+            let state = self.signal_state.load(Ordering::Acquire);
+            if let Some(signal) = Self::find1(state).map(|e| Signal::try_from(e as u32).unwrap()) {
+                self.signal_state.fetch_and(!(1 << (signal as u32)), Ordering::Release);
+                main_thread.clone().enter_signal(signal, table);
+            } else {
+                break;
+            }
+        }
+    }
+
+    pub fn set_signal(&self, signal: Signal) {
+        let mut lock = self.inner.lock();
+        let table = Self::space_phys(&mut lock);
+        let main_thread = Thread::get(lock.threads[0]).unwrap();
+        drop(lock);
+
+        // TODO check that `signal` is not a fault signal
+        //      it is illegal to call this function with
+        //      fault signals
+
+        match main_thread.state() {
+            ThreadState::Running => {
+                main_thread.enter_signal(signal, table);
+            }
+            ThreadState::Waiting => {
+                self.signal_state.fetch_or(1 << (signal as u32), Ordering::Release);
+                main_thread.interrupt_wait(true);
+            }
+            ThreadState::Ready => {
+                main_thread.clone().setup_signal(signal, table);
+                main_thread.interrupt_wait(false);
+            }
+            ThreadState::Finished => {
+                // TODO report error back
+                todo!()
+            }
+        }
+    }
+
+    // /// Immediately delivers a signal to requested thread
+    // pub fn enter_fault_signal(&self, thread: ThreadRef, signal: Signal) {
+    //     let mut lock = self.inner.lock();
+    //     let table = Self::space_phys(&lock);
+    //     drop(lock);
+    //     thread.enter_signal(signal, table);
+    // }
+
     /// Creates a new kernel process
     pub fn new_kernel(entry: extern "C" fn(usize) -> !, arg: usize) -> Result<ProcessRef, Errno> {
         let id = new_kernel_pid();
@@ -243,7 +298,37 @@ impl Process {
     /// Terminates a thread of the process. If the thread is the only
     /// one remaining, process itself is exited (see [Process::exit])
     pub fn exit_thread(thread: ThreadRef, status: ExitCode) {
-        todo!()
+        let switch = {
+            let switch = thread.state() == ThreadState::Running;
+            let process = thread.owner().unwrap();
+            let mut lock = process.inner.lock();
+            let tid = thread.id();
+
+            if lock.threads.len() == 1 {
+                // TODO call Process::exit instead?
+                drop(lock);
+                process.exit(status);
+                return;
+            }
+
+            lock.threads.retain(|&e| e != tid);
+
+            thread.terminate(status);
+            SCHED.dequeue(tid);
+            debugln!("Thread {:?} terminated", tid);
+
+            switch
+        };
+
+        if switch {
+            // TODO retain thread ID in process "finished" list and
+            //      drop it when process finishes
+            SCHED.switch(true);
+            panic!("This code should not run");
+        } else {
+            // Can drop this thread: it's not running
+            todo!();
+        }
     }
 
     fn collect(&self) -> Option<ExitCode> {

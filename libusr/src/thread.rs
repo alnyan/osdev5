@@ -66,11 +66,11 @@ unsafe fn init_common(signal_stack_pointer: *mut u8) {
 
     // thread::current() should be valid at this point
 
-    // sys_ex_signal(
-    //     signal::signal_handler as usize,
-    //     signal_stack_pointer as usize,
-    // )
-    // .unwrap();
+    sys_ex_signal(
+        signal::signal_handler as usize,
+        signal_stack_pointer as usize,
+    )
+    .unwrap();
 }
 
 pub(crate) unsafe fn init_main() {

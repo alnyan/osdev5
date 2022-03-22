@@ -325,27 +325,27 @@ fn _syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             }
             res.map(|_| 0)
         }
-        //        SystemCall::SetSignalEntry => {
-        //            Thread::current().set_signal_entry(args[0], args[1]);
-        //            Ok(0)
-        //        }
-        //        SystemCall::SignalReturn => {
-        //            Thread::current().return_from_signal();
-        //            unreachable!();
-        //        }
-        //        SystemCall::SendSignal => {
-        //            let target = SignalDestination::from(args[0] as isize);
-        //            let signal = Signal::try_from(args[1] as u32)?;
+        SystemCall::SetSignalEntry => {
+            Thread::current().set_signal_entry(args[0], args[1]);
+            Ok(0)
+        }
+        SystemCall::SignalReturn => {
+            Thread::current().return_from_signal();
+            unreachable!();
+        }
+        SystemCall::SendSignal => {
+            let target = SignalDestination::from(args[0] as isize);
+            let signal = Signal::try_from(args[1] as u32)?;
 
-        //            match target {
-        //                SignalDestination::This => Process::current().set_signal(signal),
-        //                SignalDestination::Process(pid) => Process::get(pid)
-        //                    .ok_or(Errno::DoesNotExist)?
-        //                    .set_signal(signal),
-        //                _ => todo!(),
-        //            };
-        //            Ok(0)
-        //        }
+            match target {
+                SignalDestination::This => Process::current().set_signal(signal),
+                SignalDestination::Process(pid) => Process::get(pid)
+                    .ok_or(Errno::DoesNotExist)?
+                    .set_signal(signal),
+                _ => todo!(),
+            };
+            Ok(0)
+        }
         SystemCall::Yield => {
             proc::switch();
             Ok(0)
@@ -457,7 +457,7 @@ pub fn syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
     let process = thread.owner().unwrap();
     let result = _syscall(num, args);
     if !thread.is_handling_signal() {
-        // process.handle_pending_signals();
+        process.handle_pending_signals();
     }
     result
 }
