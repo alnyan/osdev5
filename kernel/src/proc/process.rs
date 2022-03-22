@@ -160,6 +160,19 @@ impl Process {
     //     thread.enter_signal(signal, table);
     // }
 
+    /// Crates a new thread in the process
+    pub fn new_user_thread(&self, entry: usize, stack: usize, arg: usize) -> Result<Tid, Errno> {
+        let mut lock = self.inner.lock();
+
+        let table = Self::space_phys(&mut lock);
+        let thread = Thread::new_user(lock.id, entry, stack, arg, table)?;
+        let tid = thread.id();
+        lock.threads.push(tid);
+        SCHED.enqueue(tid);
+
+        Ok(tid)
+    }
+
     /// Creates a new kernel process
     pub fn new_kernel(entry: extern "C" fn(usize) -> !, arg: usize) -> Result<ProcessRef, Errno> {
         let id = new_kernel_pid();

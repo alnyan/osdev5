@@ -2,7 +2,7 @@
 
 use crate::arch::{machine, platform::ForkFrame};
 use crate::debug::Level;
-// use crate::dev::timer::TimestampSource;
+use crate::dev::timer::TimestampSource;
 use crate::fs::create_filesystem;
 use crate::mem::{
     phys::PageUsage,
@@ -249,16 +249,17 @@ fn _syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             proc.manipulate_space(move |space| space.free(addr, len / 4096))?;
             Ok(0)
         }
-        //  // Process
-        //  SystemCall::Clone => {
-        //      let entry = args[0];
-        //      let stack = args[1];
-        //      let arg = args[2];
 
-        //      Process::current()
-        //          .new_user_thread(entry, stack, arg)
-        //          .map(|e| u32::from(e) as usize)
-        //  }
+        // Process
+        SystemCall::Clone => {
+            let entry = args[0];
+            let stack = args[1];
+            let arg = args[2];
+
+            Process::current()
+                .new_user_thread(entry, stack, arg)
+                .map(|e| u32::from(e) as usize)
+        }
         SystemCall::Exec => {
             let filename = arg::str_ref(args[0], args[1])?;
             let argv = arg::struct_buf_ref::<&str>(args[2], args[3])?;
@@ -412,11 +413,11 @@ fn _syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             Ok(u32::from(proc.pgid()) as usize)
         }
 
-        // // System
-        // SystemCall::GetCpuTime => {
-        //     let time = machine::local_timer().timestamp()?;
-        //     Ok(time.as_nanos() as usize)
-        // }
+        // System
+        SystemCall::GetCpuTime => {
+            let time = machine::local_timer().timestamp()?;
+            Ok(time.as_nanos() as usize)
+        }
         SystemCall::Mount => {
             let target = arg::str_ref(args[0], args[1])?;
             let options = arg::struct_ref::<MountOptions>(args[2])?;
@@ -446,8 +447,8 @@ fn _syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
             Ok(args[1])
         }
 
-        //         // Handled elsewhere
-        //         SystemCall::Fork => unreachable!(),
+        // Handled elsewhere
+        SystemCall::Fork => unreachable!(),
         _ => panic!("Unimplemented: {:?}", num),
     }
 }
