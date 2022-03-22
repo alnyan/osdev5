@@ -10,6 +10,8 @@ __x86_64_ctx_enter_user:
     pop %rdi
     pop %rdx
 
+    push %rdx
+
     push $0x1B
     push %rcx
 
@@ -53,12 +55,12 @@ __x86_64_ctx_enter_from_fork:
     pop %r11 // rsp3
     pop %rcx // rip3
 
-    push $0x10
+    push $0x1B
     push %r11
 
     push $0x200
 
-    push $0x08
+    push $0x23
     push %rcx
 
     iretq

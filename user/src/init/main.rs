@@ -31,12 +31,22 @@ fn main() -> i32 {
     .expect("Failed to mount sysfs");
 
     if let Some(pid) = unsafe { sys_fork().unwrap() } {
-        trace_debug!("Parent: forked into {:?}", pid);
-    } else {
-        trace_debug!("Child!");
-    }
+        let mut status = 0;
+        sys_waitpid(pid, &mut status).unwrap();
+        trace_debug!("Child exited!");
 
-    loop {}
+        loop {}
+    } else {
+        for _ in 0..1000000 {
+            unsafe {
+                asm!("nop");
+            }
+        }
+
+        trace_debug!("Will now exit");
+
+        0
+    }
 
     // loop {}
 

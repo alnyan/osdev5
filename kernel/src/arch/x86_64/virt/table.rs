@@ -112,7 +112,41 @@ impl Space for SpaceImpl {
     }
 
     unsafe fn release(space: &'static mut Self) {
-        todo!()
+        let pdpt0 = space.0.next_level_table_mut(0).unwrap();
+
+        for pdpti in 0..512 {
+            let pdpt_entry = pdpt0[pdpti];
+            if !pdpt_entry.is_present() {
+                continue;
+            }
+
+            assert!(pdpt_entry.is_normal());
+            let pd = &mut *(mem::virtualize(pdpt_entry.address()) as *mut TableImpl);
+
+            for pdi in 0..512 {
+                let pd_entry = pd[pdi];
+                if !pd_entry.is_present() {
+                    continue;
+                }
+
+                assert!(pd_entry.is_normal());
+                let pt = &mut *(mem::virtualize(pd_entry.address()) as *mut TableImpl);
+
+                for pti in 0..512 {
+                    let entry = pt[pti];
+
+                    if !entry.is_present() {
+                        continue;
+                    }
+
+                    assert!(entry.is_normal());
+                    phys::free_page(entry.address()).unwrap();
+                }
+                phys::free_page(pd_entry.address()).unwrap();
+            }
+            phys::free_page(pdpt_entry.address()).unwrap();
+        }
+        phys::free_page(space.0[0].address()).unwrap();
     }
 
     fn fork(&mut self) -> Result<&'static mut Self, Errno> {

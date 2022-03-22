@@ -73,7 +73,32 @@ impl Wait {
     }
 
     fn wakeup_some(&self, mut limit: usize) -> usize {
-        todo!();
+        // No IRQs will arrive now == safe to manipulate tick list
+        let mut queue = self.queue.lock();
+        let mut count = 0;
+        while limit != 0 && !queue.is_empty() {
+            let tid = queue.pop_front();
+            if let Some(tid) = tid {
+                let mut tick_lock = TICK_LIST.lock();
+                let mut cursor = tick_lock.cursor_front_mut();
+                while let Some(item) = cursor.current() {
+                    if tid == item.tid {
+                        cursor.remove_current();
+                        break;
+                    } else {
+                        cursor.move_next();
+                    }
+                }
+                drop(tick_lock);
+
+                Thread::get(tid).unwrap().set_wait_status(WaitStatus::Done);
+                SCHED.enqueue(tid);
+            }
+
+            limit -= 1;
+            count += 1;
+        }
+        count
     }
 
     /// Notifies all processes waiting for this event
@@ -89,6 +114,51 @@ impl Wait {
     /// Suspends current process until event is signalled or
     /// (optional) deadline is reached
     pub fn wait(&self, deadline: Option<Duration>) -> Result<(), Errno> {
-        todo!();
+        let thread = Thread::current();
+        //let deadline = timeout.map(|t| machine::local_timer().timestamp().unwrap() + t);
+        let mut queue_lock = self.queue.lock();
+
+        queue_lock.push_back(thread.id());
+        thread.setup_wait(self);
+
+        // if let Some(deadline) = deadline {
+        //     TICK_LIST.lock().push_back(Timeout {
+        //         tid: thread.id(),
+        //         deadline,
+        //     });
+        // }
+
+        loop {
+            match thread.wait_status() {
+                WaitStatus::Pending => {}
+                WaitStatus::Done => {
+                    return Ok(());
+                }
+                WaitStatus::Interrupted => {
+                    return Err(Errno::Interrupt);
+                }
+            };
+
+            drop(queue_lock);
+            thread.enter_wait();
+            queue_lock = self.queue.lock();
+
+            // if let Some(deadline) = deadline {
+            //     if machine::local_timer().timestamp()? > deadline {
+            //         let mut cursor = queue_lock.cursor_front_mut();
+
+            //         while let Some(&mut item) = cursor.current() {
+            //             if thread.id() == item {
+            //                 cursor.remove_current();
+            //                 break;
+            //             } else {
+            //                 cursor.move_next();
+            //             }
+            //         }
+
+            //         return Err(Errno::TimedOut);
+            //     }
+            // }
+        }
     }
 }

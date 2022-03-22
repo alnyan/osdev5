@@ -279,31 +279,31 @@ fn _syscall(num: SystemCall, args: &[usize]) -> Result<usize, Errno> {
         //             Process::execve(move |space| elf::load_elf(space, file), argv).unwrap();
         //             panic!();
         //         }
-        //         SystemCall::Exit => {
-        //             let status = ExitCode::from(args[0] as i32);
-        //             let flags = args[1];
-        //
-        //             if flags & (1 << 0) != 0 {
-        //                 Process::exit_thread(Thread::current(), status);
-        //             } else {
-        //                 Process::current().exit(status);
-        //             }
-        //
-        //             unreachable!();
-        //         }
-        //         SystemCall::WaitPid => {
-        //             // TODO special "pid" values
-        //             let pid = Pid::try_from(args[0] as u32)?;
-        //             let status = arg::struct_mut::<i32>(args[1])?;
-        //
-        //             match Process::waitpid(pid) {
-        //                 Ok(exit) => {
-        //                     *status = i32::from(exit);
-        //                     Ok(0)
-        //                 }
-        //                 e => e.map(|e| i32::from(e) as usize),
-        //             }
-        //         }
+                SystemCall::Exit => {
+                    let status = ExitCode::from(args[0] as i32);
+                    let flags = args[1];
+
+                    if flags & (1 << 0) != 0 {
+                        Process::exit_thread(Thread::current(), status);
+                    } else {
+                        Process::current().exit(status);
+                    }
+
+                    unreachable!();
+                }
+                SystemCall::WaitPid => {
+                    // TODO special "pid" values
+                    let pid = Pid::try_from(args[0] as u32)?;
+                    let status = arg::struct_mut::<i32>(args[1])?;
+
+                    match Process::waitpid(pid) {
+                        Ok(exit) => {
+                            *status = i32::from(exit);
+                            Ok(0)
+                        }
+                        e => e.map(|e| i32::from(e) as usize),
+                    }
+                }
         //         SystemCall::WaitTid => {
         //             let tid = Tid::from(args[0] as u32);
         //

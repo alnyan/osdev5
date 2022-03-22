@@ -6,6 +6,7 @@
     const_fn_trait_bound,
     const_trait_impl,
     const_btree_new,
+    linked_list_cursors,
     panic_info_message,
     alloc_error_handler,
     asm_const,

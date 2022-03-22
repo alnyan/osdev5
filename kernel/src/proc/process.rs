@@ -201,7 +201,43 @@ impl Process {
 
     /// Terminates a process.
     pub fn exit(self: ProcessRef, status: ExitCode) {
-        todo!()
+        let thread = Thread::current();
+        let mut lock = self.inner.lock();
+        let is_running = thread.owner_id().map(|e| e == lock.id).unwrap_or(false);
+
+        infoln!("Process {:?} is exiting: {:?}", lock.id, status);
+        assert!(lock.exit.is_none());
+        lock.exit = Some(status);
+        lock.state = ProcessState::Finished;
+
+        for &tid in lock.threads.iter() {
+            let thread = Thread::get(tid).unwrap();
+            if thread.state() == ThreadState::Waiting {
+                todo!()
+            }
+            thread.terminate(status);
+            SCHED.dequeue(tid);
+        }
+
+        if let Some(space) = lock.space.take() {
+            unsafe {
+                SpaceImpl::release(space);
+                // Process::invalidate_asid((lock.id.asid() as usize) << 48);
+            }
+        }
+
+        // TODO when exiting from signal handler interrupting an IO operation
+        //      deadlock is achieved
+        self.io.lock().handle_exit();
+
+        drop(lock);
+
+        self.exit_wait.wakeup_all();
+
+        if is_running {
+            SCHED.switch(true);
+            panic!("This code should never run");
+        }
     }
 
     /// Terminates a thread of the process. If the thread is the only
