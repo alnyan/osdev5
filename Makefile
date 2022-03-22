@@ -33,7 +33,8 @@ MACH=none
 QEMU_OPTS+=-cdrom $(O)/image.iso \
 		   -M q35 \
 		   -m 512 \
-		   -serial mon:stdio \
+		   -chardev stdio,id=chr0,mux=on \
+		   -serial chardev:chr0 \
 		   -net none
 else
 ifeq ($(MACH),qemu)

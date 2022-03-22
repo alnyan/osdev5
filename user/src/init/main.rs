@@ -33,32 +33,12 @@ fn main() -> i32 {
     if let Some(pid) = unsafe { sys_fork().unwrap() } {
         let mut status = 0;
         sys_waitpid(pid, &mut status).unwrap();
-        trace_debug!("Child exited!");
+        println!("Process {:?} exited with status {}", pid, status);
 
-        loop {}
-    } else {
-        for _ in 0..1000000 {
-            unsafe {
-                asm!("nop");
-            }
+        loop {
         }
-
-        trace_debug!("Will now exit");
-
-        0
+    } else {
+        sys_execve("/sbin/login", &["/sbin/login", "/dev/ttyS0"]).unwrap();
+        unreachable!();
     }
-
-    // loop {}
-
-    // if let Some(pid) = unsafe { sys_fork().unwrap() } {
-    //     let mut status = 0;
-    //     sys_waitpid(pid, &mut status).unwrap();
-    //     println!("Process {:?} exited with status {}", pid, status);
-
-    //     loop {
-    //     }
-    // } else {
-    //     sys_execve("/sbin/login", &["/sbin/login", "/dev/ttyS0"]).unwrap();
-    //     unreachable!();
-    // }
 }

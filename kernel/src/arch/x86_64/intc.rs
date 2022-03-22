@@ -100,6 +100,7 @@ impl IntController for I8259 {
         let irq_number = ic.token();
         assert!(irq_number > 0);
 
+        // Clear irq
         if irq_number > 8 {
             self.cmd_b.write(0x20);
         }

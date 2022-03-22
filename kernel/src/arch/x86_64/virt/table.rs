@@ -229,7 +229,6 @@ impl Space for SpaceImpl {
             );
             Err(Errno::AlreadyExists)
         } else {
-            debugln!("write_last_level {:#x}, {:#x?}", virt, entry);
             l2_table[l3i] = entry;
             unsafe {
                 core::arch::asm!("invlpg ({})", in(reg) virt, options(att_syntax));

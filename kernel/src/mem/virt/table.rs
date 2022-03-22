@@ -137,6 +137,7 @@ pub trait Space {
     /// Creates a new virtual -> physical memory mapping. Will fail if one is
     /// already associated with given virtual address.
     fn map(&mut self, virt: usize, phys: usize, attrs: MapAttributes) -> Result<(), Errno> {
+        #[cfg(feature = "verbose")]
         debugln!("Map {:#x} -> {:#x}, {:?}", virt, phys, attrs);
         unsafe {
             self.write_last_level(

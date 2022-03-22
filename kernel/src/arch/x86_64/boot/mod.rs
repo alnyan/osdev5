@@ -5,7 +5,7 @@ use crate::arch::x86_64::{
 };
 use crate::config::{ConfigKey, CONFIG};
 use crate::debug;
-use crate::dev::{display::FramebufferInfo, pseudo, Device};
+use crate::dev::{display::FramebufferInfo, irq::IntSource, pseudo, Device};
 use crate::font;
 use crate::fs::{devfs::{self, CharDeviceType}, sysfs};
 use crate::mem::{
@@ -93,6 +93,9 @@ extern "C" fn __x86_64_bsp_main(mb_checksum: u32, mb_info_ptr: u32) -> ! {
         phys_base: fb_info.address as usize,
         virt_base: virt,
     });
+    unsafe {
+        x86_64::COM1.init_irqs();
+    }
     font::init();
     debug::set_display(&x86_64::DISPLAY);
     syscall::init();

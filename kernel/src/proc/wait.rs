@@ -69,7 +69,32 @@ impl Wait {
 
     /// Interrupt wait pending on the channel
     pub fn abort(&self, tid: Tid, enqueue: bool) {
-        todo!();
+        let mut queue = self.queue.lock();
+        let mut tick_lock = TICK_LIST.lock();
+        let mut cursor = tick_lock.cursor_front_mut();
+        while let Some(item) = cursor.current() {
+            if tid == item.tid {
+                cursor.remove_current();
+                break;
+            } else {
+                cursor.move_next();
+            }
+        }
+
+        let mut cursor = queue.cursor_front_mut();
+        while let Some(item) = cursor.current() {
+            if tid == *item {
+                cursor.remove_current();
+                let thread = Thread::get(tid).unwrap();
+                thread.set_wait_status(WaitStatus::Interrupted);
+                if enqueue {
+                    SCHED.enqueue(tid);
+                }
+                break;
+            } else {
+                cursor.move_next();
+            }
+        }
     }
 
     fn wakeup_some(&self, mut limit: usize) -> usize {

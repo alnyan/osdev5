@@ -24,7 +24,25 @@ __x86_64_irq_\no:
     mov %rsp, %rdi
     call __x86_64_irq_handler
 
-    jmp .
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    pop %r11
+    pop %r10
+    pop %r9
+    pop %r8
+
+    pop %rdi
+    pop %rsi
+    pop %rbp
+    pop %rbx
+    pop %rdx
+    pop %rcx
+    pop %rax
+
+    add $16, %rsp
+    iretq
 .endm
 
 .section .text
@@ -48,10 +66,6 @@ __x86_64_irq_0:
     push %r13
     push %r14
     push %r15
-
-    mov $0x3F8, %dx
-    mov $'T', %al
-    outb %al, %dx
 
     mov $0x20, %al
     mov $0x20, %dx

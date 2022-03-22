@@ -5,6 +5,7 @@ mod uart;
 use uart::Uart;
 mod intc;
 use intc::I8259;
+pub use intc::IrqNumber;
 
 mod io;
 pub(self) use io::PortIo;
@@ -54,6 +55,6 @@ pub fn console() -> &'static impl SerialDevice {
     &COM1
 }
 
-static COM1: Uart = unsafe { Uart::new(0x3F8) };
-static INTC: I8259 = I8259::new();
+static COM1: Uart = unsafe { Uart::new(0x3F8, IrqNumber::new(4)) };
+pub(self) static INTC: I8259 = I8259::new();
 pub(self) static DISPLAY: StaticFramebuffer = StaticFramebuffer::uninit();
