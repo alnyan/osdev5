@@ -1,3 +1,4 @@
+use crate::arch::intrin;
 use crate::mem::{
     self,
     phys::{self, PageUsage},
@@ -5,38 +6,44 @@ use crate::mem::{
 };
 use core::fmt;
 use core::ops::{Index, IndexMut};
-use libsys::{error::Errno, mem::memset};
+use libsys::error::Errno;
 
 use super::{RawAttributesImpl, KERNEL_FIXED};
 
+/// Transparent wrapper structure representing a single
+/// translation table entry
 #[derive(Clone, Copy)]
 #[repr(transparent)]
 pub struct EntryImpl(u64);
 
+/// Structure describing a single level of translation mappings
 #[derive(Clone, Copy)]
 #[repr(C, align(0x1000))]
 pub struct TableImpl {
     entries: [EntryImpl; 512],
 }
 
+/// Top-level translation table wrapper
 #[repr(transparent)]
 pub struct SpaceImpl(TableImpl);
 
 impl EntryImpl {
-    pub const PRESENT: u64 = 1 << 0;
-    pub const WRITE: u64 = 1 << 1;
-    pub const USER: u64 = 1 << 2;
-    pub const BLOCK: u64 = 1 << 7;
-    pub const EX_COW: u64 = 1 << 62;
+    pub(super) const PRESENT: u64 = 1 << 0;
+    pub(super) const WRITE: u64 = 1 << 1;
+    pub(super) const USER: u64 = 1 << 2;
+    pub(super) const BLOCK: u64 = 1 << 7;
+    pub(super) const EX_COW: u64 = 1 << 62;
 
-    pub const PHYS_MASK: u64 = 0x0000FFFFFFFFF000;
+    const PHYS_MASK: u64 = 0x0000FFFFFFFFF000;
 }
 
 impl fmt::Debug for EntryImpl {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("EntryImpl")
             .field("address", &self.address())
-            .field("flags", &unsafe { RawAttributesImpl::from_bits_unchecked(self.0 & 0xFFF) })
+            .field("flags", &unsafe {
+                RawAttributesImpl::from_bits_unchecked(self.0 & 0xFFF)
+            })
             .finish_non_exhaustive()
     }
 }
@@ -47,38 +54,39 @@ impl Entry for EntryImpl {
 
     #[inline]
     fn normal(addr: usize, attrs: MapAttributes) -> Self {
-        Self((addr as u64) | RawAttributesImpl::from(attrs).bits() | EntryImpl::PRESENT)
+        Self((addr as u64) | RawAttributesImpl::from(attrs).bits() | Self::PRESENT)
     }
 
     #[inline]
     fn block(addr: usize, attrs: MapAttributes) -> Self {
-        Self((addr as u64) | RawAttributesImpl::from(attrs).bits() | EntryImpl::BLOCK | EntryImpl::PRESENT)
+        Self((addr as u64) | RawAttributesImpl::from(attrs).bits() | Self::BLOCK | Self::PRESENT)
     }
 
     #[inline]
     fn address(self) -> usize {
-        (self.0 & EntryImpl::PHYS_MASK) as usize
+        (self.0 & Self::PHYS_MASK) as usize
     }
 
     #[inline]
     fn set_address(&mut self, virt: usize) {
-        todo!()
+        self.0 &= !Self::PHYS_MASK;
+        self.0 |= (virt as u64) & Self::PHYS_MASK;
     }
 
     #[inline]
     fn is_present(self) -> bool {
-        self.0 & EntryImpl::PRESENT != 0
+        self.0 & Self::PRESENT != 0
     }
 
     #[inline]
     fn is_normal(self) -> bool {
-        self.0 & EntryImpl::BLOCK == 0
+        self.0 & Self::BLOCK == 0
     }
 
     #[inline]
     fn fork_with_cow(&mut self) -> Self {
-        self.0 &= !EntryImpl::WRITE;
-        self.0 |= EntryImpl::EX_COW;
+        self.0 &= !Self::WRITE;
+        self.0 |= Self::EX_COW;
         *self
     }
 
@@ -90,7 +98,7 @@ impl Entry for EntryImpl {
 
     #[inline]
     fn is_cow(self) -> bool {
-        self.0 & EntryImpl::EX_COW != 0
+        self.0 & Self::EX_COW != 0
     }
 
     #[inline]
@@ -202,9 +210,8 @@ impl Space for SpaceImpl {
                             };
 
                             unsafe {
-                                use core::arch::asm;
                                 res.write_last_level(virt_addr, new_entry, true, false)?;
-                                asm!("invlpg ({})", in(reg) virt_addr, options(att_syntax));
+                                intrin::flush_tlb_virt(virt_addr);
                             }
                         }
                     }
@@ -240,9 +247,7 @@ impl Space for SpaceImpl {
             Err(Errno::AlreadyExists)
         } else {
             l2_table[l3i] = entry;
-            unsafe {
-                core::arch::asm!("invlpg ({})", in(reg) virt, options(att_syntax));
-            }
+            intrin::flush_tlb_virt(virt);
             Ok(())
         }
     }

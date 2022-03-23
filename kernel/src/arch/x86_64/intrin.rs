@@ -28,8 +28,13 @@ pub unsafe fn flush_tlb_virt(addr: usize) {
 /// Only safe to use for known [Process]es and their ASIDs
 // TODO actually implement this on x86-64
 #[inline(always)]
-pub unsafe fn flush_tlb_asid(asid: usize) {}
+pub unsafe fn flush_tlb_asid(_asid: usize) {}
 
+/// Read a value from a model-specific register
+///
+/// # Safety
+///
+/// Unsafe: arbitrary MSR reads, may cause CPU exceptions
 #[inline(always)]
 pub unsafe fn rdmsr(a: u32) -> u64 {
     let mut eax: u32;
@@ -38,6 +43,11 @@ pub unsafe fn rdmsr(a: u32) -> u64 {
     (eax as u64) | ((edx as u64) << 32)
 }
 
+/// Writes a value to a model-specific register
+///
+/// # Safety
+///
+/// Unsafe: arbitrary MSR writes
 #[inline(always)]
 pub unsafe fn wrmsr(a: u32, b: u64) {
     let eax = b as u32;

@@ -4,12 +4,18 @@ use tock_registers::interfaces::{ReadWriteable, Writeable};
 use libsys::abi::SystemCall;
 use crate::syscall;
 
+/// Syscall registers
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct SyscallFrame {
+    /// General-purpose registers
     pub x: [usize; 13],
 
+    /// Caller (ring 3) saved stack pointer
     pub saved_rsp: usize,
+    /// Caller (ring 3) saved processor flags
     pub saved_rflags: usize,
+    /// Caller (ring 3) return address
     pub saved_rip: usize,
 }
 
@@ -19,7 +25,7 @@ pub(super) fn init() {
     }
 
     MSR_IA32_SFMASK.write(MSR_IA32_SFMASK::IF::SET);
-    MSR_IA32_LSTAR.set(__x86_64_syscall_entry as u64);
+    MSR_IA32_LSTAR.set(__x86_64_syscall_entry as usize as u64);
     MSR_IA32_STAR
         .write(MSR_IA32_STAR::SYSRET_CS_SS.val(0x1B - 8) + MSR_IA32_STAR::SYSCALL_CS_SS.val(0x08));
     MSR_IA32_EFER.modify(MSR_IA32_EFER::SCE::SET);

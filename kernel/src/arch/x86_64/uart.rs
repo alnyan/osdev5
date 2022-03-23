@@ -43,7 +43,7 @@ impl IntSource for Uart {
     fn init_irqs(&'static self) -> Result<(), Errno> {
         // TODO shared IRQs between COM# ports
         x86_64::INTC.register_handler(self.irq, self)?;
-        self.ier.write((1 << 0));
+        self.ier.write(1 << 0);
         x86_64::INTC.enable_irq(self.irq)?;
 
         Ok(())

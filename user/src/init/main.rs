@@ -4,8 +4,6 @@
 #[macro_use]
 extern crate libusr;
 
-use core::arch::asm;
-
 use libusr::sys::{stat::MountOptions, sys_execve, sys_fork, sys_mount, sys_waitpid};
 
 #[no_mangle]
@@ -36,6 +34,7 @@ fn main() -> i32 {
         println!("Process {:?} exited with status {}", pid, status);
 
         loop {
+            core::hint::spin_loop();
         }
     } else {
         sys_execve("/sbin/login", &["/sbin/login", "/dev/ttyS0"]).unwrap();

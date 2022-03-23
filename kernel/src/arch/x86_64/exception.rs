@@ -1,11 +1,12 @@
 use crate::arch::{intrin, x86_64};
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
-use core::arch::{asm, global_asm};
-use libsys::{error::Errno, signal::Signal};
 use crate::mem::{self, virt::table::Space};
-use crate::proc::{Thread, sched};
+use crate::proc::{sched, Thread};
+use core::arch::asm;
+use libsys::{error::Errno, signal::Signal};
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct ExceptionFrame {
     r15: u64,
@@ -80,7 +81,11 @@ extern "C" fn __x86_64_exception_handler(frame: &mut ExceptionFrame) {
             });
 
             if res.is_err() {
-                errorln!("Page fault at {:#x} in user {:?}", frame.rip, thread.owner_id());
+                errorln!(
+                    "Page fault at {:#x} in user {:?}",
+                    frame.rip,
+                    thread.owner_id()
+                );
                 pfault_dump(Level::Error, frame, cr2);
                 proc.enter_fault_signal(thread, Signal::SegmentationFault);
             }

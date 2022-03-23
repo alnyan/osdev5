@@ -1,6 +1,7 @@
 use core::arch::{asm, global_asm};
 use core::mem::size_of_val;
 
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 #[repr(packed)]
 pub struct Entry {
@@ -13,6 +14,7 @@ pub struct Entry {
     __res1: u32,
 }
 
+#[allow(dead_code)]
 #[repr(packed)]
 struct Pointer {
     limit: u16,
@@ -52,7 +54,12 @@ impl Entry {
 
 static mut IDT: [Entry; SIZE] = [Entry::empty(); SIZE];
 
-pub unsafe fn init<F: FnOnce(&mut [Entry; SIZE]) -> ()>(f: F) {
+#[inline]
+unsafe fn load_idt(ptr: &Pointer) {
+    asm!("lidt ({})", in(reg) ptr, options(att_syntax));
+}
+
+pub unsafe fn init<F: FnOnce(&mut [Entry; SIZE])>(f: F) {
     extern "C" {
         static __x86_64_exception_vectors: [usize; 32];
     }
@@ -67,7 +74,7 @@ pub unsafe fn init<F: FnOnce(&mut [Entry; SIZE]) -> ()>(f: F) {
         limit: size_of_val(&IDT) as u16 - 1,
         offset: &IDT as *const _ as usize,
     };
-    asm!("lidt ({})", in(reg) &idtr, options(att_syntax));
+    load_idt(&idtr);
 }
 
 global_asm!(include_str!("idt.S"), options(att_syntax));

@@ -73,10 +73,10 @@ pub fn sleep(timeout: Duration, remaining: &mut Duration) -> Result<(), Errno> {
 /// Suspends current process until some file descriptor
 /// signals data available
 pub fn select(
-    thread: ThreadRef,
-    mut rfds: Option<&mut FdSet>,
-    mut wfds: Option<&mut FdSet>,
-    timeout: Option<Duration>,
+    _thread: ThreadRef,
+    _rfds: Option<&mut FdSet>,
+    _wfds: Option<&mut FdSet>,
+    _timeout: Option<Duration>,
 ) -> Result<usize, Errno> {
     todo!();
 }

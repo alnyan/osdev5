@@ -151,7 +151,7 @@ pub fn is_ready() -> bool {
 #[inline(never)]
 extern "C" fn idle_fn(_a: usize) -> ! {
     loop {
-        // cortex_a::asm::wfi();
+        core::hint::spin_loop();
     }
 }
 

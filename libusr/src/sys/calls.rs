@@ -10,7 +10,6 @@ use libsys::{
         OpenFlags, Stat, UserId,
     },
 };
-use core::arch::asm;
 use core::time::Duration;
 
 // TODO document the syscall ABI

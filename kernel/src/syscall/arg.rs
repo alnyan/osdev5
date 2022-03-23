@@ -1,7 +1,7 @@
 //! System call argument ABI helpers
 
 use crate::arch::intrin;
-use crate::mem::{self, virt::table::{Entry, Space, SpaceImpl}};
+use crate::mem::{self, virt::table::Space};
 use crate::proc::Process;
 use core::alloc::Layout;
 use libsys::error::Errno;
@@ -13,13 +13,12 @@ macro_rules! invalid_memory {
         warnln!($($args)+);
         #[cfg(feature = "aggressive_syscall")]
         {
-            todo!()
-            // use libsys::signal::Signal;
-            // use crate::proc::Thread;
+            use libsys::signal::Signal;
+            use crate::proc::Thread;
 
-            // let thread = Thread::current();
-            // let proc = thread.owner().unwrap();
-            // proc.enter_fault_signal(thread, Signal::SegmentationFault);
+            let thread = Thread::current();
+            let proc = thread.owner().unwrap();
+            proc.enter_fault_signal(thread, Signal::SegmentationFault);
         }
         return Err(Errno::InvalidArgument);
     }
@@ -43,6 +42,7 @@ cfg_if! {
     } else {
         #[inline(always)]
         fn is_el0_accessible(virt: usize, write: bool) -> bool {
+            use crate::mem::virt::table::Entry;
             let proc = Process::current();
             proc.manipulate_space(|space| {
                 let entry = space.read_last_level(virt & !0xFFF);
@@ -132,7 +132,10 @@ pub fn option_struct_mut<'a, T>(base: usize) -> Result<Option<&'a mut T>, Errno>
 }
 
 /// Checks given argument and interprets it as a `Option<&'a mut [T]>`
-pub fn option_struct_buf_mut<'a, T>(base: usize, count: usize) -> Result<Option<&'a mut [T]>, Errno> {
+pub fn option_struct_buf_mut<'a, T>(
+    base: usize,
+    count: usize,
+) -> Result<Option<&'a mut [T]>, Errno> {
     if base == 0 {
         Ok(None)
     } else {
@@ -152,7 +155,6 @@ pub fn validate_ptr(base: usize, len: usize, write: bool) -> Result<(), Errno> {
     }
 
     let process = Process::current();
-    let asid = process.asid();
 
     for i in (base / mem::PAGE_SIZE)..((base + len + mem::PAGE_SIZE - 1) / mem::PAGE_SIZE) {
         if !is_el0_accessible(i * mem::PAGE_SIZE, write) {

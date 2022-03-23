@@ -224,8 +224,9 @@ pub fn init() {
         use crate::dev::timer::TimestampSource;
 
         let mut writer = BufferWriter::new(buf);
-        // let time = machine::local_timer().timestamp()?;
-        // write!(&mut writer, "{} {}\n", time.as_secs(), time.subsec_nanos()).map_err(|_| Errno::InvalidArgument)?;
+        let time = machine::local_timer().timestamp()?;
+        writeln!(&mut writer, "{} {}", time.as_secs(), time.subsec_nanos())
+            .map_err(|_| Errno::InvalidArgument)?;
         Ok(writer.count())
     });
 }

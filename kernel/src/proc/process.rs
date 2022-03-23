@@ -17,7 +17,6 @@ use libsys::{
     signal::Signal,
     ProgramArgs,
 };
-use core::arch::asm;
 
 /// Wrapper type for a process struct reference
 pub type ProcessRef = Rc<Process>;
@@ -123,6 +122,7 @@ impl Process {
         }
     }
 
+    /// Sets a pending signal for process
     pub fn set_signal(&self, signal: Signal) {
         let mut lock = self.inner.lock();
         let table = Self::space_phys(&mut lock);

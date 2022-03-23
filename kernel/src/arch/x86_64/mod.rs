@@ -1,3 +1,4 @@
+//! x86_64 platform implementation details
 use crate::dev::{display::StaticFramebuffer, irq::IntController, serial::SerialDevice};
 use core::arch::asm;
 
@@ -49,14 +50,17 @@ pub unsafe fn irq_restore(state: u64) {
     }
 }
 
+/// Returns a reference to interrupt controller device
 pub fn intc() -> &'static impl IntController {
     &INTC
 }
 
+/// Returns a reference to primary console device
 pub fn console() -> &'static impl SerialDevice {
     &COM1
 }
 
+/// Returns a reference to CPU-local timer device
 pub fn local_timer() -> &'static Timer {
     &TIMER
 }

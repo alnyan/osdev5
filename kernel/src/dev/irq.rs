@@ -50,6 +50,7 @@ impl<'q> IrqContext<'q> {
         Self { token, _0: PhantomData }
     }
 
+    /// Returns the value this object was initialized with
     pub const fn token(&self) -> usize {
         self.token
     }

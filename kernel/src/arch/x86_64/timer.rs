@@ -8,19 +8,17 @@ use crate::dev::{
     Device,
 };
 use crate::proc;
+use core::sync::atomic::{AtomicU64, Ordering};
 use core::time::Duration;
 use libsys::error::Errno;
-use tock_registers::interfaces::{Readable, Writeable};
-use core::sync::atomic::{AtomicU64, Ordering};
 
 // 1.1931816666 MHz base freq
 
 /// Generic timer struct
 pub struct Timer {
     data0: PortIo<u8>,
-    cmd: PortIo<u8>,
     counter: AtomicU64,
-    irq: IrqNumber
+    irq: IrqNumber,
 }
 
 impl Device for Timer {
@@ -45,8 +43,9 @@ impl TimestampSource for Timer {
 
 impl IntSource for Timer {
     fn handle_irq(&self) -> Result<(), Errno> {
-        self.counter.fetch_add(1, Ordering::Relaxed);
+        let value = self.counter.fetch_add(1, Ordering::Relaxed);
         proc::wait::tick();
+        pseudo::RANDOM.set_state(value as u32);
         proc::switch();
         Ok(())
     }
@@ -63,9 +62,8 @@ impl Timer {
     pub const fn new(irq: IrqNumber) -> Self {
         Self {
             data0: unsafe { PortIo::new(0x40) },
-            cmd: unsafe { PortIo::new(0x43) },
             counter: AtomicU64::new(0),
-            irq
+            irq,
         }
     }
 }

@@ -85,6 +85,11 @@ impl From<MapAttributes> for RawAttributesImpl {
     }
 }
 
+/// Performs initialization of virtual memory control by kernel
+///
+/// # Safety
+///
+/// Only safe to be called once during virtual memory init.
 pub unsafe fn enable() {
     fixed::init_device_map();
 

@@ -11,7 +11,6 @@
     alloc_error_handler,
     asm_const,
     core_intrinsics,
-    const_generics_defaults,
 )]
 #![no_std]
 #![no_main]

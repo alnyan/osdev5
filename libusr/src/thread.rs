@@ -1,10 +1,9 @@
 use crate::signal;
 use crate::sys::{
-    sys_ex_clone, sys_ex_gettid, sys_ex_signal, sys_ex_thread_exit, sys_ex_thread_wait,
+    sys_ex_clone, sys_ex_signal, sys_ex_thread_exit, sys_ex_thread_wait,
 };
 use alloc::{boxed::Box, sync::Arc, vec};
 use core::any::Any;
-use core::arch::asm;
 use core::cell::UnsafeCell;
 use core::fmt;
 use core::mem::MaybeUninit;

@@ -64,13 +64,14 @@ impl fmt::Write for FramebufferOutput {
         let fb = self.display.unwrap().framebuffer().unwrap();
 
         for ch in s.chars() {
-            self.putc(&fb, ch);
+            self.putc(fb, ch);
         }
 
         Ok(())
     }
 }
 
+/// Sets active display for debug console output
 pub fn set_display(disp: &'static dyn Display) {
     DISPLAY.lock().display = Some(disp);
 }
@@ -236,6 +237,8 @@ impl FramebufferOutput {
     }
 
     pub fn putc(&mut self, fb: &FramebufferInfo, ch: char) {
+        #![allow(clippy::single_match)]
+
         match self.esc {
             EscapeState::None => {
                 match ch {

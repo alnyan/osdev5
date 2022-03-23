@@ -24,13 +24,16 @@ pub(super) struct I8259 {
     table: IrqSafeSpinLock<[Option<&'static (dyn IntSource + Sync)>; 15]>,
 }
 
+/// Interrupt line number wrapper struct
 #[derive(Clone, Copy, Debug)]
 #[repr(transparent)]
 pub struct IrqNumber(u32);
 
 impl IrqNumber {
+    /// IRQ line number limit
     pub const MAX: u32 = 16;
 
+    /// Constructs a wrapped IRQ line number
     pub const fn new(u: u32) -> Self {
         if u > Self::MAX {
             panic!();

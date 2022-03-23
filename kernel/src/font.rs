@@ -1,3 +1,5 @@
+//! Text drawing routines and font support
+
 use crate::util::InitOnce;
 use libsys::mem::read_le32;
 use crate::dev::display::FramebufferInfo;
@@ -5,6 +7,7 @@ use crate::dev::display::FramebufferInfo;
 static FONT_DATA: &[u8] = include_bytes!("../../etc/default8x16.psfu");
 static FONT: InitOnce<Font> = InitOnce::new();
 
+/// Font data description structure
 pub struct Font {
     char_width: usize,
     char_height: usize,
@@ -13,8 +16,9 @@ pub struct Font {
 }
 
 impl Font {
+    /// Renders a glyph onto the framebuffer
     pub fn draw(&self, fb: &FramebufferInfo, bx: usize, by: usize, ch: char, fg: u32, bg: u32) {
-        if ch >= ' ' && ch < '\x7B' {
+        if (' ' .. '\x7B').contains(&ch) {
             let char_data = &self.data[ch as usize * self.bytes_per_glyph..];
 
             for iy in 0..self.char_height {
@@ -33,8 +37,9 @@ impl Font {
     }
 }
 
+/// Sets up the global [Font] object from PSF
 pub fn init() {
-    assert_eq!(read_le32(&FONT_DATA[..]), 0x864ab572);
+    assert_eq!(read_le32(FONT_DATA), 0x864ab572);
 
     FONT.init(Font {
         char_width: read_le32(&FONT_DATA[28..]) as usize,
@@ -44,6 +49,7 @@ pub fn init() {
     });
 }
 
+/// Returns a reference to global [Font] object
 pub fn get() -> &'static Font {
     FONT.get()
 }

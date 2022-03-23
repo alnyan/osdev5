@@ -1,3 +1,4 @@
+//! x86_64 common boot logic
 use crate::arch::x86_64::{
     self, gdt, idt, intc,
     reg::{CR0, CR4},
@@ -7,22 +8,24 @@ use crate::config::{ConfigKey, CONFIG};
 use crate::debug;
 use crate::dev::{display::FramebufferInfo, irq::IntSource, pseudo, Device};
 use crate::font;
-use crate::fs::{devfs::{self, CharDeviceType}, sysfs};
+use crate::fs::{
+    devfs::{self, CharDeviceType},
+    sysfs,
+};
 use crate::mem::{
     self, heap,
     phys::{self, MemoryRegion, PageUsage, ReservedRegion},
     virt,
 };
 use crate::proc;
-use core::arch::{asm, global_asm};
+use core::arch::global_asm;
 use core::mem::MaybeUninit;
-use multiboot2::{BootInformation, MemoryArea};
 use tock_registers::interfaces::ReadWriteable;
 
 static mut RESERVED_REGION_MB2: MaybeUninit<ReservedRegion> = MaybeUninit::uninit();
 
 #[no_mangle]
-extern "C" fn __x86_64_bsp_main(mb_checksum: u32, mb_info_ptr: u32) -> ! {
+extern "C" fn __x86_64_bsp_main(_mb_checksum: u32, mb_info_ptr: u32) -> ! {
     CR4.modify(CR4::OSXMMEXCPT::SET + CR4::OSFXSR::SET);
     CR0.modify(CR0::EM::CLEAR + CR0::MP::SET);
 

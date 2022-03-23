@@ -6,8 +6,10 @@ pub mod virt;
 
 cfg_if! {
     if #[cfg(target_arch = "x86_64")] {
+        /// 8-byte padding for x86_64 for user stack alignment
         pub const USTACK_PADDING: usize = 8;
     } else {
+        /// No stack alignment required
         pub const USTACK_PADDING: usize = 0;
     }
 }

@@ -1,10 +1,14 @@
+//! x86_64 model-specific and control register interfaces
+
 macro_rules! wrap_msr {
     ($struct_name:ident, $name:ident, $address:expr, $fields:tt) => {
         register_bitfields! {
             u64,
+            #[allow(missing_docs)]
             pub $name $fields
         }
 
+        #[allow(missing_docs)]
         pub struct $struct_name;
 
         impl Readable for $struct_name {
@@ -31,6 +35,7 @@ macro_rules! wrap_msr {
             }
         }
 
+        #[allow(missing_docs)]
         pub const $name: $struct_name = $struct_name;
     }
 }
@@ -45,21 +50,31 @@ use crate::arch::x86_64::intrin::{rdmsr, wrmsr};
 // CRn registers
 register_bitfields! {
     u64,
+    /// Control register CR4 fields
+    #[allow(missing_docs)]
     pub CR4 [
+        /// Indicates OS support for FXSR/FXRSTOR instructions
         OSFXSR OFFSET(9) NUMBITS(1) [],
+        /// Indicates OS support for unmasked SIMD exceptions
         OSXMMEXCPT OFFSET(10) NUMBITS(1) []
     ]
 }
 
 register_bitfields! {
     u64,
+    /// Control register CR0 fields
+    #[allow(missing_docs)]
     pub CR0 [
+        /// Indicates requirement for x87 emulation
         EM OFFSET(2) NUMBITS(1) [],
+        /// Controls x87 exception handling
         MP OFFSET(1) NUMBITS(1) []
     ]
 }
 
+#[allow(missing_docs)]
 pub struct Cr4;
+#[allow(missing_docs)]
 pub struct Cr0;
 
 impl Readable for Cr4 {
@@ -114,7 +129,9 @@ impl Writeable for Cr0 {
     }
 }
 
+/// Control register CR4
 pub const CR4: Cr4 = Cr4;
+/// Control register CR0
 pub const CR0: Cr0 = Cr0;
 
 wrap_msr!(MsrIa32Efer, MSR_IA32_EFER, 0xC0000080, [

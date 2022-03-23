@@ -1,6 +1,7 @@
 use core::arch::asm;
 use core::mem::size_of_val;
 
+#[allow(dead_code)]
 #[repr(packed)]
 struct Entry {
     limit_lo: u16,
@@ -11,6 +12,7 @@ struct Entry {
     base_hi: u8,
 }
 
+#[allow(dead_code)]
 #[repr(packed)]
 struct Tss {
     __res0: u32,
@@ -30,6 +32,7 @@ struct Tss {
     iopb_base: u16,
 }
 
+#[allow(dead_code)]
 #[repr(packed)]
 struct Pointer {
     size: u16,
@@ -123,6 +126,14 @@ static mut GDT: [Entry; SIZE] = [
     Entry::null(),
 ];
 
+#[inline]
+unsafe fn load_gdt(ptr: &Pointer, tr: u16) {
+    asm!(r#"
+        lgdt ({})
+        ltr %ax
+    "#, in(reg) ptr, in("ax") tr, options(att_syntax));
+}
+
 pub unsafe fn init() {
     let tss_addr = &TSS as *const _ as usize;
 
@@ -138,10 +149,5 @@ pub unsafe fn init() {
         size: size_of_val(&GDT) as u16 - 1,
         offset: &GDT as *const _ as usize,
     };
-    asm!(r#"
-        lgdt ({})
-
-        mov $0x28, %ax
-        ltr %ax
-    "#, in(reg) &gdtr, options(att_syntax));
+    load_gdt(&gdtr, 0x28);
 }

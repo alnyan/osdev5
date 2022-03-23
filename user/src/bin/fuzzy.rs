@@ -1,10 +1,9 @@
-// #![feature(asm)]
 #![no_std]
 #![no_main]
-//
-// #![allow(unused_macros)]
-// #![allow(dead_code)]
-//
+
+#![allow(unused_macros)]
+#![allow(dead_code)]
+
 #[macro_use]
 extern crate libusr;
 

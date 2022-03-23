@@ -20,6 +20,8 @@ impl<T> InitOnce<T> {
         }
     }
 
+    /// Returns a reference to the initialized value, if one is present.
+    /// Returns [None] otherwise.
     pub fn as_ref_option(&self) -> Option<&T> {
         if self.is_initialized() {
             Some(self.get())
