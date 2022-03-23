@@ -43,23 +43,16 @@ cfg_if! {
     } else {
         #[inline(always)]
         fn is_el0_accessible(virt: usize, write: bool) -> bool {
-            // TODO implement this
-            use core::arch::asm;
-            let space = unsafe {
-                let mut cr3: usize;
-                asm!("mov %cr3, {}", out(reg) cr3, options(att_syntax));
-                &*(mem::virtualize(cr3) as *mut SpaceImpl)
-            };
-            let entry = space.read_last_level(virt & !0xFFF);
-            if let Ok(entry) = entry {
-                if write {
-                    entry.is_user_writable()
+            let proc = Process::current();
+            proc.manipulate_space(|space| {
+                let entry = space.read_last_level(virt & !0xFFF);
+                if let Ok(entry) = entry {
+                    // TODO is_user_readable()?
+                    entry.is_user_writable() || !write
                 } else {
-                    true
+                    false
                 }
-            } else {
-                false
-            }
+            })
         }
     }
 }

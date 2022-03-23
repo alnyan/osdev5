@@ -41,7 +41,6 @@ fn panic_handler(pi: &PanicInfo) -> ! {
     // TODO unwind to send panic argument back to parent thread
     // TODO print to stdout/stderr (if available)
     // let thread = thread::current();
-    // trace!(TraceLevel::Error, "{:?} panicked: {:?}", thread, pi);
-    loop {}
-    // sys::sys_exit(ExitCode::from(-1));
+    trace!(TraceLevel::Error, "{:?} panicked: {:?}", 0, pi);
+    sys::sys_exit(ExitCode::from(-1));
 }
