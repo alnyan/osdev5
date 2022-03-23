@@ -35,10 +35,24 @@ __x86_64_isr_common:
     mov %rsp, %rdi
     call __x86_64_exception_handler
 
-1:
-    cli
-    hlt
-    jmp 1b
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    pop %r11
+    pop %r10
+    pop %r9
+    pop %r8
+    pop %rdi
+    pop %rsi
+    pop %rbp
+    pop %rbx
+    pop %rdx
+    pop %rcx
+    pop %rax
+
+    add $16, %rsp
+    iretq
 
 isr_nerr 0
 isr_nerr 1

@@ -4,6 +4,14 @@ pub mod heap;
 pub mod phys;
 pub mod virt;
 
+cfg_if! {
+    if #[cfg(target_arch = "x86_64")] {
+        pub const USTACK_PADDING: usize = 8;
+    } else {
+        pub const USTACK_PADDING: usize = 0;
+    }
+}
+
 /// Virtual offset applied to kernel address space
 pub const KERNEL_OFFSET: usize = 0xFFFFFF8000000000;
 

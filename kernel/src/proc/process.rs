@@ -237,10 +237,10 @@ impl Process {
         let dst_space = src_inner.space.as_mut().unwrap().fork()?;
 
         let dst_space_phys = (dst_space as *mut _ as usize) - mem::KERNEL_OFFSET;
-        // let dst_ttbr0 = dst_space_phys | ((dst_id.asid() as usize) << 48);
+        let dst_ttbr0 = dst_space_phys | ((dst_id.asid() as usize) << 48);
 
         let mut threads = Vec::new();
-        let tid = Thread::fork(Some(dst_id), frame, dst_space_phys)?.id();
+        let tid = Thread::fork(Some(dst_id), frame, dst_ttbr0)?.id();
         threads.push(tid);
 
         let dst = Rc::new(Self {
@@ -290,7 +290,7 @@ impl Process {
         if let Some(space) = lock.space.take() {
             unsafe {
                 SpaceImpl::release(space);
-                // Process::invalidate_asid((lock.id.asid() as usize) << 48);
+                intrin::flush_tlb_asid((lock.id.asid() as usize) << 48);
             }
         }
 
@@ -481,13 +481,13 @@ impl Process {
             // TODO drop old context
             let ctx = thread.ctx.get();
             let asid = (process_lock.id.asid() as usize) << 48;
-            // Process::invalidate_asid(asid);
+            intrin::flush_tlb_asid(asid);
 
             ctx.write(Context::user(
                 entry,
                 arg,
                 new_space_phys | asid,
-                Self::USTACK_VIRT_TOP - 8,
+                Self::USTACK_VIRT_TOP - mem::USTACK_PADDING,
             ));
 
             drop(process_lock);

@@ -98,6 +98,7 @@ impl Context {
 
     /// Clones a process context from given `frame`
     pub fn fork(frame: &ForkFrame, cr3: usize) -> Self {
+        let cr3 = cr3 & 0xFFFFFFFF;
         let mut stack = Stack::new(8);
         let stack_top = stack.sp;
 

@@ -12,6 +12,8 @@ pub mod reg;
 pub mod timer;
 pub mod virt;
 
+pub use exception::ExceptionFrame as ForkFrame;
+
 cfg_if! {
     if #[cfg(feature = "mach_qemu")] {
         pub mod mach_qemu;

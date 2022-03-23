@@ -1,6 +1,11 @@
 //! AArch64 virtual memory management implementation
 
 use crate::mem::virt::table::MapAttributes;
+use cortex_a::{
+    asm::barrier::{self, isb, dsb},
+    registers::TTBR0_EL1
+};
+use tock_registers::interfaces::Writeable;
 
 mod fixed;
 mod table;
@@ -78,4 +83,15 @@ impl From<MapAttributes> for RawAttributesImpl {
 
         res
     }
+}
+
+pub unsafe fn enable() {
+    fixed::init_device_map();
+
+    dsb(barrier::ISH);
+    isb(barrier::SY);
+
+    // Disable lower-half translation
+    TTBR0_EL1.set(0);
+    //TCR_EL1.modify(TCR_EL1::EPD0::SET);
 }

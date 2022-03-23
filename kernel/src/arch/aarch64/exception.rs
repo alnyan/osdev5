@@ -59,7 +59,7 @@ const fn data_abort_access_size(iss: u64) -> &'static str {
 #[no_mangle]
 extern "C" fn __aa64_exc_irq_handler(_exc: &mut ExceptionFrame) {
     unsafe {
-        let ic = IrqContext::new();
+        let ic = IrqContext::new(0);
         machine::intc().handle_pending_irqs(&ic);
     }
 }

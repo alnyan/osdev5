@@ -88,16 +88,6 @@ pub fn enable() -> Result<(), Errno> {
     unsafe {
         virt_impl::enable();
     }
-    // unsafe {
-    //     virt_impl::init_device_map();
-
-    //     dsb(barrier::ISH);
-    //     isb(barrier::SY);
-    // }
-
-    // // Disable lower-half translation
-    // TTBR0_EL1.set(0);
-    // //TCR_EL1.modify(TCR_EL1::EPD0::SET);
 
     Ok(())
 }

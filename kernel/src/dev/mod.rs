@@ -3,13 +3,15 @@
 use libsys::error::Errno;
 
 // Device classes
-// pub mod fdt;
-// pub mod gpio;
+#[cfg(target_arch = "aarch64")]
+pub mod fdt;
+pub mod gpio;
 pub mod irq;
 pub mod display;
-// pub mod pci;
-// pub mod rtc;
-// pub mod sd;
+pub mod pci;
+pub mod rtc;
+#[cfg(target_arch = "aarch64")]
+pub mod sd;
 pub mod serial;
 pub mod timer;
 pub mod pseudo;

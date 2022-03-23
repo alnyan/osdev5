@@ -9,12 +9,12 @@ use fixed::KERNEL_FIXED;
 
 bitflags! {
     pub struct RawAttributesImpl: u64 {
-        const PRESENT = 1 << 0;
-        const WRITE = 1 << 1;
-        const USER = 1 << 2;
-        const BLOCK = 1 << 7;
+        const PRESENT = EntryImpl::PRESENT;
+        const WRITE = EntryImpl::WRITE;
+        const USER = EntryImpl::USER;
+        const BLOCK = EntryImpl::BLOCK;
         const GLOBAL = 1 << 8;
-        const EX_COW = 1 << 62;
+        const EX_COW = EntryImpl::EX_COW;
     }
 }
 

@@ -1,7 +1,7 @@
 //! System call argument ABI helpers
 
 use crate::arch::intrin;
-use crate::mem::{self, virt::table::Space};
+use crate::mem::{self, virt::table::{Entry, Space, SpaceImpl}};
 use crate::proc::Process;
 use core::alloc::Layout;
 use libsys::error::Errno;
@@ -29,6 +29,7 @@ cfg_if! {
     if #[cfg(target_arch = "aarch64")] {
         #[inline(always)]
         fn is_el0_accessible(virt: usize, write: bool) -> bool {
+            use core::arch::asm;
             let mut res: usize;
             unsafe {
                 if write {
@@ -43,7 +44,22 @@ cfg_if! {
         #[inline(always)]
         fn is_el0_accessible(virt: usize, write: bool) -> bool {
             // TODO implement this
-            true
+            use core::arch::asm;
+            let space = unsafe {
+                let mut cr3: usize;
+                asm!("mov %cr3, {}", out(reg) cr3, options(att_syntax));
+                &*(mem::virtualize(cr3) as *mut SpaceImpl)
+            };
+            let entry = space.read_last_level(virt & !0xFFF);
+            if let Ok(entry) = entry {
+                if write {
+                    entry.is_user_writable()
+                } else {
+                    true
+                }
+            } else {
+                false
+            }
         }
     }
 }
@@ -150,8 +166,11 @@ pub fn validate_ptr(base: usize, len: usize, write: bool) -> Result<(), Errno> {
             // It's possible a CoW page hasn't yet been cloned when trying
             // a write access
             let res = if write {
-                todo!();
                 process.manipulate_space(|space| {
+                    space.try_cow_copy(i * mem::PAGE_SIZE)?;
+                    unsafe {
+                        intrin::flush_tlb_virt(i * mem::PAGE_SIZE);
+                    }
                     Ok(())
                 })
             } else {

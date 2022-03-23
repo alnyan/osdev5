@@ -102,11 +102,11 @@ extern "C" fn __aa64_bsp_main(fdt_base: usize) -> ! {
 
     machine::init_board().unwrap();
 
-    #[cfg(feature = "verbose")]
-    if let Some(fdt) = fdt {
-        use crate::debug::Level;
-        fdt.dump(Level::Debug);
-    }
+    // #[cfg(feature = "verbose")]
+    // if let Some(fdt) = fdt {
+    //     use crate::debug::Level;
+    //     fdt.dump(Level::Debug);
+    // }
 
     devfs::add_named_char_device(&pseudo::ZERO, "zero").unwrap();
     devfs::add_named_char_device(&pseudo::RANDOM, "random").unwrap();

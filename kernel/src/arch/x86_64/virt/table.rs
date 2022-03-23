@@ -22,7 +22,15 @@ pub struct TableImpl {
 #[repr(transparent)]
 pub struct SpaceImpl(TableImpl);
 
-impl EntryImpl {}
+impl EntryImpl {
+    pub const PRESENT: u64 = 1 << 0;
+    pub const WRITE: u64 = 1 << 1;
+    pub const USER: u64 = 1 << 2;
+    pub const BLOCK: u64 = 1 << 7;
+    pub const EX_COW: u64 = 1 << 62;
+
+    pub const PHYS_MASK: u64 = 0x0000FFFFFFFFF000;
+}
 
 impl fmt::Debug for EntryImpl {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -39,17 +47,17 @@ impl Entry for EntryImpl {
 
     #[inline]
     fn normal(addr: usize, attrs: MapAttributes) -> Self {
-        Self((addr as u64) | RawAttributesImpl::from(attrs).bits() | (1 << 0))
+        Self((addr as u64) | RawAttributesImpl::from(attrs).bits() | EntryImpl::PRESENT)
     }
 
     #[inline]
     fn block(addr: usize, attrs: MapAttributes) -> Self {
-        Self((addr as u64) | RawAttributesImpl::from(attrs).bits() | (1 << 7) | (1 << 0))
+        Self((addr as u64) | RawAttributesImpl::from(attrs).bits() | EntryImpl::BLOCK | EntryImpl::PRESENT)
     }
 
     #[inline]
     fn address(self) -> usize {
-        (self.0 & !0xFFF) as usize
+        (self.0 & EntryImpl::PHYS_MASK) as usize
     }
 
     #[inline]
@@ -59,35 +67,36 @@ impl Entry for EntryImpl {
 
     #[inline]
     fn is_present(self) -> bool {
-        self.0 & (1 << 0) != 0
+        self.0 & EntryImpl::PRESENT != 0
     }
 
     #[inline]
     fn is_normal(self) -> bool {
-        self.0 & (1 << 7) == 0
+        self.0 & EntryImpl::BLOCK == 0
     }
 
     #[inline]
     fn fork_with_cow(&mut self) -> Self {
-        self.0 &= !(RawAttributesImpl::USER | RawAttributesImpl::WRITE).bits();
-        self.0 |= RawAttributesImpl::EX_COW.bits();
+        self.0 &= !EntryImpl::WRITE;
+        self.0 |= EntryImpl::EX_COW;
         *self
     }
 
     #[inline]
     fn copy_from_cow(self, new_addr: usize) -> Self {
-        todo!()
+        let attrs = self.0 & !(Self::PHYS_MASK | Self::EX_COW);
+        Self(((new_addr as u64) & Self::PHYS_MASK) | (attrs | Self::WRITE))
     }
 
     #[inline]
     fn is_cow(self) -> bool {
-        todo!()
+        self.0 & EntryImpl::EX_COW != 0
     }
 
     #[inline]
     fn is_user_writable(self) -> bool {
-        let bits = RawAttributesImpl::USER | RawAttributesImpl::WRITE;
-        self.0 & bits.bits() != bits.bits()
+        const BITS: u64 = EntryImpl::USER | EntryImpl::WRITE;
+        self.0 & BITS == BITS
     }
 }
 
@@ -159,6 +168,7 @@ impl Space for SpaceImpl {
                     if let Some(pt) = pd.next_level_table_mut(pdi) {
                         for pti in 0..512 {
                             let entry = &mut pt[pti];
+                            let virt_addr = (pdpti << 30) | (pdi << 21) | (pti << 12);
 
                             if !entry.is_present() {
                                 continue;
@@ -166,36 +176,36 @@ impl Space for SpaceImpl {
 
                             assert!(entry.is_normal());
                             let src_phys = entry.address();
-                            let virt_addr = (pdpti << 30) | (pdi << 21) | (pti << 12);
+
+                            // let dst_phys = phys::alloc_page(PageUsage::UserPrivate)?;
+                            // unsafe {
+                            //     use libsys::mem::memcpy;
+                            //     memcpy(
+                            //         mem::virtualize(dst_phys) as *mut u8,
+                            //         mem::virtualize(src_phys) as *const u8,
+                            //         4096
+                            //     );
+                            // }
+
+                            // debugln!("Clone page {:#x}", virt_addr);
+                            // let new_entry = EntryImpl::normal(dst_phys, MapAttributes::USER_WRITE | MapAttributes::USER_READ);
 
                             // TODO check exact page usage
-                            let dst_phys = unsafe { phys::alloc_page(PageUsage::UserPrivate)? };
-                            let new_entry = EntryImpl::normal(dst_phys, MapAttributes::USER_WRITE | MapAttributes::USER_READ);
+                            let dst_phys = unsafe { phys::fork_page(src_phys)? };
+
+                            let new_entry = if dst_phys != src_phys {
+                                todo!()
+                            } else if entry.is_user_writable() {
+                                entry.fork_with_cow()
+                            } else {
+                                *entry
+                            };
 
                             unsafe {
-                                libsys::mem::memcpy(
-                                    mem::virtualize(dst_phys) as *mut u8,
-                                    mem::virtualize(src_phys) as *const u8,
-                                    0x1000
-                                );
+                                use core::arch::asm;
                                 res.write_last_level(virt_addr, new_entry, true, false)?;
+                                asm!("invlpg ({})", in(reg) virt_addr, options(att_syntax));
                             }
-
-                            // let dst_phys = unsafe { phys::fork_page(src_phys)? };
-
-                            // let new_entry = if dst_phys != src_phys {
-                            //     todo!()
-                            // } else if entry.is_user_writable() {
-                            //     entry.fork_with_cow()
-                            // } else {
-                            //     *entry
-                            // };
-
-                            // unsafe {
-                            //     use core::arch::asm;
-                            //     asm!("invlpg ({})", in(reg) virt_addr, options(att_syntax));
-                            //     res.write_last_level(virt_addr, new_entry, true, false)?;
-                            // }
                         }
                     }
                 }
@@ -220,7 +230,7 @@ impl Space for SpaceImpl {
         let l1_table = l0_table.next_level_table_or_alloc(l1i)?;
         let l2_table = l1_table.next_level_table_or_alloc(l2i)?;
 
-        if l2_table[l3i].is_present() {
+        if l2_table[l3i].is_present() && !overwrite {
             warnln!(
                 "Entry already exists for address: virt={:#x}, prev={:#x}, new={:#x}",
                 virt,

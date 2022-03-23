@@ -18,7 +18,7 @@ pub unsafe fn irq_disable() {
 /// Unsafe: requires ring 0
 #[inline(always)]
 pub unsafe fn flush_tlb_virt(addr: usize) {
-    todo!()
+    asm!("invlpg ({})", in(reg) addr, options(att_syntax));
 }
 
 /// Discards all entries related to `asid` from TLB cache
@@ -28,9 +28,7 @@ pub unsafe fn flush_tlb_virt(addr: usize) {
 /// Only safe to use for known [Process]es and their ASIDs
 // TODO actually implement this on x86-64
 #[inline(always)]
-pub unsafe fn flush_tlb_asid(asid: usize) {
-    todo!()
-}
+pub unsafe fn flush_tlb_asid(asid: usize) {}
 
 #[inline(always)]
 pub unsafe fn rdmsr(a: u32) -> u64 {

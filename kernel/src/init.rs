@@ -11,9 +11,6 @@ use vfs::{Filesystem, Ioctx};
 /// Kernel init process function
 #[inline(never)]
 pub extern "C" fn init_fn(_arg: usize) -> ! {
-    unsafe {
-        core::arch::asm!("cli");
-    }
     let proc = Process::current();
 
     debugln!("Running kernel init process");

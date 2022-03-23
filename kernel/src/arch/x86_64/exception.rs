@@ -1,4 +1,4 @@
-use crate::arch::x86_64;
+use crate::arch::{intrin, x86_64};
 use crate::debug::Level;
 use crate::dev::irq::{IntController, IrqContext};
 use core::arch::{asm, global_asm};
@@ -65,16 +65,17 @@ fn pfault_dump(level: Level, frame: &ExceptionFrame, cr2: usize) {
 extern "C" fn __x86_64_exception_handler(frame: &mut ExceptionFrame) {
     if frame.err_no == 14 {
         let cr2 = pfault_read_cr2() as usize;
+        let is_write = frame.err_code & (1 << 1) != 0;
 
-        if cr2 < mem::KERNEL_OFFSET && sched::is_ready() {
+        if is_write && cr2 < mem::KERNEL_OFFSET && sched::is_ready() {
             let thread = Thread::current();
             let proc = thread.owner().unwrap();
 
             let res = proc.manipulate_space(|space| {
-                space.try_cow_copy(cr2)?;
-                // unsafe {
-                //     intrin::flush_tlb_asid(asid);
-                // }
+                space.try_cow_copy(cr2 & !0xFFF)?;
+                unsafe {
+                    intrin::flush_tlb_virt(cr2 & !0xFFF);
+                }
                 Result::<(), Errno>::Ok(())
             });
 
