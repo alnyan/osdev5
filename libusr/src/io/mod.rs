@@ -1,7 +1,7 @@
+use crate::sys::{sys_fstatat, sys_ioctl};
 use core::fmt;
 use core::mem::size_of;
 use libsys::{
-    calls::{sys_fstatat, sys_ioctl},
     error::Errno,
     ioctl::IoctlCmd,
     proc::Pid,

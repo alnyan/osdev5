@@ -1,10 +1,6 @@
+use crate::sys::{sys_ex_sigreturn, sys_exit};
 use crate::trace;
-use libsys::{
-    calls::{sys_ex_sigreturn, sys_exit},
-    debug::TraceLevel,
-    proc::ExitCode,
-    signal::Signal,
-};
+use libsys::{debug::TraceLevel, proc::ExitCode, signal::Signal};
 
 #[derive(Clone, Copy)]
 pub enum SignalHandler {

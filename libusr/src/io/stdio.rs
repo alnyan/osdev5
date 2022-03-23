@@ -1,10 +1,8 @@
 use crate::io::{Error, Read, Write};
 use crate::sync::Mutex;
+use crate::sys::{sys_read, sys_write};
 use core::fmt;
-use libsys::{
-    calls::{sys_read, sys_write},
-    stat::FileDescriptor,
-};
+use libsys::stat::FileDescriptor;
 
 struct InputInner {
     fd: FileDescriptor,

@@ -1,8 +1,8 @@
 use core::alloc::{GlobalAlloc, Layout};
 use core::mem::{size_of, MaybeUninit};
 use core::ptr::null_mut;
+use crate::sys::{sys_mmap, sys_munmap};
 use libsys::{
-    calls::{sys_mmap, sys_munmap},
     error::Errno,
     proc::{MemoryAccess, MemoryMap},
 };

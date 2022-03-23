@@ -1,8 +1,6 @@
 use crate::io::{AsRawFd, Error, Read};
-use libsys::{
-    calls::{sys_close, sys_openat, sys_read},
-    stat::{FileDescriptor, FileMode, OpenFlags},
-};
+use crate::sys::{sys_close, sys_openat, sys_read};
+use libsys::stat::{FileDescriptor, FileMode, OpenFlags};
 
 pub struct File {
     fd: FileDescriptor,

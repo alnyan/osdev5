@@ -70,7 +70,7 @@ impl<const N: usize> fmt::Display for FixedStr<N> {
     }
 }
 
-#[cfg(feature = "user")]
-pub mod calls;
-#[cfg(feature = "user")]
-pub use calls::*;
+// #[cfg(feature = "user")]
+// pub mod calls;
+// #[cfg(feature = "user")]
+// pub use calls::*;
