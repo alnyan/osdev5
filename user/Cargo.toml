@@ -17,9 +17,9 @@ path = "src/bin/mkdir.rs"
 name = "shell"
 path = "src/bin/shell.rs"
 
-# [[bin]]
-# name = "fuzzy"
-# path = "src/bin/fuzzy.rs"
+[[bin]]
+name = "fuzzy"
+path = "src/bin/fuzzy.rs"
 
 [[bin]]
 name = "ls"
