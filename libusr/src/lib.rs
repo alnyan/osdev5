@@ -9,6 +9,9 @@ extern crate alloc;
 use core::panic::PanicInfo;
 use libsys::{debug::TraceLevel, proc::ExitCode, ProgramArgs};
 
+#[macro_use]
+pub mod arch;
+
 mod allocator;
 pub mod env;
 pub mod file;
