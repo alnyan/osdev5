@@ -115,7 +115,7 @@ impl Ioctx {
         opts: OpenFlags,
     ) -> Result<FileRef, Errno> {
         let node = match self.find(at.clone(), path, true) {
-            Err(Errno::DoesNotExist) => {
+            Err(Errno::DoesNotExist) if opts.contains(OpenFlags::O_CREAT) => {
                 let (parent, name) = path_component_right(path);
                 let at = self.find(at, parent, true)?;
                 at.create(name, mode, VnodeCreateKind::File)
